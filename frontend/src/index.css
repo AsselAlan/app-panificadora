@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand Palette */
+  --color-brand-muted: #6387A6;
+  --color-brand-navy: #024873;
+  --color-brand-deep: #184059;
+  --color-brand-orange: #D99559;
+  --color-brand-peach: #F2B5A7;
+
+  /* Semantic Layout Colors */
+  --color-bg-app: #F8FAFC; /* Light gray/slate for app background */
+  --color-bg-surface: #FFFFFF; /* White for cards */
+}
+
+/* Custom Scrollbar for Light Theme */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-brand-muted);
+  border-radius: 10px;
+  opacity: 0.5;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-navy);
+}
+
+body {
+  background-color: var(--color-bg-app);
+  color: var(--color-brand-deep);
+}
