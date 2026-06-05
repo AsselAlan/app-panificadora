@@ -3,7 +3,7 @@ import {
   TrendingUp, TrendingDown, Wallet, Store, Activity, Users, 
   ClipboardList, Package, LogOut, Truck,
   Plus, Minus, ShoppingCart, Printer, Banknote, CreditCard,
-  X, Calendar, Clock, History, BarChart, MapPin, Map, ArrowUp, ArrowDown, Trash2, Box
+  X, Calendar, Clock, History, BarChart, MapPin, Map, ArrowUp, ArrowDown, Trash2
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { Product } from '../store/useStore'
@@ -715,9 +715,7 @@ const AdminDrivers: React.FC = () => {
 
           const progressPercent = assignedClientsCount === 0 ? 0 : Math.min(100, Math.round((visitedClientsCount / assignedClientsCount) * 100))
           
-          let statusColor = 'bg-brand-muted text-white'
-          if (d.status === 'En Ruta') statusColor = 'bg-brand-orange text-white'
-          if (d.status === 'Finalizado') statusColor = 'bg-green-500 text-white'
+          // const statusColor = d.status === 'En Ruta' ? 'bg-brand-orange text-white' : d.status === 'Finalizado' ? 'bg-green-500 text-white' : 'bg-brand-muted text-white'
 
           const progressColor = progressPercent === 100 ? 'bg-green-500' : 'bg-brand-orange'
 
@@ -947,7 +945,7 @@ const ClientProfileModal: React.FC<{ client: any, onClose: () => void }> = ({ cl
                             <span className="w-5 h-5 rounded-md bg-brand-muted/10 flex items-center justify-center text-[10px] font-bold text-brand-muted">{index + 1}</span>
                             <span className="text-sm text-brand-deep/80 truncate max-w-[120px]" title={name}>{name}</span>
                           </div>
-                          <span className="font-bold text-brand-deep text-sm">{qty} u.</span>
+                          <span className="font-bold text-brand-deep text-sm">{qty as number} u.</span>
                         </div>
                       ))}
                     </div>
@@ -1919,7 +1917,7 @@ const AdminProducts: React.FC = () => {
 // ==========================================
 
 const AdminRoutes: React.FC = () => {
-  const { drivers, clients, weeklyRoutes, products, fetchInitialData } = useStore()
+  const { drivers, clients, weeklyRoutes, fetchInitialData } = useStore()
   
   const [selectedDay, setSelectedDay] = useState<number>(new Date().getDay() === 0 ? 7 : new Date().getDay())
   const [selectedDriverId, setSelectedDriverId] = useState<string>('')

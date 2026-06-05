@@ -205,7 +205,7 @@ interface DriverHomeProps {
 }
 
 const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onSelectDifferentDriver }) => {
-  const { products, weeklyRoutes, clients, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue } = useStore()
+  const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue } = useStore()
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [hasConfirmedLoad, setHasConfirmedLoad] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
@@ -602,9 +602,7 @@ const DriverClients: React.FC<DriverClientsProps> = ({ onBack, onSelectClient })
   const todayJS = new Date().getDay()
   const todayISO = todayJS === 0 ? 7 : todayJS
 
-  const driverRouteClientsCount = useMemo(() => {
-    return weeklyRoutes.filter(r => r.driver_id === currentDriverId && r.day_of_week === todayISO && r.stop_type === 'client').length
-  }, [weeklyRoutes, currentDriverId, todayISO])
+
 
   const filteredClients = useMemo(() => {
     const routeClientIds = weeklyRoutes
@@ -851,7 +849,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     if (generatedTicket.payment_account !== 0) text += `📝 A Cuenta Corriente: $${generatedTicket.payment_account}\n`
     text += `\n¡Gracias por elegirnos!`
 
-    window.open(`https://wa.me/${client.phone_email?.phone || ''}?text=${encodeURIComponent(text)}`, '_blank')
+    window.open(`https://wa.me/${client.phone || ''}?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   // Vista de Ticket generado
