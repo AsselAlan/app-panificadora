@@ -261,6 +261,20 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [hasConfirmedLoad, setHasConfirmedLoad] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
+  const [showFullStockModal, setShowFullStockModal] = useState(false)
+  const [stockSearchTerm, setStockSearchTerm] = useState('')
+
+  const filteredLoads = useMemo(() => {
+    return loads.filter(load => {
+      const p = products.find(prod => prod.id === load.product_id)
+      if (!p) return false
+      return p.name.toLowerCase().includes(stockSearchTerm.toLowerCase())
+    })
+  }, [loads, products, stockSearchTerm])
+
+  const displayedLoads = useMemo(() => {
+    return loads.slice(0, 3)
+  }, [loads])
 
   const todayJS = new Date().getDay()
   const todayISO = todayJS === 0 ? 7 : todayJS
@@ -661,7 +675,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
         </div>
 
         {/* Stock en Camioneta */}
-        <div className="bg-white rounded-3xl p-5 border border-brand-muted/10 shadow-sm">
+        <div className="bg-white rounded-3xl p-5 border border-brand-muted/10 shadow-sm flex flex-col">
           <h3 className="text-xs font-black text-brand-deep uppercase tracking-wider pb-2.5 border-b border-brand-muted/10 flex items-center gap-2">
             <Package size={16} className="text-brand-navy" /> Stock a Bordo (Camioneta)
           </h3>
@@ -669,7 +683,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
             {loads.length === 0 ? (
               <p className="text-xs text-brand-muted italic py-2">Sin stock cargado en camioneta.</p>
             ) : (
-              loads.map(load => {
+              displayedLoads.map(load => {
                 const p = products.find(prod => prod.id === load.product_id)
                 if (!p) return null
                 const reserved = remainingPedidosFijos[p.id] || 0
@@ -690,6 +704,17 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
               })
             )}
           </div>
+          {loads.length > 0 && (
+            <button 
+              onClick={() => {
+                setStockSearchTerm('')
+                setShowFullStockModal(true)
+              }}
+              className="w-full mt-3 pt-2.5 border-t border-brand-muted/10 text-center text-xs font-bold text-brand-navy hover:text-brand-navy/80 transition-colors flex items-center justify-center gap-1 active:scale-95"
+            >
+              Ver stock completo {loads.length > 3 && `(${loads.length} productos)`} <ChevronRight size={14} className="mt-0.5" />
+            </button>
+          )}
         </div>
 
         {/* Finalizar Recorrido */}
@@ -700,6 +725,85 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
           <LogOut size={18} /> Finalizar Ruta y Cerrar Caja
         </button>
       </div>
+
+      {/* Modal Stock Completo */}
+      {showFullStockModal && (
+        <div className="absolute inset-0 bg-bg-app/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-md animate-in fade-in">
+          <div className="bg-bg-surface shadow-sm border-t sm:border border-brand-muted/20 rounded-t-3xl sm:rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="p-5 border-b border-brand-muted/20 bg-brand-navy/5 rounded-t-3xl flex justify-between items-center text-brand-deep">
+              <div>
+                <h3 className="font-bold text-brand-deep text-lg flex items-center gap-2">
+                  <Package size={20} className="text-brand-navy"/> Stock en Camioneta
+                </h3>
+                <p className="text-xs text-brand-muted mt-0.5">Listado completo de mercadería a bordo.</p>
+              </div>
+              <button 
+                onClick={() => setShowFullStockModal(false)} 
+                className="text-brand-muted/80 hover:bg-brand-muted/10 p-1.5 rounded-full"
+              >
+                <X size={18}/>
+              </button>
+            </div>
+            
+            {/* Buscador de Stock */}
+            <div className="p-4 border-b border-brand-muted/10 bg-slate-50/50">
+              <div className="relative">
+                <input 
+                  type="text" 
+                  placeholder="Buscar producto..." 
+                  value={stockSearchTerm}
+                  onChange={e => setStockSearchTerm(e.target.value)}
+                  className="w-full bg-white border border-brand-muted/20 rounded-xl pl-10 pr-4 py-2.5 text-xs text-brand-deep outline-none focus:border-brand-navy transition-colors shadow-sm"
+                />
+                <Search size={14} className="absolute left-3.5 top-3.5 text-brand-muted" />
+              </div>
+            </div>
+
+            <div className="p-5 overflow-y-auto flex-1 space-y-3 bg-slate-50/50">
+              {filteredLoads.length === 0 ? (
+                <p className="text-xs text-brand-muted text-center py-6 italic">No se encontraron productos.</p>
+              ) : (
+                filteredLoads.map(load => {
+                  const p = products.find(prod => prod.id === load.product_id)
+                  if (!p) return null
+                  const reserved = remainingPedidosFijos[p.id] || 0
+                  const availableForMostrador = Math.max(0, load.current_quantity - reserved)
+
+                  return (
+                    <div key={load.id} className="bg-white p-3 rounded-2xl border border-brand-muted/10 shadow-sm flex flex-col gap-1.5 hover:border-brand-navy/30 transition-all">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-xs text-brand-deep">{p.name}</span>
+                        <span className="font-black text-xs text-brand-navy bg-brand-navy/5 border border-brand-navy/10 px-2.5 py-1 rounded-lg">
+                          {load.current_quantity} <span className="text-[9px] text-brand-navy/70 font-bold uppercase">{p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bols' : p.unit_type}</span>
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold text-brand-muted border-t border-brand-muted/5 pt-2 mt-0.5">
+                        <div className="flex flex-col bg-slate-50/80 p-1.5 rounded-lg border border-slate-100">
+                          <span className="text-[8px] uppercase tracking-wider text-brand-muted/80">Reservado Pedidos</span>
+                          <span className="font-black text-brand-deep text-xs mt-0.5">{reserved}</span>
+                        </div>
+                        <div className="flex flex-col bg-slate-50/80 p-1.5 rounded-lg border border-slate-100">
+                          <span className="text-[8px] uppercase tracking-wider text-brand-muted/80">Libre Mostrador</span>
+                          <span className={`font-black text-xs mt-0.5 ${availableForMostrador > 0 ? 'text-green-600 font-extrabold' : 'text-brand-muted'}`}>{availableForMostrador}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-brand-muted/20 bg-white rounded-b-3xl">
+              <button 
+                onClick={() => setShowFullStockModal(false)}
+                className="w-full bg-brand-navy hover:bg-brand-navy/90 text-white font-bold py-3.5 rounded-xl transition-all text-sm shadow-md"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Nuevo Gasto */}
       {showExpenseModal && (
