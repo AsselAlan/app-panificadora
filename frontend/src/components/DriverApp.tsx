@@ -1698,22 +1698,20 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
         </div>
 
         {/* Saldo en Cuenta Corriente */}
-        {totalAccountSales !== 0 && (
-          <div className="bg-white rounded-2xl p-4 border border-brand-muted/10 shadow-sm flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-orange-50 text-orange-500 border border-orange-100 rounded-xl flex items-center justify-center">
-                <ClipboardCheck size={16} />
-              </div>
-              <div>
-                <span className="text-[9px] text-brand-muted font-bold uppercase tracking-wider">Cargado a Cuenta Corriente</span>
-                <p className="text-[10px] text-brand-muted font-medium mt-0.5">Ventas a crédito hoy</p>
-              </div>
+        <div className="bg-white rounded-2xl p-4 border border-brand-muted/10 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-orange-50 text-orange-500 border border-orange-100 rounded-xl flex items-center justify-center">
+              <ClipboardCheck size={16} />
             </div>
-            <p className={`text-sm font-black ${totalAccountSales > 0 ? 'text-orange-500' : 'text-green-500'}`}>
-              {totalAccountSales > 0 ? `+` : ''}${totalAccountSales.toLocaleString()}
-            </p>
+            <div>
+              <span className="text-[9px] text-brand-muted font-bold uppercase tracking-wider">Cargado a Cuenta Corriente</span>
+              <p className="text-[10px] text-brand-muted font-medium mt-0.5">Ventas a crédito hoy</p>
+            </div>
           </div>
-        )}
+          <p className={`text-sm font-black ${totalAccountSales > 0 ? 'text-orange-500' : totalAccountSales < 0 ? 'text-green-500' : 'text-brand-muted'}`}>
+            {totalAccountSales > 0 ? `+` : ''}${totalAccountSales.toLocaleString()}
+          </p>
+        </div>
 
         {/* Listado de Tickets */}
         <div className="space-y-2.5">
