@@ -121,3 +121,17 @@ drop policy if exists "Allow admin or self read expenses" on public.expenses;
 drop policy if exists "Allow authenticated insert expenses" on public.expenses;
 create policy "Allow public read expenses" on public.expenses for select using (true);
 create policy "Allow public insert expenses" on public.expenses for insert with check (true);
+
+-- 8. INSERTAR CATEGORÍAS DE GASTOS DE REPARTIDORES
+insert into public.driver_expense_categories (name, color) values
+('Combustible', '#ef4444'),
+('Reparación / Taller', '#f59e0b'),
+('Peaje', '#3b82f6'),
+('Varios', '#10b981')
+on conflict (name) do nothing;
+
+-- 9. AJUSTAR RLS DE CATEGORÍAS DE GASTOS DE REPARTIDORES
+drop policy if exists "Allow public read driver_expense_categories" on public.driver_expense_categories;
+drop policy if exists "Allow public write driver_expense_categories" on public.driver_expense_categories;
+create policy "Allow public read driver_expense_categories" on public.driver_expense_categories for select using (true);
+create policy "Allow public write driver_expense_categories" on public.driver_expense_categories for all using (true);

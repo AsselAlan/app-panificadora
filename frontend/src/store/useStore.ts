@@ -127,6 +127,7 @@ interface AppState {
   weeklyRoutes: any[];
   expenses: Expense[];
   expenseCategories: any[];
+  driverExpenseCategories: any[];
   
   // Estado operativo actual
   currentDriverId: string | null;
@@ -169,6 +170,7 @@ export const useStore = create<AppState>()(
       weeklyRoutes: [],
       expenses: [],
       expenseCategories: [],
+      driverExpenseCategories: [],
       currentDriverId: null,
       isOffline: !navigator.onLine,
       isSyncing: false,
@@ -193,6 +195,7 @@ export const useStore = create<AppState>()(
         weeklyRoutes: [],
         expenses: [],
         expenseCategories: [],
+        driverExpenseCategories: [],
         currentDriverId: null,
         syncQueue: []
       }),
@@ -202,14 +205,15 @@ export const useStore = create<AppState>()(
         if (get().isOffline) return
 
         try {
-          const [resProd, resCli, resDriv, resExp, resSal, resCat, resRoutes] = await Promise.all([
+          const [resProd, resCli, resDriv, resExp, resSal, resCat, resRoutes, resDriverCat] = await Promise.all([
             supabase.from('products').select('*').eq('is_deleted', false).order('name'),
             supabase.from('clients').select('*').eq('is_deleted', false).order('business_name'),
             supabase.from('drivers').select('*').eq('is_deleted', false).order('full_name'),
             supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(50),
             supabase.from('sales').select('*').order('transaction_date', { ascending: false }).limit(500),
             supabase.from('expense_categories').select('*').order('name'),
-            supabase.from('weekly_routes').select('*')
+            supabase.from('weekly_routes').select('*'),
+            supabase.from('driver_expense_categories').select('*').order('name')
           ])
 
           if (resProd.error) throw resProd.error
@@ -217,6 +221,7 @@ export const useStore = create<AppState>()(
           if (resDriv.error) throw resDriv.error
           if (resExp.error) throw resExp.error
           if (resRoutes.error) throw resRoutes.error
+          if (resDriverCat.error) throw resDriverCat.error
 
           set({
             products: resProd.data || [],
@@ -225,7 +230,8 @@ export const useStore = create<AppState>()(
             expenses: resExp.data || [],
             sales: resSal.data || [],
             expenseCategories: resCat.data || [],
-            weeklyRoutes: resRoutes.data || []
+            weeklyRoutes: resRoutes.data || [],
+            driverExpenseCategories: resDriverCat.data || []
           })
         } catch (error) {
           console.error('Error cargando datos iniciales de Supabase:', error)

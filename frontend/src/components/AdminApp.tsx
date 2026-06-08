@@ -1449,12 +1449,14 @@ const AdminClients: React.FC = () => {
 // SECCIÓN A.5: GASTOS OPERATIVOS
 // ==========================================
 const AdminExpenses: React.FC = () => {
-  const { expenses, expenseCategories, fetchInitialData } = useStore()
+  const { expenses, expenseCategories, driverExpenseCategories, fetchInitialData } = useStore()
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
   const [newCategoryName, setNewCategoryName] = useState('')
   const [newCategoryColor, setNewCategoryColor] = useState('#3b82f6')
+  const [newDriverCategoryName, setNewDriverCategoryName] = useState('')
+  const [newDriverCategoryColor, setNewDriverCategoryColor] = useState('#3b82f6')
 
   // Seteamos la categoría por defecto cuando cargan las categorías
   useEffect(() => {
@@ -1541,6 +1543,55 @@ const AdminExpenses: React.FC = () => {
         if (error) throw error
         fetchInitialData()
         Swal.fire('Eliminada', 'La categoría ha sido eliminada.', 'success')
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Error', 'No se pudo eliminar la categoría.', 'error')
+      }
+    }
+  }
+
+  const handleAddDriverCategory = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const catName = newDriverCategoryName.trim()
+    if (!catName) return
+
+    try {
+      const { error } = await supabase.from('driver_expense_categories').insert([
+        { name: catName, color: newDriverCategoryColor }
+      ])
+      if (error) {
+        if (error.code === '23505') throw new Error('La categoría ya existe')
+        throw error
+      }
+
+      setNewDriverCategoryName('')
+      setNewDriverCategoryColor('#3b82f6')
+      fetchInitialData()
+      Swal.fire('Categoría Creada', `La categoría de repartidor "${catName}" ha sido creada.`, 'success')
+    } catch (err: any) {
+      console.error(err)
+      Swal.fire('Error', err.message || 'No se pudo crear la categoría.', 'error')
+    }
+  }
+
+  const handleDeleteDriverCategory = async (id: string, name: string) => {
+    const result = await Swal.fire({
+      title: '¿Eliminar categoría?',
+      text: `Se eliminará la categoría de repartidor "${name}". Los gastos ya registrados por choferes no se verán afectados.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    })
+
+    if (result.isConfirmed) {
+      try {
+        const { error } = await supabase.from('driver_expense_categories').delete().eq('id', id)
+        if (error) throw error
+        fetchInitialData()
+        Swal.fire('Eliminada', 'La categoría de repartidor ha sido eliminada.', 'success')
       } catch (err) {
         console.error(err)
         Swal.fire('Error', 'No se pudo eliminar la categoría.', 'error')
@@ -1673,6 +1724,66 @@ const AdminExpenses: React.FC = () => {
               </div>
             ))}
             {expenseCategories.length === 0 && (
+              <div className="text-xs text-brand-muted/60 text-center py-2">No hay categorías</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Carga de nueva categoría de Repartidores */}
+      <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl p-6 h-fit">
+        <h3 className="font-bold text-brand-deep text-base mb-1 flex items-center gap-2"><Truck size={18} className="text-brand-orange"/> Categorías Repartidores</h3>
+        <p className="text-xs text-brand-muted/80 mb-5">Gestione los tipos de gastos disponibles para choferes en ruta</p>
+        
+        <form onSubmit={handleAddDriverCategory} className="space-y-4">
+          <div>
+            <input 
+              type="text" 
+              required
+              value={newDriverCategoryName}
+              onChange={e => setNewDriverCategoryName(e.target.value)}
+              placeholder="Ej: Combustible, Peaje..."
+              className="w-full bg-brand-muted/5 border border-brand-muted/30 rounded-xl p-3 text-sm text-brand-deep outline-none mb-3"
+            />
+            
+            <div className="flex flex-wrap gap-2">
+              {PALETTE.map(color => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setNewDriverCategoryColor(color)}
+                  className={`w-6 h-6 rounded-full flex-shrink-0 transition-all ${newDriverCategoryColor === color ? 'ring-2 ring-brand-orange ring-offset-2 scale-110' : 'hover:scale-110 opacity-70 hover:opacity-100'}`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
+          <button type="submit" className="w-full bg-brand-orange hover:bg-brand-orange/90 text-white font-bold py-3 rounded-xl transition-colors text-sm">
+            Añadir Categoría
+          </button>
+        </form>
+
+        {/* Lista de Categorías de Repartidores */}
+        <div className="mt-6 border-t border-brand-muted/20 pt-4">
+          <h4 className="text-[10px] font-bold text-brand-muted uppercase tracking-wider mb-3">Categorías Registradas</h4>
+          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+            {driverExpenseCategories?.map(c => (
+              <div key={c.id} className="flex items-center justify-between bg-bg-app border border-brand-muted/10 p-2.5 rounded-xl">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-3.5 h-3.5 rounded-full shadow-sm" style={{ backgroundColor: c.color }}></div>
+                  <span className="text-sm font-bold text-brand-deep">{c.name}</span>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => handleDeleteDriverCategory(c.id, c.name)}
+                  className="text-red-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                  title="Eliminar categoría de repartidor"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+            {(!driverExpenseCategories || driverExpenseCategories.length === 0) && (
               <div className="text-xs text-brand-muted/60 text-center py-2">No hay categorías</div>
             )}
           </div>

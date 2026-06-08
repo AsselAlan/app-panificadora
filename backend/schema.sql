@@ -340,3 +340,15 @@ create table public.expense_categories (
 alter table public.expense_categories enable row level security;
 create policy "Allow public read expense_categories" on public.expense_categories for select using (true);
 create policy "Allow public write expense_categories" on public.expense_categories for all using (true) with check (true);
+
+-- Categorías de gastos de repartidores
+create table public.driver_expense_categories (
+    id uuid primary key default uuid_generate_v4(),
+    name varchar(100) not null unique,
+    color varchar(7) not null default '#ef4444',
+    created_at timestamptz not null default now()
+);
+
+alter table public.driver_expense_categories enable row level security;
+create policy "Allow public read driver_expense_categories" on public.driver_expense_categories for select using (true);
+create policy "Allow public write driver_expense_categories" on public.driver_expense_categories for all using (true) with check (true);

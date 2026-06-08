@@ -22,9 +22,10 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
    - Función RPC transaccional `process_offline_sale` funcionando para procesar sincronizaciones offline-first y evitar ventas duplicadas.
    - **Ajuste temporal de RLS (Row Level Security)**: Dado que la v0.1 no cuenta con un sistema de login y roles estricto, se relajaron las políticas en la tabla `expense_categories` y otras tablas operativas para permitir operaciones "Anónimas" (públicas) temporales.
 
-4. **Gestión de Gastos**:
-   - Implementado el creador dinámico de categorías de gastos en el panel de Administración.
-   - Opción para eliminar categorías y visualizarlas en lista.
+4. **Gestión de Gastos y Categorías de Repartidores**:
+   - Implementado el creador dinámico de categorías de gastos en el panel de Administración, dividiendo el flujo en gastos de Administración Central y gastos de Repartidores (choferes).
+   - Los choferes en ruta ahora pueden seleccionar de manera dinámica las categorías creadas por la administración al registrar un gasto en calle.
+   - Opción para eliminar categorías (tanto centrales como de repartidores) y visualizarlas en lista, respetando los datos históricos mediante almacenamiento de texto en las transacciones.
 
 5. **Gestión de Productos**:
    - Agregada funcionalidad para pausar/reanudar productos (ocultándolos en las camionetas de los repartidores).

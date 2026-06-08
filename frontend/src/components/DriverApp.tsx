@@ -205,7 +205,7 @@ interface DriverHomeProps {
 }
 
 const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onSelectDifferentDriver }) => {
-  const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue } = useStore()
+  const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories } = useStore()
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [hasConfirmedLoad, setHasConfirmedLoad] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
@@ -222,9 +222,15 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onSelectDiff
 
   // States de gasto
   const [expAmount, setExpAmount] = useState('')
-  const [expCategory, setExpCategory] = useState('Combustible')
+  const [expCategory, setExpCategory] = useState('')
   const [expDesc, setExpDesc] = useState('')
   const [expMethod, setExpMethod] = useState<'efectivo' | 'transferencia'>('efectivo')
+
+  useEffect(() => {
+    if (driverExpenseCategories && driverExpenseCategories.length > 0 && !expCategory) {
+      setExpCategory(driverExpenseCategories[0].name)
+    }
+  }, [driverExpenseCategories, expCategory])
 
   const driverRouteClientsCount = useMemo(() => {
     return weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client').length
@@ -521,10 +527,18 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onSelectDiff
                   onChange={e => setExpCategory(e.target.value)} 
                   className="w-full bg-brand-muted/10 border border-brand-muted/30 text-brand-deep rounded-xl p-3 font-semibold text-sm outline-none focus:ring-1 focus:ring-red-500"
                 >
-                  <option value="Combustible">Combustible</option>
-                  <option value="Reparación / Taller">Reparación / Taller</option>
-                  <option value="Peaje">Peaje</option>
-                  <option value="Varios">Varios (Detallar)</option>
+                  {driverExpenseCategories && driverExpenseCategories.length > 0 ? (
+                    driverExpenseCategories.map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Combustible">Combustible</option>
+                      <option value="Reparación / Taller">Reparación / Taller</option>
+                      <option value="Peaje">Peaje</option>
+                      <option value="Varios">Varios</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div>
