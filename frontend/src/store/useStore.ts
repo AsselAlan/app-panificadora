@@ -34,6 +34,8 @@ export interface Product {
   price_a: number;
   price_b: number;
   bakery_stock: number;
+  is_deleted?: boolean;
+  is_paused?: boolean;
 }
 
 export interface Client {
@@ -278,6 +280,7 @@ export const useStore = create<AppState>()(
             .from('products')
             .select('*')
             .eq('is_deleted', false)
+            .eq('is_paused', false)
 
           if (errProd) throw errProd
 

@@ -26,6 +26,12 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
    - Implementado el creador dinámico de categorías de gastos en el panel de Administración.
    - Opción para eliminar categorías y visualizarlas en lista.
 
+5. **Gestión de Productos**:
+   - Agregada funcionalidad para pausar/reanudar productos (ocultándolos en las camionetas de los repartidores).
+   - Implementado el borrado lógico (`is_deleted = true`) para no romper historiales de transacciones.
+   - Añadida edición completa de productos (nombre, unidad, precios A y B).
+   - Creado un modal de vista rápida que calcula dinámicamente el historial de cantidades vendidas y la recaudación total de cada producto consultando la base de datos.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git

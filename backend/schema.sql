@@ -23,6 +23,7 @@ create table public.products (
     price_b numeric(10,2) not null check (price_b >= 0),
     bakery_stock numeric(10,2) not null default 0 check (bakery_stock >= 0),
     is_deleted boolean not null default false,
+    is_paused boolean not null default false,
     updated_at timestamptz not null default now()
 );
 

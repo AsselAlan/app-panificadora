@@ -3,7 +3,8 @@ import {
   TrendingUp, TrendingDown, Wallet, Store, Activity, Users, 
   ClipboardList, Package, LogOut, Truck,
   Plus, Minus, ShoppingCart, Printer, Banknote, CreditCard,
-  X, Calendar, Clock, History, BarChart, MapPin, Map, ArrowUp, ArrowDown, Trash2
+  X, Calendar, Clock, History, BarChart, MapPin, Map, ArrowUp, ArrowDown, Trash2,
+  Pencil, Eye, Pause, Play
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { Product } from '../store/useStore'
@@ -271,6 +272,8 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
   const [cart, setCart] = useState<Record<string, number>>({}) // product_id -> qty
   const [payCash, setPayCash] = useState('')
   const [payTransfer, setPayTransfer] = useState('')
+  const [vueltoACuenta, setVueltoACuenta] = useState(false)
+  const [includeDebt, setIncludeDebt] = useState(false)
 
   const activeClient = clients.find(c => c.id === selectedClientId)
 
@@ -303,9 +306,24 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
   }
 
   const handleProcess = async () => {
-    if (subtotalSales === 0 || !selectedClientId) return
+    if ((subtotalSales === 0 && totalPaid === 0) || !selectedClientId) return
 
     try {
+      let finalCash = cashAmt
+      let finalAccount = remainingToPay
+
+      if (remainingToPay < 0) {
+        if (subtotalSales === 0 || vueltoACuenta) {
+           // Si no lleva nada o explícitamente quiere dejarlo a cuenta
+           finalCash = cashAmt
+           finalAccount = remainingToPay
+        } else {
+           // Vuelto en mano
+           finalCash = cashAmt - Math.abs(remainingToPay)
+           finalAccount = 0
+        }
+      }
+
       // 1. Registrar venta en Supabase
       const saleId = crypto.randomUUID()
       const newSale = {
@@ -317,9 +335,9 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
         total_returns: 0,
         applied_debt: 0,
         final_total: subtotalSales,
-        payment_cash: cashAmt,
+        payment_cash: finalCash,
         payment_transfer: transferAmt,
-        payment_account: remainingToPay
+        payment_account: finalAccount
       }
 
       // Simular driver en Supabase o tener uno por defecto
@@ -440,7 +458,14 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
       {/* Carrito POS lateral */}
       <div className="w-[360px] bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl flex flex-col shadow-xl">
         <div className="p-5 border-b border-brand-muted/20 bg-bg-app">
-          <label className="text-[10px] font-bold text-brand-muted/80 uppercase mb-1.5 block">Cliente</label>
+          <div className="flex justify-between items-center mb-1.5">
+            <label className="text-[10px] font-bold text-brand-muted/80 uppercase block">Cliente</label>
+            {activeClient && (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeClient.current_balance < 0 ? 'bg-red-500/10 text-red-500' : activeClient.current_balance > 0 ? 'bg-green-500/10 text-green-500' : 'bg-brand-muted/10 text-brand-muted'}`}>
+                {activeClient.current_balance < 0 ? `Adeuda $${Math.abs(activeClient.current_balance)}` : activeClient.current_balance > 0 ? `A favor $${activeClient.current_balance}` : 'Al día'}
+              </span>
+            )}
+          </div>
           <select 
             value={selectedClientId} 
             onChange={(e) => { 
@@ -449,6 +474,10 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
               } else {
                 setSelectedClientId(e.target.value); 
                 setCart({});
+                setPayCash('');
+                setPayTransfer('');
+                setVueltoACuenta(false);
+                setIncludeDebt(false);
               }
             }}
             className="w-full bg-brand-muted/10 border border-brand-muted/30 text-brand-deep rounded-xl p-2.5 font-semibold text-sm outline-none"
@@ -484,9 +513,36 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
         </div>
 
         <div className="p-5 border-t border-brand-muted/20 bg-bg-app rounded-b-3xl space-y-4">
-          <div className="flex justify-between items-end mb-1">
-            <span className="text-xs font-bold text-brand-muted/80 uppercase tracking-wider">Total Venta</span>
-            <span className="text-2xl font-black text-brand-navy">${subtotalSales}</span>
+          <div>
+            <div className="flex justify-between items-end mb-1">
+              <span className="text-xs font-bold text-brand-muted/80 uppercase tracking-wider">Total Productos</span>
+              <span className="text-xl font-black text-brand-navy">${subtotalSales}</span>
+            </div>
+            
+            {activeClient && activeClient.current_balance < 0 && (
+              <div className="flex justify-between items-center mb-1 text-red-500">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={includeDebt} 
+                    onChange={e => {
+                      setIncludeDebt(e.target.checked);
+                      if (e.target.checked) setVueltoACuenta(true);
+                    }} 
+                    className="w-3.5 h-3.5 accent-red-500 rounded-sm" 
+                  />
+                  <span className="text-xs font-bold uppercase tracking-wider">Deuda Previa</span>
+                </label>
+                <span className="text-sm font-black">+ ${Math.abs(activeClient.current_balance)}</span>
+              </div>
+            )}
+
+            {activeClient && activeClient.current_balance < 0 && includeDebt && (
+              <div className="flex justify-between items-end mt-2 pt-2 border-t border-brand-muted/20">
+                <span className="text-xs font-bold text-brand-deep uppercase tracking-wider">A Cobrar con Deuda</span>
+                <span className="text-2xl font-black text-brand-deep">${subtotalSales + Math.abs(activeClient.current_balance)}</span>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2.5">
@@ -514,16 +570,34 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
 
           {remainingToPay !== 0 && (
             <div className={`p-3 rounded-xl border text-[11px] font-bold flex justify-between items-center ${remainingToPay > 0 ? 'bg-brand-orange/5 border-orange-500/20 text-orange-400' : 'bg-green-500/5 border-green-500/20 text-green-400'}`}>
-              <span>{remainingToPay > 0 ? 'A Cuenta Corriente:' : 'Vuelto:'}</span>
+              <span>
+                {remainingToPay > 0 
+                  ? 'Falta pagar (a Cuenta Corriente):' 
+                  : (subtotalSales === 0 || vueltoACuenta ? 'Pago de Deuda / Saldo a favor:' : 'Vuelto en Mano:')}
+              </span>
               <span>${Math.abs(remainingToPay)}</span>
+            </div>
+          )}
+
+          {remainingToPay < 0 && subtotalSales > 0 && (
+            <div className="flex items-center gap-2 px-1">
+              <input type="checkbox" id="vueltoACuenta" checked={vueltoACuenta} onChange={e => setVueltoACuenta(e.target.checked)} className="w-3.5 h-3.5 accent-brand-navy rounded-sm" />
+              <label htmlFor="vueltoACuenta" className="text-xs font-semibold text-brand-deep cursor-pointer">
+                {activeClient && activeClient.current_balance < 0 ? 'Aplicar sobrante para pagar deuda' : 'Dejar vuelto a favor en Cuenta'}
+              </label>
+            </div>
+          )}
+          {remainingToPay < 0 && subtotalSales === 0 && (
+            <div className="text-[10px] font-bold text-green-500 px-1 text-center">
+              Ingreso de dinero para saldo de deuda o a favor
             </div>
           )}
 
           <button 
             onClick={handleProcess} 
             disabled={
-              subtotalSales === 0 || 
-              !selectedClientId || 
+              (!selectedClientId) || 
+              (subtotalSales === 0 && totalPaid === 0) || 
               (remainingToPay > 0 && !activeClient?.allow_credit)
             }
             className="w-full bg-brand-navy hover:bg-brand-navy text-white font-bold py-3 rounded-xl active:bg-blue-700 transition-colors disabled:opacity-30 flex justify-center items-center gap-2 text-sm"
@@ -1779,6 +1853,18 @@ const AdminProducts: React.FC = () => {
   const [priceA, setPriceA] = useState('')
   const [priceB, setPriceB] = useState('')
 
+  // Estados para edición
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editUnitType, setEditUnitType] = useState<'kg' | 'docena' | 'bolsa' | 'unidad' | 'caja'>('kg')
+  const [editPriceA, setEditPriceA] = useState('')
+  const [editPriceB, setEditPriceB] = useState('')
+
+  // Estados para ver detalle
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null)
+  const [productStats, setProductStats] = useState<{ totalSold: number; totalEarnings: number } | null>(null)
+  const [loadingStats, setLoadingStats] = useState(false)
+
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     const pA = parseFloat(priceA)
@@ -1787,7 +1873,7 @@ const AdminProducts: React.FC = () => {
 
     try {
       const { error } = await supabase.from('products').insert([
-        { name, unit_type: unitType, price_a: pA, price_b: pB, bakery_stock: 0 }
+        { name, unit_type: unitType, price_a: pA, price_b: pB, bakery_stock: 0, is_paused: false }
       ])
       if (error) throw error
 
@@ -1801,6 +1887,111 @@ const AdminProducts: React.FC = () => {
     } catch (err) {
       console.error(err)
       Swal.fire('Error', 'No se pudo agregar el producto.', 'error')
+    }
+  }
+
+  const handleDeleteProduct = async (id: string, name: string) => {
+    const result = await Swal.fire({
+      title: '¿Eliminar producto?',
+      text: `Se eliminará "${name}" del catálogo de forma permanente.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    })
+
+    if (result.isConfirmed) {
+      try {
+        const { error } = await supabase.from('products').update({ is_deleted: true }).eq('id', id)
+        if (error) throw error
+        fetchInitialData()
+        Swal.fire('Eliminado', 'El producto ha sido eliminado.', 'success')
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Error', 'No se pudo eliminar el producto.', 'error')
+      }
+    }
+  }
+
+  const handleTogglePauseProduct = async (p: Product) => {
+    const newPauseState = !p.is_paused
+    try {
+      const { error } = await supabase.from('products').update({ is_paused: newPauseState }).eq('id', p.id)
+      if (error) throw error
+      fetchInitialData()
+      const title = newPauseState ? 'Producto Pausado' : 'Producto Activado'
+      const text = newPauseState ? 'El producto ya no estará visible para los choferes.' : 'El producto vuelve a estar disponible para los choferes.'
+      Swal.fire({
+        title,
+        text,
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false
+      })
+    } catch (err) {
+      console.error(err)
+      Swal.fire('Error', 'No se pudo cambiar el estado del producto.', 'error')
+    }
+  }
+
+  const handleEditProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingProduct) return
+    const pA = parseFloat(editPriceA)
+    const pB = parseFloat(editPriceB)
+    if (!editName.trim() || isNaN(pA) || isNaN(pB)) return
+
+    try {
+      const { error } = await supabase.from('products').update({
+        name: editName,
+        unit_type: editUnitType,
+        price_a: pA,
+        price_b: pB
+      }).eq('id', editingProduct.id)
+      
+      if (error) throw error
+
+      setEditingProduct(null)
+      fetchInitialData()
+      Swal.fire('Producto Actualizado', 'Los cambios han sido guardados.', 'success')
+    } catch (err) {
+      console.error(err)
+      Swal.fire('Error', 'No se pudieron guardar los cambios.', 'error')
+    }
+  }
+
+  const handleViewProduct = async (p: Product) => {
+    setViewingProduct(p)
+    setLoadingStats(true)
+    try {
+      const { data, error } = await supabase
+        .from('sale_items')
+        .select('quantity, operation_type, unit_price')
+        .eq('product_id', p.id)
+      
+      if (error) throw error
+      
+      let totalSold = 0
+      let totalEarnings = 0
+      if (data) {
+        data.forEach(item => {
+          if (item.operation_type === 'sale') {
+            totalSold += Number(item.quantity)
+            totalEarnings += Number(item.quantity) * Number(item.unit_price)
+          } else if (item.operation_type === 'return') {
+            totalSold -= Number(item.quantity)
+            totalEarnings -= Number(item.quantity) * Number(item.unit_price)
+          }
+        })
+      }
+      setProductStats({ totalSold, totalEarnings })
+    } catch (err) {
+      console.error(err)
+      setProductStats({ totalSold: 0, totalEarnings: 0 })
+    } finally {
+      setLoadingStats(false)
     }
   }
 
@@ -1886,28 +2077,209 @@ const AdminProducts: React.FC = () => {
               <th className="px-6 py-4 font-bold uppercase tracking-wider">Precio Cat. A</th>
               <th className="px-6 py-4 font-bold uppercase tracking-wider">Precio Cat. B</th>
               <th className="px-6 py-4 font-bold uppercase tracking-wider text-right">Stock Fábrica</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider text-center">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-850">
             {products.map(p => (
-              <tr key={p.id} className="hover:bg-brand-muted/5/20 transition-colors">
-                <td className="px-6 py-4 font-bold text-brand-deep">{p.name}</td>
+              <tr key={p.id} className={`hover:bg-brand-muted/5/20 transition-all ${p.is_paused ? 'opacity-50 bg-slate-900/5' : ''}`}>
+                <td className="px-6 py-4 font-bold text-brand-deep">
+                  <div className="flex items-center gap-2">
+                    {p.name}
+                    {p.is_paused && (
+                      <span className="text-[9px] font-bold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded border border-orange-200">Pausado</span>
+                    )}
+                  </div>
+                </td>
                 <td className="px-6 py-4">
                   <span className="px-2 py-0.5 bg-brand-muted/10 text-brand-muted rounded-md border border-brand-muted/20 font-semibold">{p.unit_type}</span>
                 </td>
                 <td className="px-6 py-4 font-bold text-brand-navy">${p.price_a}</td>
                 <td className="px-6 py-4 font-bold text-indigo-400">${p.price_b}</td>
                 <td className="px-6 py-4 text-right text-brand-muted font-semibold">{p.bakery_stock} {p.unit_type}</td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => handleViewProduct(p)}
+                      className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Ver Detalles"
+                    >
+                      <Eye size={15} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingProduct(p)
+                        setEditName(p.name)
+                        setEditUnitType(p.unit_type)
+                        setEditPriceA(p.price_a.toString())
+                        setEditPriceB(p.price_b.toString())
+                      }}
+                      className="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                      title="Editar"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleTogglePauseProduct(p)}
+                      className={`p-1.5 rounded-lg transition-colors ${p.is_paused ? 'text-green-600 hover:bg-green-50' : 'text-orange-500 hover:bg-orange-50'}`}
+                      title={p.is_paused ? 'Activar' : 'Pausar'}
+                    >
+                      {p.is_paused ? <Play size={15} /> : <Pause size={15} />}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteProduct(p.id, p.name)}
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Borrar"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {products.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-center py-10 text-brand-muted/80">No hay productos cargados en catálogo.</td>
+                <td colSpan={6} className="text-center py-10 text-brand-muted/80">No hay productos cargados en catálogo.</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* MODAL DE EDICIÓN */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-bg-surface border border-brand-muted/20 rounded-3xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 text-brand-deep">
+            <div className="flex justify-between items-center mb-4 border-b border-brand-muted/10 pb-3">
+              <h3 className="font-bold text-brand-deep text-base">Editar Producto</h3>
+              <button onClick={() => setEditingProduct(null)} className="p-1.5 hover:bg-brand-muted/10 rounded-lg text-brand-muted transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleEditProductSubmit} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Nombre</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Unidad de Medida</label>
+                <select 
+                  value={editUnitType} 
+                  onChange={e => setEditUnitType(e.target.value as any)}
+                  className="w-full bg-brand-muted/5 border border-brand-muted/20 text-brand-deep rounded-xl p-2.5 text-sm outline-none focus:border-brand-navy"
+                >
+                  <option value="kg">kilogramo (kg)</option>
+                  <option value="docena">docena</option>
+                  <option value="bolsa">bolsa</option>
+                  <option value="unidad">unidad</option>
+                  <option value="caja">caja</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Precio Categoría A ($)</label>
+                <input 
+                  type="number" 
+                  required
+                  value={editPriceA}
+                  onChange={e => setEditPriceA(e.target.value)}
+                  className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Precio Categoría B ($)</label>
+                <input 
+                  type="number" 
+                  required
+                  value={editPriceB}
+                  onChange={e => setEditPriceB(e.target.value)}
+                  className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                />
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-brand-muted/10">
+                <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 bg-brand-muted/10 hover:bg-brand-muted/20 text-brand-deep font-bold py-2.5 rounded-xl text-xs transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" className="flex-1 bg-brand-navy hover:bg-brand-navy text-white font-bold py-2.5 rounded-xl text-xs transition-colors">
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE DETALLES */}
+      {viewingProduct && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-bg-surface border border-brand-muted/20 rounded-3xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 text-brand-deep">
+            <div className="flex justify-between items-center mb-4 border-b border-brand-muted/10 pb-3">
+              <h3 className="font-bold text-brand-deep text-base">Detalles del Producto</h3>
+              <button onClick={() => setViewingProduct(null)} className="p-1.5 hover:bg-brand-muted/10 rounded-lg text-brand-muted transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3.5">
+              <div className="flex justify-between border-b border-brand-muted/10 pb-2">
+                <span className="text-xs text-brand-muted font-bold">Nombre:</span>
+                <span className="text-sm font-bold">{viewingProduct.name}</span>
+              </div>
+              <div className="flex justify-between border-b border-brand-muted/10 pb-2">
+                <span className="text-xs text-brand-muted font-bold">Estado:</span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${viewingProduct.is_paused ? 'bg-orange-100 text-orange-600 border border-orange-200' : 'bg-green-100 text-green-600 border border-green-200'}`}>
+                  {viewingProduct.is_paused ? 'Pausado' : 'Activo'}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-brand-muted/10 pb-2">
+                <span className="text-xs text-brand-muted font-bold">Unidad:</span>
+                <span className="text-sm font-bold">{viewingProduct.unit_type}</span>
+              </div>
+              <div className="flex justify-between border-b border-brand-muted/10 pb-2">
+                <span className="text-xs text-brand-muted font-bold">Precio Cat. A:</span>
+                <span className="text-sm font-black text-brand-navy">${viewingProduct.price_a}</span>
+              </div>
+              <div className="flex justify-between border-b border-brand-muted/10 pb-2">
+                <span className="text-xs text-brand-muted font-bold">Precio Cat. B:</span>
+                <span className="text-sm font-black text-indigo-500">${viewingProduct.price_b}</span>
+              </div>
+              <div className="flex justify-between border-b border-brand-muted/10 pb-2">
+                <span className="text-xs text-brand-muted font-bold">Stock en Fábrica:</span>
+                <span className="text-sm font-bold">{viewingProduct.bakery_stock} {viewingProduct.unit_type}</span>
+              </div>
+              
+              <div className="mt-6 bg-brand-muted/5 p-4 rounded-2xl border border-brand-muted/10 space-y-3">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-brand-muted">Historial de Ventas</h4>
+                {loadingStats ? (
+                  <div className="text-center py-4">
+                    <span className="text-xs text-brand-muted animate-pulse">Cargando estadísticas...</span>
+                  </div>
+                ) : productStats ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white p-3 rounded-xl border border-brand-muted/15 shadow-sm text-center">
+                      <span className="text-[9px] text-brand-muted uppercase font-bold block">Vendidos</span>
+                      <span className="text-sm font-black text-brand-navy">{productStats.totalSold} {viewingProduct.unit_type}</span>
+                    </div>
+                    <div className="bg-white p-3 rounded-xl border border-brand-muted/15 shadow-sm text-center">
+                      <span className="text-[9px] text-brand-muted uppercase font-bold block">Recaudado</span>
+                      <span className="text-sm font-black text-green-600">${productStats.totalEarnings.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-brand-muted text-center py-2">No se pudieron cargar las estadísticas.</div>
+                )}
+              </div>
+            </div>
+            <button onClick={() => setViewingProduct(null)} className="w-full mt-6 bg-brand-muted/15 hover:bg-brand-muted/20 text-brand-deep font-bold py-3 rounded-xl text-xs transition-colors">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
