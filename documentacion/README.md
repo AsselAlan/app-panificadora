@@ -36,6 +36,7 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
 6. **Optimización del Flujo y Hoja de Ruta en App Móvil**:
    - Simplificación del inicio de recorrido: se eliminó el paso intermedio obligatorio de "Verificar Carga", permitiendo iniciar el recorrido directamente. El stock en la furgoneta (`loads`) se inicializa automáticamente al iniciar.
    - Nueva sección interactiva **"Ver Hoja de Ruta"**: muestra un timeline visual premium con la secuencia exacta de visitas a clientes y paradas de carga en ruta (incluyendo el detalle de la mercadería). Permite iniciar ventas directamente desde las paradas del timeline.
+   - **Desplegable de Pedido por Cliente**: Se integró una flecha hacia abajo en cada cliente del timeline para desplegar de manera interactiva la mercadería planificada a entregar (pedido fijo).
    - Nueva sección **"Seleccionar Cliente"**: listado completo de clientes asignados a la ruta del día con buscador y saldos para acceso rápido.
 
 ### Enlaces Importantes:

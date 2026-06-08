@@ -3,7 +3,7 @@ import {
   Wifi, WifiOff, Truck, MapPin, Package, ClipboardCheck, 
   X, CheckCircle, AlertCircle, Banknote, CreditCard, ShoppingCart, 
   TrendingDown, ClipboardList, LogOut, ArrowLeft, Search, ChevronRight,
-  Plus, Minus, Printer, MessageCircle, Star, RefreshCw
+  Plus, Minus, Printer, MessageCircle, Star, RefreshCw, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { Sale, Expense, SaleItem, Driver, Product } from '../store/useStore'
@@ -1356,6 +1356,7 @@ interface DriverRoadmapProps {
 
 const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectClient }) => {
   const { weeklyRoutes, clients, products } = useStore()
+  const [expandedClients, setExpandedClients] = useState<Record<string, boolean>>({})
 
   const todayJS = new Date().getDay()
   const todayISO = todayJS === 0 ? 7 : todayJS
@@ -1484,15 +1485,47 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
                       )}
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[9px] font-black text-brand-navy uppercase tracking-wider block mb-1">Cliente a Visitar</span>
-                        <h4 className="font-bold text-brand-deep text-sm truncate">{client?.business_name || 'Cliente Desconocido'}</h4>
-                        <p className="text-xs text-brand-muted truncate flex items-center gap-1.5 mt-1 font-medium">
-                          <MapPin size={12} className="text-brand-orange flex-shrink-0" /> {client?.address || 'Sin dirección'}
-                        </p>
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[9px] font-black text-brand-navy uppercase tracking-wider block mb-1">Cliente a Visitar</span>
+                          <h4 className="font-bold text-brand-deep text-sm truncate">{client?.business_name || 'Cliente Desconocido'}</h4>
+                          <p className="text-xs text-brand-muted truncate flex items-center gap-1.5 mt-1 font-medium">
+                            <MapPin size={12} className="text-brand-orange flex-shrink-0" /> {client?.address || 'Sin dirección'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {client && client.fixed_order && Object.keys(client.fixed_order).some(k => (client.fixed_order?.[k] || 0) > 0) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setExpandedClients(prev => ({ ...prev, [client.id]: !prev[client.id] }))
+                              }}
+                              className="p-1.5 hover:bg-brand-navy/5 rounded-lg text-brand-navy transition-colors border border-brand-muted/10 flex items-center justify-center"
+                              title="Ver mercadería a descargar"
+                            >
+                              {expandedClients[client.id] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                          )}
+                          <ChevronRight size={18} className="text-brand-muted/40" />
+                        </div>
                       </div>
-                      <ChevronRight size={18} className="text-brand-muted/40" />
+
+                      {client && expandedClients[client.id] && client.fixed_order && (
+                        <div className="grid grid-cols-1 gap-1.5 mt-3 bg-brand-muted/5 p-3 rounded-xl border border-brand-muted/10" onClick={e => e.stopPropagation()}>
+                          <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wider block mb-1">Pedido Fijo a Descargar:</span>
+                          {products.map(p => {
+                            const qty = client.fixed_order?.[p.id] || 0
+                            if (qty === 0) return null
+                            return (
+                              <div key={p.id} className="flex justify-between items-center text-xs">
+                                <span className="text-brand-deep font-semibold">{p.name}</span>
+                                <span className="font-black text-brand-navy bg-brand-navy/10 px-2 py-0.5 rounded text-[11px]">{qty} {p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bolsas' : p.unit_type}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
