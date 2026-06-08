@@ -2733,35 +2733,51 @@ const AdminRoutes: React.FC = () => {
 
       {activeLoadModal && (
         <LoadConfigModal 
-          stop={activeLoadModal.stop} 
-          suggested={activeLoadModal.suggested}
-          onClose={() => setActiveLoadModal(null)} 
-        />
-      )}
-    </div>
-  )
-}
-
-const LoadConfigModal: React.FC<{ stop: any, suggested: Record<string, number>, onClose: () => void }> = ({ stop, suggested, onClose }) => {
+          stop=const LoadConfigModal: React.FC<{ stop: any, suggested: Record<string, number>, onClose: () => void }> = ({ stop, suggested, onClose }) => {
   const { products, fetchInitialData } = useStore()
   
-  // Initialize with saved planned_load, or suggested if empty
-  const [load, setLoad] = useState<Record<string, number>>(() => {
-    if (stop.planned_load && Object.keys(stop.planned_load).length > 0) return stop.planned_load
-    return { ...suggested }
+  // Initialize with saved planned_load, desglosando en fixed y extra
+  const [load, setLoad] = useState<Record<string, { fixed: number, extra: number }>>(() => {
+    const initial: Record<string, { fixed: number, extra: number }> = {}
+    products.forEach(p => {
+      const saved = stop.planned_load?.[p.id]
+      const sugg = suggested[p.id] || 0
+      if (saved && typeof saved === 'object') {
+        initial[p.id] = {
+          fixed: saved.fixed !== undefined ? Number(saved.fixed) : sugg,
+          extra: Number(saved.extra) || 0
+        }
+      } else if (saved !== undefined) {
+        // Formato numérico antiguo: lo tomamos como pedidos fijos
+        initial[p.id] = {
+          fixed: Number(saved) || 0,
+          extra: 0
+        }
+      } else {
+        initial[p.id] = {
+          fixed: sugg,
+          extra: 0
+        }
+      }
+    })
+    return initial
   })
 
-  const handleUpdateQty = (productId: string, delta: number, unitType: string) => {
+  const handleUpdateExtraQty = (productId: string, delta: number, unitType: string) => {
     const step = unitType === 'kg' ? 0.5 : 1
-    const current = load[productId] || 0
-    let next = current + delta * step
-    if (next < 0) next = 0
     
     setLoad(prev => {
-      const n = { ...prev }
-      if (next === 0) delete n[productId]
-      else n[productId] = next
-      return n
+      const current = prev[productId] || { fixed: suggested[productId] || 0, extra: 0 }
+      let nextExtra = current.extra + delta * step
+      if (nextExtra < 0) nextExtra = 0
+      
+      return {
+        ...prev,
+        [productId]: {
+          ...current,
+          extra: nextExtra
+        }
+      }
     })
   }
 
@@ -2788,13 +2804,13 @@ const LoadConfigModal: React.FC<{ stop: any, suggested: Record<string, number>, 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
       <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl">
-        <div className="p-6 border-b border-brand-muted/20 flex justify-between items-start bg-orange-50/80 rounded-t-3xl">
+        <div className="p-6 border-b border-brand-muted/20 flex justify-between items-start bg-orange-50/80 rounded-t-3xl text-brand-deep">
           <div>
-            <h2 className="text-xl font-black text-orange-900 flex items-center gap-2">
+            <h2 className="text-xl font-black text-orange-950 flex items-center gap-2">
               <Package size={20} className="text-orange-600" /> Configurar Carga
             </h2>
-            <p className="text-orange-800/70 text-xs mt-1.5 font-semibold leading-relaxed">
-              El sistema ha precargado la sugerencia basada en los pedidos fijos de los próximos clientes de la ruta. Podés sumar cantidades extra.
+            <p className="text-orange-900/80 text-xs mt-1.5 font-semibold leading-relaxed">
+              Planifique la mercadería de esta parada. Defina los pedidos fijos sugeridos y agregue la recarga de mostrador para venta libre.
             </p>
           </div>
           <button onClick={onClose} className="p-2 bg-orange-100/50 hover:bg-orange-200 rounded-xl text-orange-700 transition-colors">
@@ -2803,29 +2819,58 @@ const LoadConfigModal: React.FC<{ stop: any, suggested: Record<string, number>, 
         </div>
         
         <div className="p-6 overflow-y-auto flex-1 space-y-3 bg-slate-50/50">
+          <div className="grid grid-cols-12 gap-2 text-[10px] font-black text-brand-muted uppercase border-b border-brand-muted/10 pb-2 px-3">
+            <span className="col-span-5">Producto</span>
+            <span className="col-span-2 text-center">Pedidos Fijos</span>
+            <span className="col-span-3 text-center">Carga Mostrador</span>
+            <span className="col-span-2 text-right">Total</span>
+          </div>
+
           {products.map(p => {
-            const qty = load[p.id] || 0
-            const sugg = suggested[p.id] || 0
+            const item = load[p.id] || { fixed: suggested[p.id] || 0, extra: 0 }
+            const total = item.fixed + item.extra
             
             return (
-              <div key={p.id} className={`flex justify-between items-center p-3 rounded-2xl border transition-colors ${qty > 0 ? 'bg-orange-50/50 border-orange-200' : 'bg-white border-brand-muted/10'}`}>
-                <div>
-                  <span className="font-bold text-brand-deep block text-sm">{p.name}</span>
-                  <span className="text-[10px] uppercase font-bold text-brand-muted/80 flex items-center gap-2 mt-0.5">
-                    {p.unit_type} 
-                    {sugg > 0 && <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded text-[9px]">Sugerido: {sugg}</span>}
+              <div key={p.id} className={`grid grid-cols-12 gap-2 items-center p-3 rounded-2xl border transition-colors ${total > 0 ? 'bg-orange-50/5 border-orange-200' : 'bg-white border-brand-muted/10'}`}>
+                {/* Producto */}
+                <div className="col-span-5 text-brand-deep">
+                  <span className="font-bold block text-xs truncate" title={p.name}>{p.name}</span>
+                  <span className="text-[9px] uppercase font-bold text-brand-muted/70">{p.unit_type}</span>
+                </div>
+
+                {/* Pedidos Fijos */}
+                <div className="col-span-2 text-center">
+                  <span className="font-black text-brand-navy bg-brand-navy/5 border border-brand-navy/10 px-2.5 py-1 rounded text-xs">
+                    {item.fixed}
                   </span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => handleUpdateQty(p.id, -1, p.unit_type)} className="p-2 rounded-lg bg-white border border-brand-muted/20 text-brand-deep hover:bg-red-50 hover:text-red-600 transition-colors shadow-sm">
-                    <Minus size={14}/>
+
+                {/* Carga Mostrador (Editable) */}
+                <div className="col-span-3 flex items-center justify-center gap-1.5">
+                  <button 
+                    type="button"
+                    onClick={() => handleUpdateExtraQty(p.id, -1, p.unit_type)} 
+                    className="p-1 rounded bg-white border border-brand-muted/20 text-brand-deep hover:bg-red-50 hover:text-red-600 transition-colors shadow-sm active:scale-90"
+                  >
+                    <Minus size={10}/>
                   </button>
-                  <span className="font-black text-brand-deep w-16 text-center text-lg flex items-center justify-center gap-1">
-                    {qty} <span className="text-[10px] text-brand-deep/50 font-bold lowercase mt-1">{p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bolsas' : p.unit_type}</span>
+                  <span className="font-black text-brand-deep text-xs w-6 text-center">
+                    {item.extra}
                   </span>
-                  <button onClick={() => handleUpdateQty(p.id, 1, p.unit_type)} className="p-2 rounded-lg bg-white border border-brand-muted/20 text-brand-deep hover:bg-green-50 hover:text-green-600 transition-colors shadow-sm">
-                    <Plus size={14}/>
+                  <button 
+                    type="button"
+                    onClick={() => handleUpdateExtraQty(p.id, 1, p.unit_type)} 
+                    className="p-1 rounded bg-white border border-brand-muted/20 text-brand-deep hover:bg-green-50 hover:text-green-600 transition-colors shadow-sm active:scale-90"
+                  >
+                    <Plus size={10}/>
                   </button>
+                </div>
+
+                {/* Total */}
+                <div className="col-span-2 text-right text-brand-deep">
+                  <span className="font-black text-xs">
+                    {total} <span className="text-[8px] text-brand-deep/50 font-bold lowercase">{p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bols' : p.unit_type}</span>
+                  </span>
                 </div>
               </div>
             )

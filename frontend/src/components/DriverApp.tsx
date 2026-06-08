@@ -10,6 +10,17 @@ import { useStore } from '../store/useStore'
 import type { Sale, Expense, SaleItem, Driver, Product } from '../store/useStore'
 import Swal from 'sweetalert2'
 
+const getPlannedLoadQty = (plannedLoad: any, productId: string): { fixed: number; extra: number; total: number } => {
+  const item = plannedLoad?.[productId];
+  if (typeof item === 'object' && item !== null) {
+    const fixed = Number(item.fixed) || 0;
+    const extra = Number(item.extra) || 0;
+    return { fixed, extra, total: fixed + extra };
+  }
+  const val = Number(item) || 0;
+  return { fixed: val, extra: 0, total: val };
+}
+
 interface DriverAppProps {
   onLogout: () => void
 }
@@ -81,7 +92,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
       const todayISO = todayJS === 0 ? 7 : todayJS
       const initialLoadStop = weeklyRoutes.find(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'initial_load')
       
-      let plannedLoad: Record<string, number> = initialLoadStop?.planned_load || {}
+      let plannedLoad = initialLoadStop?.planned_load || {}
       
       if (Object.keys(plannedLoad).length === 0) {
         const routeClientStops = weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client')
@@ -96,14 +107,17 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
         })
       }
 
-      const initialLoads = products.map(p => ({
-        id: crypto.randomUUID(),
-        driver_id: driver.id,
-        product_id: p.id,
-        date_loaded: new Date().toISOString(),
-        initial_quantity: plannedLoad[p.id] || 0,
-        current_quantity: plannedLoad[p.id] || 0
-      }))
+      const initialLoads = products.map(p => {
+        const qtyInfo = getPlannedLoadQty(plannedLoad, p.id)
+        return {
+          id: crypto.randomUUID(),
+          driver_id: driver.id,
+          product_id: p.id,
+          date_loaded: new Date().toISOString(),
+          initial_quantity: qtyInfo.total,
+          current_quantity: qtyInfo.total
+        }
+      })
       useStore.setState({ loads: initialLoads })
     }
   }, [driver, loads.length, weeklyRoutes, products])
@@ -243,7 +257,7 @@ interface DriverHomeProps {
 }
 
 const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadmap, onViewCashSummary, onSelectDifferentDriver }) => {
-  const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories } = useStore()
+  const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories, sales, clients, loads } = useStore()
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [hasConfirmedLoad, setHasConfirmedLoad] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
@@ -294,16 +308,48 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
     return weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client').length
   }, [weeklyRoutes, driver.id, todayISO])
 
+  const todaySales = useMemo(() => {
+    const todayStr = new Date().toLocaleDateString('sv')
+    return sales.filter(s => {
+      const saleDate = new Date(s.transaction_date).toLocaleDateString('sv')
+      return s.driver_id === driver.id && saleDate === todayStr
+    })
+  }, [sales, driver.id])
+
+  const remainingPedidosFijos = useMemo(() => {
+    const visitedClientIds = todaySales.map(s => s.client_id)
+    const remainingClientStops = weeklyRoutes.filter(r => 
+      r.driver_id === driver.id && 
+      r.day_of_week === todayISO && 
+      r.stop_type === 'client' && 
+      !visitedClientIds.includes(r.client_id)
+    )
+
+    const totals: Record<string, number> = {}
+    remainingClientStops.forEach(stop => {
+      const clientObj = clients.find(c => c.id === stop.client_id)
+      if (clientObj && clientObj.fixed_order) {
+        Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
+          totals[prodId] = (totals[prodId] || 0) + (qty as number)
+        })
+      }
+    })
+    return totals
+  }, [weeklyRoutes, driver.id, todayISO, todaySales, clients])
+
   const handleStart = async () => {
     // Inicializar stock (loads) en el store a partir de plannedLoad
-    const initialLoads = products.map(p => ({
-      id: crypto.randomUUID(),
-      driver_id: driver.id,
-      product_id: p.id,
-      date_loaded: new Date().toISOString(),
-      initial_quantity: plannedLoad[p.id] || 0,
-      current_quantity: plannedLoad[p.id] || 0
-    }))
+    const initialLoads = products.map(p => {
+      const qtyInfo = getPlannedLoadQty(plannedLoad, p.id)
+      return {
+        id: crypto.randomUUID(),
+        driver_id: driver.id,
+        product_id: p.id,
+        date_loaded: new Date().toISOString(),
+        initial_quantity: qtyInfo.total,
+        current_quantity: qtyInfo.total
+      }
+    })
     useStore.setState({ loads: initialLoads })
 
     await startDriverRoute(driver.id)
@@ -330,6 +376,24 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
     if (result.isConfirmed) {
       await endDriverRoute(driver.id)
       Swal.fire('Ruta Finalizada', 'Rendición realizada con éxito en base.', 'success')
+    }
+  }
+
+  const handleReopenRoute = async () => {
+    const result = await Swal.fire({
+      title: '¿Reabrir Ruta?',
+      text: '¿Está seguro que desea reabrir la ruta? Se reactivará tu caja y stock del día para que puedas registrar nuevas transacciones.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#2563eb',
+      cancelButtonColor: '#475569',
+      confirmButtonText: 'Sí, reabrir',
+      cancelButtonText: 'Cancelar'
+    })
+
+    if (result.isConfirmed) {
+      await startDriverRoute(driver.id)
+      Swal.fire('Ruta Reabierta', 'La ruta y caja se encuentran operativas nuevamente.', 'success')
     }
   }
 
@@ -401,12 +465,15 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
               
               <div className="flex-1 overflow-y-auto space-y-2 mb-6 pr-1">
                 {products.map(p => {
-                  const qty = plannedLoad[p.id] || 0
-                  if (qty === 0) return null
+                  const qtyInfo = getPlannedLoadQty(plannedLoad, p.id)
+                  if (qtyInfo.total === 0) return null
                   return (
                     <div key={p.id} className="flex justify-between items-center bg-brand-muted/10/40 border border-brand-muted/20/80 p-3 rounded-xl">
-                      <span className="font-semibold text-brand-deep text-sm">{p.name}</span>
-                      <span className="font-black text-brand-navy bg-brand-navy/10 px-3 py-1 rounded-lg text-sm">{qty} {p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bolsas' : p.unit_type}</span>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-brand-deep text-sm">{p.name}</span>
+                        <span className="text-[9px] text-brand-muted font-bold">Pedidos: {qtyInfo.fixed} {p.unit_type} | Mostrador: {qtyInfo.extra} {p.unit_type}</span>
+                      </div>
+                      <span className="font-black text-brand-navy bg-brand-navy/10 px-3 py-1 rounded-lg text-sm">{qtyInfo.total} {p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bols' : p.unit_type}</span>
                     </div>
                   )
                 })}
@@ -417,14 +484,17 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
               <button 
                 onClick={() => {
                   // Inicializar stock (loads) en el store
-                  const initialLoads = products.map(p => ({
-                    id: crypto.randomUUID(),
-                    driver_id: driver.id,
-                    product_id: p.id,
-                    date_loaded: new Date().toISOString(),
-                    initial_quantity: plannedLoad[p.id] || 0,
-                    current_quantity: plannedLoad[p.id] || 0
-                  }))
+                  const initialLoads = products.map(p => {
+                    const qtyInfo = getPlannedLoadQty(plannedLoad, p.id)
+                    return {
+                      id: crypto.randomUUID(),
+                      driver_id: driver.id,
+                      product_id: p.id,
+                      date_loaded: new Date().toISOString(),
+                      initial_quantity: qtyInfo.total,
+                      current_quantity: qtyInfo.total
+                    }
+                  })
                   useStore.setState({ loads: initialLoads })
 
                   setHasConfirmedLoad(true)
@@ -467,12 +537,20 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
           </div>
         </div>
         <p className="text-xs text-brand-muted/80">Puedes salir o apagar el dispositivo ahora.</p>
-        <button
-          onClick={onSelectDifferentDriver}
-          className="mt-8 bg-brand-muted/10 hover:bg-brand-muted/20 text-brand-deep font-bold py-3 px-6 rounded-xl text-sm transition-colors"
-        >
-          Cerrar Sesión
-        </button>
+        <div className="flex gap-3 mt-8 w-full">
+          <button
+            onClick={onSelectDifferentDriver}
+            className="flex-1 bg-brand-muted/10 hover:bg-brand-muted/20 text-brand-deep font-bold py-3 px-4 rounded-xl text-sm transition-colors active:scale-95"
+          >
+            Cerrar Sesión
+          </button>
+          <button
+            onClick={handleReopenRoute}
+            className="flex-1 bg-brand-navy hover:bg-brand-navy/90 text-white font-bold py-3 px-4 rounded-xl text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+          >
+            <RefreshCw size={14} /> Reabrir Ruta
+          </button>
+        </div>
       </div>
     )
   }
@@ -580,6 +658,38 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
             </div>
             Resumen Caja
           </button>
+        </div>
+
+        {/* Stock en Camioneta */}
+        <div className="bg-white rounded-3xl p-5 border border-brand-muted/10 shadow-sm">
+          <h3 className="text-xs font-black text-brand-deep uppercase tracking-wider pb-2.5 border-b border-brand-muted/10 flex items-center gap-2">
+            <Package size={16} className="text-brand-navy" /> Stock a Bordo (Camioneta)
+          </h3>
+          <div className="mt-3 space-y-2.5 max-h-40 overflow-y-auto pr-1">
+            {loads.length === 0 ? (
+              <p className="text-xs text-brand-muted italic py-2">Sin stock cargado en camioneta.</p>
+            ) : (
+              loads.map(load => {
+                const p = products.find(prod => prod.id === load.product_id)
+                if (!p) return null
+                const reserved = remainingPedidosFijos[p.id] || 0
+                const availableForMostrador = Math.max(0, load.current_quantity - reserved)
+
+                return (
+                  <div key={load.id} className="flex flex-col border-b border-brand-muted/5 pb-2 last:border-b-0 last:pb-0">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-xs text-brand-deep">{p.name}</span>
+                      <span className="font-black text-xs text-brand-navy">{load.current_quantity} {p.unit_type}</span>
+                    </div>
+                    <div className="flex justify-between text-[9px] text-brand-muted font-bold mt-0.5">
+                      <span>Pedidos Pendientes: <span className="text-brand-deep">{reserved}</span></span>
+                      <span>Libre Mostrador: <span className={availableForMostrador > 0 ? 'text-green-600 font-extrabold' : 'text-brand-muted'}>{availableForMostrador}</span></span>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
         </div>
 
         {/* Finalizar Recorrido */}
@@ -808,7 +918,7 @@ interface DriverTerminalProps {
 }
 
 const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBack, onComplete }) => {
-  const { products, clients, loads, addSale } = useStore()
+  const { products, clients, loads, addSale, weeklyRoutes, sales } = useStore()
   
   const [tab, setTab] = useState<1 | 2 | 3>(1)
   const [cart, setCart] = useState<Record<string, number>>({}) // product_uuid -> qty
@@ -821,6 +931,43 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
   const [generatedTicket, setGeneratedTicket] = useState<Sale | null>(null)
 
   const client = clients.find(c => c.id === clientId)
+
+  const todayJS = new Date().getDay()
+  const todayISO = todayJS === 0 ? 7 : todayJS
+
+  const todaySales = useMemo(() => {
+    const todayStr = new Date().toLocaleDateString('sv')
+    return sales.filter(s => {
+      const saleDate = new Date(s.transaction_date).toLocaleDateString('sv')
+      return s.driver_id === driver.id && saleDate === todayStr
+    })
+  }, [sales, driver.id])
+
+  const getMostradorInfo = (productId: string) => {
+    const loadItem = loads.find(l => l.product_id === productId)
+    if (!loadItem) return { reservedOthers: 0, availableFree: 0, currentStock: 0 }
+
+    // Pedidos fijos de otros clientes restantes
+    const visitedClientIds = todaySales.map(s => s.client_id)
+    const remainingOthers = weeklyRoutes.filter(r => 
+      r.driver_id === driver.id && 
+      r.day_of_week === todayISO && 
+      r.stop_type === 'client' && 
+      r.client_id !== clientId && 
+      !visitedClientIds.includes(r.client_id)
+    )
+
+    let reservedOthers = 0
+    remainingOthers.forEach(stop => {
+      const clientObj = clients.find(c => c.id === stop.client_id)
+      if (clientObj && clientObj.fixed_order && clientObj.fixed_order[productId]) {
+        reservedOthers += clientObj.fixed_order[productId]
+      }
+    })
+
+    const availableFree = Math.max(0, loadItem.current_quantity - reservedOthers)
+    return { reservedOthers, availableFree, currentStock: loadItem.current_quantity }
+  }
 
   // Carga del pedido fijo al iniciar
   useEffect(() => {
@@ -1104,47 +1251,66 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
               const l = loads.find(load => load.product_id === p.id)
               const maxStock = l ? l.current_quantity : 0
 
-              return (
-                <div key={p.id} className="bg-white border border-brand-muted/10 rounded-3xl p-4 flex items-center justify-between shadow-sm">
-                  <div className="min-w-0 flex-1">
-                    <h4 className="font-bold text-brand-deep text-sm truncate">{p.name}</h4>
-                    <p className="text-xs text-brand-navy font-black mt-1">
-                      ${getPrice(p)} <span className="text-[10px] text-brand-muted font-semibold">x {p.unit_type}</span>
-                    </p>
-                    <span className="text-[9px] text-brand-orange mt-1.5 font-bold uppercase tracking-wider block bg-brand-orange/10 w-max px-2 py-0.5 rounded-md">Stock: {maxStock}</span>
-                  </div>
+              const info = getMostradorInfo(p.id)
+              const fixedQty = client.fixed_order?.[p.id] || 0
+              const isConsumingReserved = qty > (fixedQty + info.availableFree)
 
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => handleUpdateQty(cart, setCart, p.id, -1, p.unit_type, maxStock)}
-                      className="w-10 h-10 bg-brand-muted/5 border border-brand-muted/10 text-brand-deep rounded-xl flex items-center justify-center active:scale-90 transition-transform"
-                    >
-                      <Minus size={18} />
-                    </button>
-                    <input 
-                      type="number"
-                      value={qty || ''}
-                      onChange={(e) => {
-                        let val = parseFloat(e.target.value) || 0
-                        if (val > maxStock) val = maxStock
-                        setCart(prev => {
-                          const n = { ...prev }
-                          if (val <= 0) delete n[p.id]
-                          else n[p.id] = val
-                          return n
-                        })
-                      }}
-                      className="w-12 h-10 text-center text-lg font-black text-brand-deep bg-brand-muted/5 border border-brand-muted/10 rounded-xl outline-none focus:border-brand-navy/50 focus:ring-1 focus:ring-brand-navy/50 transition-all"
-                      placeholder="0"
-                    />
-                    <button 
-                      onClick={() => handleUpdateQty(cart, setCart, p.id, 1, p.unit_type, maxStock)}
-                      disabled={qty >= maxStock}
-                      className="w-10 h-10 bg-brand-navy/10 border border-brand-navy/20 text-brand-navy rounded-xl flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30 disabled:bg-brand-muted/5 disabled:border-brand-muted/10 disabled:text-brand-muted"
-                    >
-                      <Plus size={18} />
-                    </button>
+              return (
+                <div key={p.id} className="bg-white border border-brand-muted/10 rounded-3xl p-4 flex flex-col gap-3 shadow-sm">
+                  <div className="flex items-center justify-between w-full">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-bold text-brand-deep text-sm truncate">{p.name}</h4>
+                      <p className="text-xs text-brand-navy font-black mt-1">
+                        ${getPrice(p)} <span className="text-[10px] text-brand-muted font-semibold">x {p.unit_type}</span>
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <span className="text-[9px] text-brand-orange font-bold uppercase tracking-wider bg-brand-orange/10 px-2 py-0.5 rounded-md">Stock: {maxStock}</span>
+                        <span className="text-[9px] text-brand-navy font-bold uppercase tracking-wider bg-brand-navy/10 px-2 py-0.5 rounded-md">Pedido Fijo: {fixedQty}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <button 
+                        onClick={() => handleUpdateQty(cart, setCart, p.id, -1, p.unit_type, maxStock)}
+                        className="w-10 h-10 bg-brand-muted/5 border border-brand-muted/10 text-brand-deep rounded-xl flex items-center justify-center active:scale-90 transition-transform"
+                      >
+                        <Minus size={18} />
+                      </button>
+                      <input 
+                        type="number"
+                        value={qty || ''}
+                        onChange={(e) => {
+                          let val = parseFloat(e.target.value) || 0
+                          if (val > maxStock) val = maxStock
+                          setCart(prev => {
+                            const n = { ...prev }
+                            if (val <= 0) delete n[p.id]
+                            else n[p.id] = val
+                            return n
+                          })
+                        }}
+                        className="w-12 h-10 text-center text-lg font-black text-brand-deep bg-brand-muted/5 border border-brand-muted/10 rounded-xl outline-none focus:border-brand-navy/50 focus:ring-1 focus:ring-brand-navy/50 transition-all"
+                        placeholder="0"
+                      />
+                      <button 
+                        onClick={() => handleUpdateQty(cart, setCart, p.id, 1, p.unit_type, maxStock)}
+                        disabled={qty >= maxStock}
+                        className="w-10 h-10 bg-brand-navy/10 border border-brand-navy/20 text-brand-navy rounded-xl flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30 disabled:bg-brand-muted/5 disabled:border-brand-muted/10 disabled:text-brand-muted"
+                      >
+                        <Plus size={18} />
+                      </button>
+                    </div>
                   </div>
+                  
+                  {isConsumingReserved && (
+                    <div className="bg-red-50 text-red-500 border border-red-100 rounded-xl p-2.5 flex items-start gap-2 animate-in fade-in">
+                      <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                      <div className="text-[10px] font-bold leading-normal text-left">
+                        Alerta: Esta venta excede el stock libre y consume unidades reservadas para pedidos de clientes posteriores.
+                        <span className="block mt-0.5 text-red-400">Máximo libre sugerido para este cliente: {fixedQty + info.availableFree} {p.unit_type}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -1415,14 +1581,17 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
               <h4 className="font-bold text-brand-deep text-sm mb-2">Primera Carga (Fábrica)</h4>
               
               {hasLoad ? (
-                <div className="grid grid-cols-1 gap-1.5 mt-2 bg-brand-muted/5 p-3 rounded-xl border border-brand-muted/10">
+                <div className="grid grid-cols-1 gap-2 mt-2 bg-brand-muted/5 p-3 rounded-xl border border-brand-muted/10">
                   {products.map(p => {
-                    const qty = plannedLoad[p.id] || 0
-                    if (qty === 0) return null
+                    const qtyInfo = getPlannedLoadQty(plannedLoad, p.id)
+                    if (qtyInfo.total === 0) return null
                     return (
-                      <div key={p.id} className="flex justify-between items-center text-xs">
-                        <span className="text-brand-deep font-semibold">{p.name}</span>
-                        <span className="font-black text-brand-navy bg-brand-navy/10 px-2 py-0.5 rounded text-[11px]">{qty} {p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bolsas' : p.unit_type}</span>
+                      <div key={p.id} className="flex justify-between items-center text-xs border-b border-brand-muted/5 pb-1.5 last:border-b-0 last:pb-0">
+                        <div className="flex flex-col">
+                          <span className="text-brand-deep font-semibold">{p.name}</span>
+                          <span className="text-[9px] text-brand-muted font-bold">Pedidos: {qtyInfo.fixed} {p.unit_type} | Mostrador: {qtyInfo.extra} {p.unit_type}</span>
+                        </div>
+                        <span className="font-black text-brand-navy bg-brand-navy/10 px-2.5 py-0.5 rounded text-[11px]">{qtyInfo.total} {p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bols' : p.unit_type}</span>
                       </div>
                     )
                   })}
@@ -1461,14 +1630,17 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
                       <h4 className="font-bold text-brand-deep text-sm mb-2">Carga Intermedia (Fábrica)</h4>
                       
                       {stopHasLoad ? (
-                        <div className="grid grid-cols-1 gap-1.5 mt-2 bg-brand-muted/5 p-3 rounded-xl border border-brand-muted/10">
+                        <div className="grid grid-cols-1 gap-2 mt-2 bg-brand-muted/5 p-3 rounded-xl border border-brand-muted/10">
                           {products.map(p => {
-                            const qty = stopLoad[p.id] || 0
-                            if (qty === 0) return null
+                            const qtyInfo = getPlannedLoadQty(stopLoad, p.id)
+                            if (qtyInfo.total === 0) return null
                             return (
-                              <div key={p.id} className="flex justify-between items-center text-xs">
-                                <span className="text-brand-deep font-semibold">{p.name}</span>
-                                <span className="font-black text-brand-orange bg-brand-orange/10 px-2 py-0.5 rounded text-[11px]">{qty} {p.unit_type}</span>
+                              <div key={p.id} className="flex justify-between items-center text-xs border-b border-brand-muted/5 pb-1.5 last:border-b-0 last:pb-0">
+                                <div className="flex flex-col">
+                                  <span className="text-brand-deep font-semibold">{p.name}</span>
+                                  <span className="text-[9px] text-brand-muted font-bold">Pedidos: {qtyInfo.fixed} {p.unit_type} | Mostrador: {qtyInfo.extra} {p.unit_type}</span>
+                                </div>
+                                <span className="font-black text-brand-orange bg-brand-orange/10 px-2.5 py-0.5 rounded text-[11px]">{qtyInfo.total} {p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bols' : p.unit_type}</span>
                               </div>
                             )
                           })}

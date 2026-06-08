@@ -51,6 +51,17 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
    - Muestra el listado completo de los "Tickets de Venta" generados durante el día actual por el repartidor, detallando montos, horarios y formas de pago.
    - Permite consultar el detalle interactivo de cualquier comprobante (Boleta Virtual) y provee la capacidad de reenviarlo mediante WhatsApp con texto preformateado.
 
+9. **Flujo de Reapertura de Ruta**:
+   - En la vista de ruta finalizada del repartidor, se incorporó el botón **"Reabrir Ruta"** con un modal de confirmación (*¿Está seguro que desea reabrir la ruta?*).
+   - Reactiva de manera automática la caja, el stock y el estado operativo del chofer (`"En Ruta"`) para realizar nuevas ventas de emergencia o pedidos de último momento.
+
+10. **Diferenciación y Control de Stock (Pedidos Fijos vs. Mostrador)**:
+    - **Panel Admin Central**: La configuración de paradas de carga en la agenda de rutas ahora cuenta con dos columnas desglosadas: **Pedidos Fijos** (autocalculado/sugerido) y **Carga Mostrador** (ingresada por el administrador). Permite definir mercadería reservada frente a la disponible para venta libre.
+    - **App de Repartidores**: 
+      - Desglose de carga por canal en la carga inicial del timeline.
+      - Tarjeta en tiempo real **"Stock a Bordo"** en el inicio del chofer, desglosando el stock físico actual, el stock reservado para pedidos restantes y el disponible libre para mostrador.
+      - Alerta visual en la terminal de cobro del chofer si la venta excede el mostrador libre disponible y compromete pedidos reservados posteriores.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git
