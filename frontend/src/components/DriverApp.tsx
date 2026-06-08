@@ -200,7 +200,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
         </div>
 
         {/* Contenedor de la Vista */}
-        <div className="flex-1 overflow-hidden flex flex-col relative bg-bg-surface shadow-sm">
+        <div className="flex-1 overflow-hidden flex flex-col relative bg-brand-navy shadow-sm">
           <Routes>
             <Route path="/" element={<Navigate to="/driver/home" replace />} />
             <Route path="/home" element={<DriverHome driver={driver} onNewSale={() => navigate('/driver/clients')} onViewRoadmap={() => navigate('/driver/roadmap')} onViewCashSummary={() => navigate('/driver/caja')} onSelectDifferentDriver={() => { setCurrentDriver(null); onLogout(); }} />} />
@@ -571,9 +571,9 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
 
   // Vista Principal de Trabajo ("En Ruta")
   return (
-    <div className="flex flex-col h-full bg-bg-surface shadow-sm overflow-y-auto relative">
+    <div className="flex flex-col h-full bg-brand-navy shadow-sm overflow-y-auto relative">
       {/* Encabezado Principal */}
-      <div className="bg-brand-navy text-white px-6 pb-8 pt-8 -mt-2 rounded-b-[2.5rem] shadow-md relative overflow-hidden">
+      <div className="bg-brand-navy text-white p-6 pb-8 rounded-b-[2.5rem] shadow-md relative overflow-hidden">
         <div className="absolute -right-4 -top-4 opacity-10">
           <Truck size={140} />
         </div>
@@ -622,7 +622,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
       </div>
 
       {/* Contenido de Ruta / Acciones */}
-      <div className="p-5 flex-1 flex flex-col justify-start gap-4 pb-24">
+      <div className="p-5 flex-1 flex flex-col justify-start gap-4 pb-24 bg-bg-app">
         {/* Botón Ver Hoja de Ruta (Secuencia ordenada) */}
         <button 
           onClick={onViewRoadmap} 
