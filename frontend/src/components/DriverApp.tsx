@@ -189,9 +189,10 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
         <div className="flex-1 overflow-hidden flex flex-col relative bg-bg-surface shadow-sm">
           <Routes>
             <Route path="/" element={<Navigate to="/driver/home" replace />} />
-            <Route path="/home" element={<DriverHome driver={driver} onNewSale={() => navigate('/driver/clients')} onViewRoadmap={() => navigate('/driver/roadmap')} onSelectDifferentDriver={() => { setCurrentDriver(null); onLogout(); }} />} />
+            <Route path="/home" element={<DriverHome driver={driver} onNewSale={() => navigate('/driver/clients')} onViewRoadmap={() => navigate('/driver/roadmap')} onViewCashSummary={() => navigate('/driver/caja')} onSelectDifferentDriver={() => { setCurrentDriver(null); onLogout(); }} />} />
             <Route path="/clients" element={<DriverClients onBack={() => navigate('/driver/home')} onSelectClient={(id) => { setNavigationSource('CLIENTS'); navigate(`/driver/terminal/${id}`); }} />} />
             <Route path="/roadmap" element={<DriverRoadmap driver={driver} onBack={() => navigate('/driver/home')} onSelectClient={(id) => { setNavigationSource('ROADMAP'); navigate(`/driver/terminal/${id}`); }} />} />
+            <Route path="/caja" element={<DriverCashSummary driver={driver} onBack={() => navigate('/driver/home')} />} />
             <Route path="/terminal/:clientId" element={<DriverTerminalWrapper driver={driver} onBack={() => navigate(`/driver/${navigationSource.toLowerCase()}`)} onComplete={() => navigate('/driver/home')} />} />
             <Route path="*" element={<Navigate to="/driver/home" replace />} />
           </Routes>
@@ -237,10 +238,11 @@ interface DriverHomeProps {
   driver: Driver
   onNewSale: () => void
   onViewRoadmap: () => void
+  onViewCashSummary: () => void
   onSelectDifferentDriver: () => void
 }
 
-const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadmap, onSelectDifferentDriver }) => {
+const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadmap, onViewCashSummary, onSelectDifferentDriver }) => {
   const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories } = useStore()
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [hasConfirmedLoad, setHasConfirmedLoad] = useState(false)
@@ -570,7 +572,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
             Registrar Gasto
           </button>
           <button 
-            onClick={() => Swal.fire('Caja de Dinero', `Ventas registradas: $${(driver.cash_collected + driver.transfer_collected).toLocaleString()}`, 'info')}
+            onClick={onViewCashSummary}
             className="flex-1 bg-white hover:bg-brand-muted/5 text-brand-deep border border-brand-muted/10 rounded-3xl p-5 flex flex-col items-center justify-center gap-2 font-bold active:scale-95 transition-all text-sm shadow-sm"
           >
             <div className="bg-brand-muted/5 p-2 rounded-xl text-brand-muted mb-1">
@@ -1533,6 +1535,347 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ==========================================
+// COMPONENTE: DRIVER CASH SUMMARY (RESUMEN DE CAJA)
+// ==========================================
+interface DriverCashSummaryProps {
+  driver: Driver
+  onBack: () => void
+}
+
+const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack }) => {
+  const { sales, expenses, clients } = useStore()
+  const [selectedTicket, setSelectedTicket] = useState<Sale | null>(null)
+
+  // Obtener la fecha local en formato 'YYYY-MM-DD'
+  const todayStr = useMemo(() => {
+    return new Date().toLocaleDateString('sv') // 'YYYY-MM-DD'
+  }, [])
+
+  // Filtrar las ventas de hoy de este repartidor
+  const todaySales = useMemo(() => {
+    return sales.filter(s => {
+      const saleDate = new Date(s.transaction_date).toLocaleDateString('sv')
+      return s.driver_id === driver.id && saleDate === todayStr
+    })
+  }, [sales, driver.id, todayStr])
+
+  // Filtrar los gastos de hoy de este repartidor
+  const todayExpenses = useMemo(() => {
+    return expenses.filter(e => {
+      const expDate = new Date(e.expense_date).toLocaleDateString('sv')
+      return e.origin === driver.full_name && expDate === todayStr
+    })
+  }, [expenses, driver.full_name, todayStr])
+
+  // Totales financieros de ventas
+  const totalCashSales = useMemo(() => todaySales.reduce((acc, s) => acc + s.payment_cash, 0), [todaySales])
+  const totalTransferSales = useMemo(() => todaySales.reduce((acc, s) => acc + s.payment_transfer, 0), [todaySales])
+  const totalAccountSales = useMemo(() => todaySales.reduce((acc, s) => acc + s.payment_account, 0), [todaySales])
+  const totalSalesAmount = useMemo(() => todaySales.reduce((acc, s) => acc + s.final_total, 0), [todaySales])
+
+  // Totales de gastos
+  const totalCashExpenses = useMemo(() => 
+    todayExpenses.filter(e => e.payment_method === 'efectivo').reduce((acc, e) => acc + e.amount, 0), 
+    [todayExpenses]
+  )
+  const totalTransferExpenses = useMemo(() => 
+    todayExpenses.filter(e => e.payment_method === 'transferencia').reduce((acc, e) => acc + e.amount, 0), 
+    [todayExpenses]
+  )
+  const totalExpensesAmount = useMemo(() => todayExpenses.reduce((acc, e) => acc + e.amount, 0), [todayExpenses])
+
+  // Caja neta en mano
+  const netCashInHand = totalCashSales - totalCashExpenses
+  const netTransferInHand = totalTransferSales - totalTransferExpenses
+
+  // WhatsApp helper
+  const handleWhatsApp = (ticket: Sale) => {
+    const clientObj = clients.find(c => c.id === ticket.client_id)
+    let text = `🍞 *PANIFICADORA*\n🎫 Ticket #${ticket.id.substring(0, 8).toUpperCase()}\n👤 Cliente: ${ticket.client_name || clientObj?.business_name || 'Cliente'}\n📅 Fecha: ${new Date(ticket.transaction_date).toLocaleString('es-AR')}\n--------------------------------\n`
+    
+    const salesItems = ticket.items.filter(i => i.operation_type === 'sale')
+    if (salesItems.length > 0) {
+      text += `*DESPACHO:*\n`
+      salesItems.forEach(item => text += `• ${item.quantity}x ${item.name} - $${item.quantity * item.unit_price}\n`)
+    }
+    
+    const returnsItems = ticket.items.filter(i => i.operation_type === 'return')
+    if (returnsItems.length > 0) {
+      text += `\n*DEVOLUCIONES (MERMAS):*\n`
+      returnsItems.forEach(item => text += `• -${item.quantity}x ${item.name} - -$${item.quantity * item.unit_price}\n`)
+    }
+    
+    text += `--------------------------------\n*TOTAL BOLETA: $${ticket.final_total}*\n`
+    if (ticket.payment_cash > 0) text += `💵 Efectivo: $${ticket.payment_cash}\n`
+    if (ticket.payment_transfer > 0) text += `💳 Transferencia: $${ticket.payment_transfer}\n`
+    if (ticket.payment_account !== 0) text += `📝 A Cuenta Corriente: $${ticket.payment_account}\n`
+    text += `\n¡Gracias por elegirnos!`
+
+    const phone = clientObj?.phone || ''
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-bg-app">
+      {/* Header */}
+      <div className="bg-white px-5 py-4 flex items-center gap-3 border-b border-brand-muted/10 sticky top-0 z-10 shadow-sm rounded-b-3xl">
+        <button onClick={onBack} className="p-2 text-brand-navy hover:bg-brand-navy/5 rounded-xl border border-brand-muted/10 active:scale-90 transition-all">
+          <ArrowLeft size={20} />
+        </button>
+        <div className="flex-1">
+          <h2 className="text-lg font-black text-brand-deep tracking-tight">Resumen de Caja</h2>
+          <p className="text-[10px] text-brand-muted font-bold uppercase tracking-wider mt-0.5">Control diario de valores</p>
+        </div>
+      </div>
+
+      {/* Contenido con scroll */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 pr-2">
+        
+        {/* Tarjetas de Resumen */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Total Ventas */}
+          <div className="bg-white p-4 rounded-2xl border border-brand-muted/10 shadow-sm flex flex-col justify-between">
+            <div>
+              <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wider block mb-1">Total Ventas</span>
+              <p className="text-lg font-black text-brand-navy">${totalSalesAmount.toLocaleString()}</p>
+            </div>
+            <span className="text-[9px] text-brand-muted mt-2 block font-semibold">{todaySales.length} ticket(s) hoy</span>
+          </div>
+
+          {/* Gastos en Calle */}
+          <div className="bg-white p-4 rounded-2xl border border-brand-muted/10 shadow-sm flex flex-col justify-between">
+            <div>
+              <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider block mb-1">Gastos en Calle</span>
+              <p className="text-lg font-black text-red-500">${totalExpensesAmount.toLocaleString()}</p>
+            </div>
+            <span className="text-[9px] text-brand-muted mt-2 block font-semibold">{todayExpenses.length} registro(s) hoy</span>
+          </div>
+        </div>
+
+        {/* Detalle de Caja en Mano */}
+        <div className="bg-white rounded-3xl p-5 border border-brand-muted/10 shadow-md space-y-4">
+          <h3 className="text-xs font-black text-brand-deep uppercase tracking-wider pb-2 border-b border-brand-muted/10">Valores en Mano</h3>
+          
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-green-50 text-green-500 border border-green-100 rounded-xl flex items-center justify-center">
+                <Banknote size={18} />
+              </div>
+              <div>
+                <span className="text-[10px] text-brand-muted font-bold uppercase tracking-wider">Efectivo Conciliado</span>
+                <p className="text-[10px] text-brand-muted font-medium mt-0.5">Ventas: ${totalCashSales.toLocaleString()} | Gastos: -${totalCashExpenses.toLocaleString()}</p>
+              </div>
+            </div>
+            <p className="text-base font-black text-brand-deep">${netCashInHand.toLocaleString()}</p>
+          </div>
+
+          <div className="w-full bg-brand-muted/5 h-px"></div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-brand-navy/5 text-brand-navy border border-brand-navy/10 rounded-xl flex items-center justify-center">
+                <CreditCard size={18} />
+              </div>
+              <div>
+                <span className="text-[10px] text-brand-muted font-bold uppercase tracking-wider">Transferencias Conciliadas</span>
+                <p className="text-[10px] text-brand-muted font-medium mt-0.5">Ventas: ${totalTransferSales.toLocaleString()} | Gastos: -${totalTransferExpenses.toLocaleString()}</p>
+              </div>
+            </div>
+            <p className="text-base font-black text-brand-deep">${netTransferInHand.toLocaleString()}</p>
+          </div>
+
+          <div className="w-full bg-brand-muted/5 h-px"></div>
+
+          <div className="flex items-center justify-between bg-brand-navy/5 -mx-5 -mb-5 p-4 rounded-b-3xl border-t border-brand-navy/10">
+            <span className="text-xs font-black text-brand-navy uppercase tracking-wider">Total en Mano</span>
+            <p className="text-lg font-black text-brand-navy">${(netCashInHand + netTransferInHand).toLocaleString()}</p>
+          </div>
+        </div>
+
+        {/* Saldo en Cuenta Corriente */}
+        {totalAccountSales !== 0 && (
+          <div className="bg-white rounded-2xl p-4 border border-brand-muted/10 shadow-sm flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-orange-50 text-orange-500 border border-orange-100 rounded-xl flex items-center justify-center">
+                <ClipboardCheck size={16} />
+              </div>
+              <div>
+                <span className="text-[9px] text-brand-muted font-bold uppercase tracking-wider">Cargado a Cuenta Corriente</span>
+                <p className="text-[10px] text-brand-muted font-medium mt-0.5">Ventas a crédito hoy</p>
+              </div>
+            </div>
+            <p className={`text-sm font-black ${totalAccountSales > 0 ? 'text-orange-500' : 'text-green-500'}`}>
+              {totalAccountSales > 0 ? `+` : ''}${totalAccountSales.toLocaleString()}
+            </p>
+          </div>
+        )}
+
+        {/* Listado de Tickets */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xs font-black text-brand-deep uppercase tracking-wider">Tickets del Día</h3>
+            <span className="text-[10px] font-bold bg-brand-navy/5 text-brand-navy px-2 py-0.5 rounded-lg border border-brand-navy/10">{todaySales.length} Ventas</span>
+          </div>
+
+          {todaySales.length === 0 ? (
+            <div className="bg-white rounded-3xl p-8 text-center border border-brand-muted/10 shadow-sm">
+              <ClipboardList className="mx-auto mb-3 text-brand-muted/40" size={36} />
+              <p className="font-bold text-xs text-brand-muted">Sin tickets generados</p>
+              <p className="text-[10px] text-brand-muted/80 mt-1">Registra cobros para visualizarlos aquí.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {todaySales.map((ticket) => {
+                const totalPaid = ticket.payment_cash + ticket.payment_transfer
+                return (
+                  <div 
+                    key={ticket.id}
+                    onClick={() => setSelectedTicket(ticket)}
+                    className="bg-white hover:bg-brand-navy/5 border border-brand-muted/10 rounded-2xl p-3.5 shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-[0.99]"
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[9px] font-mono bg-brand-muted/10 text-brand-muted px-1.5 py-0.5 rounded border border-brand-muted/20 uppercase">#{ticket.id.substring(0, 5)}</span>
+                        <span className="text-[9px] text-brand-muted font-semibold">{new Date(ticket.transaction_date).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs</span>
+                      </div>
+                      <h4 className="font-bold text-xs text-brand-deep truncate">{ticket.client_name || 'Cliente'}</h4>
+                      <div className="flex gap-2.5 mt-1">
+                        {ticket.payment_cash > 0 && (
+                          <span className="text-[8px] font-bold text-green-500 uppercase tracking-wider flex items-center gap-0.5">💵 Efe</span>
+                        )}
+                        {ticket.payment_transfer > 0 && (
+                          <span className="text-[8px] font-bold text-brand-navy uppercase tracking-wider flex items-center gap-0.5">💳 Tra</span>
+                        )}
+                        {ticket.payment_account !== 0 && (
+                          <span className={`text-[8px] font-bold uppercase tracking-wider flex items-center gap-0.5 ${ticket.payment_account > 0 ? 'text-orange-400' : 'text-green-400'}`}>📝 Cta</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="text-right flex-shrink-0 flex items-center gap-2">
+                      <div>
+                        <p className="text-xs font-black text-brand-deep">${ticket.final_total.toLocaleString()}</p>
+                        <p className="text-[9px] text-brand-muted/80 font-medium">Cobrado: ${totalPaid.toLocaleString()}</p>
+                      </div>
+                      <ChevronRight size={16} className="text-brand-muted/40" />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* Modal Detalle de Ticket (Boleta Virtual) */}
+      {selectedTicket && (
+        <div className="absolute inset-0 bg-bg-app/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-md animate-in fade-in">
+          <div className="bg-bg-surface shadow-sm border-t sm:border border-brand-muted/20 rounded-t-3xl sm:rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[85vh] sm:max-h-[750px]">
+            {/* Header del Modal */}
+            <div className="p-4 border-b border-brand-muted/20 bg-brand-navy/5 rounded-t-3xl flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-brand-navy text-sm flex items-center gap-2">
+                  <ClipboardList size={16}/> Comprobante de Venta
+                </h3>
+              </div>
+              <button 
+                onClick={() => setSelectedTicket(null)} 
+                className="text-brand-muted/80 hover:bg-brand-muted/10 p-1.5 rounded-full"
+              >
+                <X size={18}/>
+              </button>
+            </div>
+            
+            {/* Ticket Scrollable */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start">
+              <div className="bg-amber-50/5 text-brand-deep/80 w-full max-w-[280px] p-5 shadow-inner rounded-2xl border border-brand-muted/20 text-xs font-mono relative leading-relaxed">
+                <div className="text-center mb-4 border-b border-brand-muted/20 pb-3">
+                  <h1 className="font-black text-sm text-brand-deep tracking-wide">PANIFICADORA</h1>
+                  <p className="text-[10px] text-brand-muted/80 mt-0.5">Comprobante de Venta</p>
+                  <p className="text-[9px] text-slate-600 mt-1">Ticket: {selectedTicket.id.substring(0, 8).toUpperCase()}</p>
+                  <p className="text-[9px] text-slate-600">{new Date(selectedTicket.transaction_date).toLocaleString('es-AR')}</p>
+                </div>
+                
+                <div className="mb-3 border-b border-brand-muted/20 pb-2">
+                  <p className="font-bold text-brand-muted text-[10px]">CLIENTE:</p>
+                  <p className="text-brand-deep font-bold">{selectedTicket.client_name || 'Cliente'}</p>
+                </div>
+
+                {/* Ítems */}
+                <div className="space-y-2 mb-3">
+                  <div className="flex justify-between font-bold text-brand-muted/80 text-[9px] uppercase border-b border-brand-muted/20 pb-0.5">
+                    <span>Cant x Detalle</span>
+                    <span>Total</span>
+                  </div>
+                  
+                  {selectedTicket.items.filter(i => i.operation_type === 'sale').map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-brand-deep/80">
+                      <span>{item.quantity}x {item.name}</span>
+                      <span>${item.quantity * item.unit_price}</span>
+                    </div>
+                  ))}
+                  
+                  {selectedTicket.items.filter(i => i.operation_type === 'return').map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-red-400">
+                      <span>-{item.quantity}x {item.name} (dev)</span>
+                      <span>-${item.quantity * item.unit_price}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-brand-muted/20 mt-3 pt-2 text-[10px] space-y-1">
+                  <div className="flex justify-between"><span>Venta Bruta:</span><span>${selectedTicket.subtotal_sales}</span></div>
+                  {selectedTicket.total_returns > 0 && <div className="flex justify-between text-red-400"><span>Devoluciones:</span><span>-${selectedTicket.total_returns}</span></div>}
+                  {selectedTicket.applied_debt > 0 && <div className="flex justify-between"><span>Saldo Previo:</span><span>${selectedTicket.applied_debt}</span></div>}
+                </div>
+
+                <div className="border-t-2 border-brand-muted/30 mt-2.5 pt-2.5 mb-2">
+                  <div className="flex justify-between items-center text-sm font-black text-brand-deep">
+                    <span>TOTAL:</span>
+                    <span className="text-brand-navy">${selectedTicket.final_total}</span>
+                  </div>
+                  <div className="text-[9px] text-brand-muted/80 mt-2 space-y-0.5">
+                    {selectedTicket.payment_cash > 0 && <div className="flex justify-between"><span>Abonó Efectivo:</span><span>${selectedTicket.payment_cash}</span></div>}
+                    {selectedTicket.payment_transfer > 0 && <div className="flex justify-between"><span>Abonó Transfer.:</span><span>${selectedTicket.payment_transfer}</span></div>}
+                    {selectedTicket.payment_account !== 0 && (
+                      <div className={`flex justify-between font-bold ${selectedTicket.payment_account > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+                        <span>{selectedTicket.payment_account > 0 ? 'A Cta. Cte:' : 'Saldo a Favor:'}</span>
+                        <span>${Math.abs(selectedTicket.payment_account)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="text-center text-[9px] text-slate-600 mt-6 border-t border-brand-muted/20 pt-3">
+                  *** DOCUMENTO NO VÁLIDO COMO FACTURA ***
+                </div>
+              </div>
+            </div>
+
+            {/* Acciones */}
+            <div className="bg-bg-app p-4 border-t border-brand-muted/20 flex flex-col gap-2 rounded-b-3xl">
+              <button 
+                onClick={() => handleWhatsApp(selectedTicket)} 
+                className="w-full bg-[#25D366] hover:bg-green-600 text-brand-deep font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 transition-colors text-sm"
+              >
+                <MessageCircle size={18} /> Reenviar por WhatsApp
+              </button>
+              <button 
+                onClick={() => setSelectedTicket(null)} 
+                className="w-full bg-brand-muted/10 hover:bg-brand-muted/20 text-brand-deep font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 transition-colors text-sm"
+              >
+                Cerrar Comprobante
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -45,6 +45,12 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
    - La navegación es ahora del lado del cliente sin recargas de página, lo que activa el funcionamiento nativo de los botones e historial "Atrás/Adelante" del navegador web o gestos de retroceso en móviles.
    - Parámetros de URL dinámicos en cobros (ej: `/driver/terminal/:clientId`) y subrutas para todas las pestañas de administración.
 
+8. **Pantalla de Resumen de Caja y Tickets del Día (Repartidor)**:
+   - Se transformó el antiguo SweetAlert estático de caja en una pantalla de ruta dedicada (`/driver/caja`).
+   - Muestra conciliación detallada en tiempo real de Efectivo en Mano y Transferencias (descontando gastos de ruta de forma dinámica).
+   - Muestra el listado completo de los "Tickets de Venta" generados durante el día actual por el repartidor, detallando montos, horarios y formas de pago.
+   - Permite consultar el detalle interactivo de cualquier comprobante (Boleta Virtual) y provee la capacidad de reenviarlo mediante WhatsApp con texto preformateado.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git
