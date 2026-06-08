@@ -16,7 +16,8 @@ interface DriverAppProps {
 export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
   const { 
     drivers, currentDriverId, setCurrentDriver, fetchInitialData, 
-    fetchDriverData, isOffline, setOffline, syncQueue, isSyncing
+    fetchDriverData, isOffline, setOffline, syncQueue, isSyncing,
+    loads, weeklyRoutes, products
   } = useStore()
   
   const [driverView, setDriverView] = useState<'HOME' | 'CLIENTS' | 'TERMINAL'>('HOME')
@@ -47,6 +48,40 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
   }, [currentDriverId, fetchDriverData])
 
   const driver = drivers.find(d => d.id === currentDriverId)
+
+  // Autorecuperación de loads si el chofer está en ruta pero el inventario local está vacío
+  useEffect(() => {
+    if (driver && driver.status === 'En Ruta' && loads.length === 0 && weeklyRoutes.length > 0 && products.length > 0) {
+      const todayJS = new Date().getDay()
+      const todayISO = todayJS === 0 ? 7 : todayJS
+      const initialLoadStop = weeklyRoutes.find(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'initial_load')
+      
+      let plannedLoad: Record<string, number> = initialLoadStop?.planned_load || {}
+      
+      if (Object.keys(plannedLoad).length === 0) {
+        const routeClientStops = weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client')
+        const { clients: allClients } = useStore.getState()
+        routeClientStops.forEach(stop => {
+          const clientObj = allClients.find(c => c.id === stop.client_id)
+          if (clientObj && clientObj.fixed_order) {
+            Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
+              plannedLoad[prodId] = (plannedLoad[prodId] || 0) + (qty as number)
+            })
+          }
+        })
+      }
+
+      const initialLoads = products.map(p => ({
+        id: crypto.randomUUID(),
+        driver_id: driver.id,
+        product_id: p.id,
+        date_loaded: new Date().toISOString(),
+        initial_quantity: plannedLoad[p.id] || 0,
+        current_quantity: plannedLoad[p.id] || 0
+      }))
+      useStore.setState({ loads: initialLoads })
+    }
+  }, [driver, loads.length, weeklyRoutes, products])
 
   // Pantalla de selección de repartidor si no hay ninguno seleccionado
   if (!currentDriverId) {
@@ -217,7 +252,27 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onSelectDiff
     return weeklyRoutes.find(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'initial_load')
   }, [weeklyRoutes, driver.id, todayISO])
 
-  const plannedLoad = initialLoadStop?.planned_load || {}
+  const plannedLoad = useMemo(() => {
+    if (initialLoadStop && initialLoadStop.planned_load && Object.keys(initialLoadStop.planned_load).length > 0) {
+      return initialLoadStop.planned_load
+    }
+
+    // Si no hay carga inicial guardada en la base de datos, sumamos sugeridos de pedidos fijos de los clientes en la ruta de hoy
+    const suggested: Record<string, number> = {}
+    const routeClientStops = weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client')
+    const { clients: allClients } = useStore.getState()
+    
+    routeClientStops.forEach(stop => {
+      const clientObj = allClients.find(c => c.id === stop.client_id)
+      if (clientObj && clientObj.fixed_order) {
+        Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
+          suggested[prodId] = (suggested[prodId] || 0) + (qty as number)
+        })
+      }
+    })
+    return suggested
+  }, [initialLoadStop, weeklyRoutes, driver.id, todayISO])
+
   const hasLoad = Object.keys(plannedLoad).length > 0
 
   // States de gasto
@@ -358,6 +413,17 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onSelectDiff
               </div>
               <button 
                 onClick={() => {
+                  // Inicializar stock (loads) en el store
+                  const initialLoads = products.map(p => ({
+                    id: crypto.randomUUID(),
+                    driver_id: driver.id,
+                    product_id: p.id,
+                    date_loaded: new Date().toISOString(),
+                    initial_quantity: plannedLoad[p.id] || 0,
+                    current_quantity: plannedLoad[p.id] || 0
+                  }))
+                  useStore.setState({ loads: initialLoads })
+
                   setHasConfirmedLoad(true)
                   setShowLoadChecklist(false)
                 }} 
