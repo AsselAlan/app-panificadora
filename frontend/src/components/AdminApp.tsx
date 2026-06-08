@@ -2733,7 +2733,16 @@ const AdminRoutes: React.FC = () => {
 
       {activeLoadModal && (
         <LoadConfigModal 
-          stop=const LoadConfigModal: React.FC<{ stop: any, suggested: Record<string, number>, onClose: () => void }> = ({ stop, suggested, onClose }) => {
+          stop={activeLoadModal.stop}
+          suggested={activeLoadModal.suggested}
+          onClose={() => setActiveLoadModal(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+const LoadConfigModal: React.FC<{ stop: any, suggested: Record<string, number>, onClose: () => void }> = ({ stop, suggested, onClose }) => {
   const { products, fetchInitialData } = useStore()
   
   // Initialize with saved planned_load, desglosando en fixed y extra
