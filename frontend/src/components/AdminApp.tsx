@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
+import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import { 
   TrendingUp, TrendingDown, Wallet, Store, Activity, Users, 
   ClipboardList, Package, LogOut, Truck,
@@ -16,8 +17,16 @@ interface AdminAppProps {
 }
 
 export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
+  const navigate = useNavigate()
+  const location = useLocation()
   const { fetchInitialData } = useStore()
-  const [adminView, setAdminView] = useState<'DASHBOARD' | 'POS' | 'DRIVERS' | 'CLIENTS' | 'EXPENSES' | 'STOCK' | 'PRODUCTS' | 'ROUTES'>('DASHBOARD')
+
+  const currentPath = location.pathname.split('/')[2]?.toUpperCase() || 'DASHBOARD'
+  const adminView = currentPath === '' ? 'DASHBOARD' : currentPath
+
+  const setAdminView = (view: string) => {
+    navigate(`/admin/${view.toLowerCase()}`)
+  }
 
   useEffect(() => {
     fetchInitialData()
@@ -29,20 +38,6 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
     
     return () => clearInterval(interval)
   }, [fetchInitialData])
-
-  const renderContent = () => {
-    switch (adminView) {
-      case 'DASHBOARD': return <AdminDashboard />
-      case 'POS': return <AdminPOS setAdminView={setAdminView} />
-      case 'DRIVERS': return <AdminDrivers />
-      case 'CLIENTS': return <AdminClients />
-      case 'EXPENSES': return <AdminExpenses />
-      case 'STOCK': return <AdminStock />
-      case 'PRODUCTS': return <AdminProducts />
-      case 'ROUTES': return <AdminRoutes />
-      default: return <AdminDashboard />
-    }
-  }
 
   return (
     <div className="min-h-screen flex bg-bg-app font-sans text-slate-100">
@@ -67,7 +62,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
           ].map(item => (
             <button 
               key={item.id} 
-              onClick={() => setAdminView(item.id as any)} 
+              onClick={() => navigate(`/admin/${item.id.toLowerCase()}`)} 
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all ${adminView === item.id ? 'bg-brand-navy text-white font-bold bg-white/10 shadow-lg shadow-blue-600/10' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
             >
               <item.icon size={18} /> {item.label}
@@ -113,7 +108,18 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
           </div>
         </header>
         <div className="flex-1 overflow-auto p-8 bg-bg-app">
-          {renderContent()}
+          <Routes>
+            <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/dashboard" element={<AdminDashboard />} />
+            <Route path="/pos" element={<AdminPOS setAdminView={setAdminView} />} />
+            <Route path="/drivers" element={<AdminDrivers />} />
+            <Route path="/clients" element={<AdminClients />} />
+            <Route path="/expenses" element={<AdminExpenses />} />
+            <Route path="/stock" element={<AdminStock />} />
+            <Route path="/products" element={<AdminProducts />} />
+            <Route path="/routes" element={<AdminRoutes />} />
+            <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+          </Routes>
         </div>
       </main>
     </div>

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
+import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { 
   Wifi, WifiOff, Truck, MapPin, Package, ClipboardCheck, 
   X, CheckCircle, AlertCircle, Banknote, CreditCard, ShoppingCart, 
@@ -13,16 +14,39 @@ interface DriverAppProps {
   onLogout: () => void
 }
 
+const DriverTerminalWrapper: React.FC<{
+  driver: any;
+  onBack: () => void;
+  onComplete: () => void;
+}> = ({ driver, onBack, onComplete }) => {
+  const { clientId } = useParams<{ clientId: string }>()
+  return (
+    <DriverTerminal 
+      driver={driver}
+      clientId={clientId!}
+      onBack={onBack}
+      onComplete={onComplete}
+    />
+  )
+}
+
 export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
+  const navigate = useNavigate()
+  const location = useLocation()
   const { 
     drivers, currentDriverId, setCurrentDriver, fetchInitialData, 
     fetchDriverData, isOffline, setOffline, syncQueue, isSyncing,
     loads, weeklyRoutes, products
   } = useStore()
   
-  const [driverView, setDriverView] = useState<'HOME' | 'CLIENTS' | 'ROADMAP' | 'TERMINAL'>('HOME')
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [navigationSource, setNavigationSource] = useState<'CLIENTS' | 'ROADMAP'>('CLIENTS')
+
+  const currentPath = location.pathname.split('/')[2]?.toUpperCase() || 'HOME'
+  const driverView = currentPath === '' ? 'HOME' : currentPath
+
+  const setDriverView = (view: string) => {
+    navigate(`/driver/${view.toLowerCase()}`)
+  }
 
   // Escuchar estado offline/online nativo
   useEffect(() => {
@@ -139,47 +163,6 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
 
   if (!driver) return null
 
-  // Enrutamiento de sub-vistas del repartidor
-  const renderDriverView = () => {
-    switch (driverView) {
-      case 'HOME':
-        return (
-          <DriverHome 
-            driver={driver} 
-            onNewSale={() => setDriverView('CLIENTS')} 
-            onViewRoadmap={() => setDriverView('ROADMAP')}
-            onSelectDifferentDriver={() => setCurrentDriver(null)} 
-          />
-        )
-      case 'CLIENTS':
-        return (
-          <DriverClients 
-            onBack={() => setDriverView('HOME')} 
-            onSelectClient={(id) => { setSelectedClientId(id); setNavigationSource('CLIENTS'); setDriverView('TERMINAL'); }} 
-          />
-        )
-      case 'ROADMAP':
-        return (
-          <DriverRoadmap 
-            driver={driver}
-            onBack={() => setDriverView('HOME')} 
-            onSelectClient={(id) => { setSelectedClientId(id); setNavigationSource('ROADMAP'); setDriverView('TERMINAL'); }} 
-          />
-        )
-      case 'TERMINAL':
-        return (
-          <DriverTerminal 
-            driver={driver}
-            clientId={selectedClientId!}
-            onBack={() => setDriverView(navigationSource)}
-            onComplete={() => setDriverView('HOME')}
-          />
-        )
-      default:
-        return null
-    }
-  }
-
   return (
     <div className="min-h-screen bg-bg-app flex justify-center items-center font-sans">
       {/* Marco de Simulador Móvil Premium */}
@@ -204,7 +187,14 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
 
         {/* Contenedor de la Vista */}
         <div className="flex-1 overflow-hidden flex flex-col relative bg-bg-surface shadow-sm">
-          {renderDriverView()}
+          <Routes>
+            <Route path="/" element={<Navigate to="/driver/home" replace />} />
+            <Route path="/home" element={<DriverHome driver={driver} onNewSale={() => navigate('/driver/clients')} onViewRoadmap={() => navigate('/driver/roadmap')} onSelectDifferentDriver={() => { setCurrentDriver(null); onLogout(); }} />} />
+            <Route path="/clients" element={<DriverClients onBack={() => navigate('/driver/home')} onSelectClient={(id) => { setNavigationSource('CLIENTS'); navigate(`/driver/terminal/${id}`); }} />} />
+            <Route path="/roadmap" element={<DriverRoadmap driver={driver} onBack={() => navigate('/driver/home')} onSelectClient={(id) => { setNavigationSource('ROADMAP'); navigate(`/driver/terminal/${id}`); }} />} />
+            <Route path="/terminal/:clientId" element={<DriverTerminalWrapper driver={driver} onBack={() => navigate(`/driver/${navigationSource.toLowerCase()}`)} onComplete={() => navigate('/driver/home')} />} />
+            <Route path="*" element={<Navigate to="/driver/home" replace />} />
+          </Routes>
         </div>
 
         {/* Barra de Navegación Inferior (Móvil) */}

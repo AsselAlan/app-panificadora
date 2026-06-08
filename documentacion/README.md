@@ -40,6 +40,11 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
    - **Historial de Navegación Inteligente**: Configurado el control de regreso al salir de la Terminal de Ventas; ahora el chofer retorna dinámicamente a "Ver Hoja de Ruta" o "Seleccionar Cliente" según de qué pantalla haya venido.
    - Nueva sección **"Seleccionar Cliente"**: listado completo de clientes asignados a la ruta del día con buscador y saldos para acceso rápido.
 
+7. **Arquitectura de Enrutamiento Dinámico (V1.0)**:
+   - Incorporación de `react-router-dom` para gestionar toda la navegación de la aplicación (Login, Choferes y Administración).
+   - La navegación es ahora del lado del cliente sin recargas de página, lo que activa el funcionamiento nativo de los botones e historial "Atrás/Adelante" del navegador web o gestos de retroceso en móviles.
+   - Parámetros de URL dinámicos en cobros (ej: `/driver/terminal/:clientId`) y subrutas para todas las pestañas de administración.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git
