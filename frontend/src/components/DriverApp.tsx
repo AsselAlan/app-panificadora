@@ -573,7 +573,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
   return (
     <div className="flex flex-col h-full bg-bg-surface shadow-sm overflow-y-auto relative">
       {/* Encabezado Principal */}
-      <div className="bg-brand-navy text-white p-6 pb-8 rounded-b-[2.5rem] shadow-md relative overflow-hidden">
+      <div className="bg-brand-navy text-white px-6 pb-8 pt-8 -mt-2 rounded-b-[2.5rem] shadow-md relative overflow-hidden">
         <div className="absolute -right-4 -top-4 opacity-10">
           <Truck size={140} />
         </div>
