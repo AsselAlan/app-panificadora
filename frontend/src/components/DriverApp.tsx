@@ -20,7 +20,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
     loads, weeklyRoutes, products
   } = useStore()
   
-  const [driverView, setDriverView] = useState<'HOME' | 'CLIENTS' | 'TERMINAL'>('HOME')
+  const [driverView, setDriverView] = useState<'HOME' | 'CLIENTS' | 'ROADMAP' | 'TERMINAL'>('HOME')
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
 
   // Escuchar estado offline/online nativo
@@ -146,12 +146,21 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
           <DriverHome 
             driver={driver} 
             onNewSale={() => setDriverView('CLIENTS')} 
+            onViewRoadmap={() => setDriverView('ROADMAP')}
             onSelectDifferentDriver={() => setCurrentDriver(null)} 
           />
         )
       case 'CLIENTS':
         return (
           <DriverClients 
+            onBack={() => setDriverView('HOME')} 
+            onSelectClient={(id) => { setSelectedClientId(id); setDriverView('TERMINAL'); }} 
+          />
+        )
+      case 'ROADMAP':
+        return (
+          <DriverRoadmap 
+            driver={driver}
             onBack={() => setDriverView('HOME')} 
             onSelectClient={(id) => { setSelectedClientId(id); setDriverView('TERMINAL'); }} 
           />
@@ -236,10 +245,11 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
 interface DriverHomeProps {
   driver: Driver
   onNewSale: () => void
+  onViewRoadmap: () => void
   onSelectDifferentDriver: () => void
 }
 
-const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onSelectDifferentDriver }) => {
+const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadmap, onSelectDifferentDriver }) => {
   const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories } = useStore()
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [hasConfirmedLoad, setHasConfirmedLoad] = useState(false)
@@ -292,6 +302,17 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onSelectDiff
   }, [weeklyRoutes, driver.id, todayISO])
 
   const handleStart = async () => {
+    // Inicializar stock (loads) en el store a partir de plannedLoad
+    const initialLoads = products.map(p => ({
+      id: crypto.randomUUID(),
+      driver_id: driver.id,
+      product_id: p.id,
+      date_loaded: new Date().toISOString(),
+      initial_quantity: plannedLoad[p.id] || 0,
+      current_quantity: plannedLoad[p.id] || 0
+    }))
+    useStore.setState({ loads: initialLoads })
+
     await startDriverRoute(driver.id)
     Swal.fire({
       title: '¡Ruta Iniciada!',
@@ -361,21 +382,10 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onSelectDiff
           <p className="text-4xl font-black text-brand-deep">{driverRouteClientsCount} <span className="text-sm font-semibold text-brand-muted/80">Clientes</span></p>
         </div>
 
-        <div className="w-full space-y-3">
-          <button 
-            onClick={() => setShowLoadChecklist(true)} 
-            className={`w-full py-4 px-6 rounded-2xl font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-between border shadow-sm ${hasConfirmedLoad ? 'bg-green-500/10 text-green-700 border-green-500/20' : 'bg-white hover:bg-brand-muted/5 border-brand-muted/10 text-brand-deep'}`}
-          >
-            <span className="flex items-center gap-3">
-              {hasConfirmedLoad ? <CheckCircle size={20} className="text-green-500" /> : <ClipboardCheck size={20} className="text-brand-orange" />} 
-              {hasConfirmedLoad ? 'Carga Verificada' : 'Verificar Carga'}
-            </span>
-            <ChevronRight size={18} className="opacity-40" />
-          </button>
-
+        <div className="w-full">
           <button 
             onClick={handleStart} 
-            disabled={driverRouteClientsCount === 0 || !hasConfirmedLoad} 
+            disabled={driverRouteClientsCount === 0} 
             className="bg-brand-navy hover:bg-brand-navy/90 disabled:opacity-40 disabled:hover:bg-brand-navy text-white w-full py-4 rounded-2xl font-black text-base shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
           >
             <MapPin size={20} /> Iniciar Recorrido
@@ -528,16 +538,33 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onSelectDiff
 
       {/* Contenido de Ruta / Acciones */}
       <div className="p-5 flex-1 flex flex-col justify-start gap-4 pb-24">
-        {/* Continuar Ruta */}
+        {/* Botón Ver Hoja de Ruta (Secuencia ordenada) */}
         <button 
-          onClick={onNewSale} 
-          className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-[2rem] p-6 shadow-xl shadow-blue-900/20 flex flex-col items-center justify-center gap-3 active:scale-[0.98] transition-all relative overflow-hidden group"
+          onClick={onViewRoadmap} 
+          className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-[2rem] p-5 shadow-xl shadow-blue-900/20 flex items-center justify-start gap-4 active:scale-[0.98] transition-all relative overflow-hidden group w-full"
         >
           <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-tr from-white/0 via-white/5 to-white/10 group-hover:via-white/10 transition-colors"></div>
-          <div className="bg-white/10 p-4 rounded-2xl shadow-inner relative z-10 backdrop-blur-sm border border-white/10">
-            <ShoppingCart size={32} />
+          <div className="bg-white/10 p-3 rounded-xl shadow-inner relative z-10 backdrop-blur-sm border border-white/10">
+            <ClipboardList size={24} />
           </div>
-          <span className="text-xl font-black tracking-tight relative z-10">Continuar Hoja de Ruta</span>
+          <div className="text-left relative z-10">
+            <span className="text-base font-black tracking-tight block">Ver Hoja de Ruta</span>
+            <span className="text-[10px] text-white/70 font-semibold block mt-0.5">Recorrido ordenado y cargas</span>
+          </div>
+        </button>
+
+        {/* Botón Seleccionar Cliente (Búsqueda directa) */}
+        <button 
+          onClick={onNewSale} 
+          className="bg-white hover:bg-brand-navy/5 text-brand-navy border border-brand-navy/20 rounded-[2rem] p-5 shadow-sm flex items-center justify-start gap-4 active:scale-[0.98] transition-all w-full"
+        >
+          <div className="bg-brand-navy/5 p-3 rounded-xl border border-brand-navy/10 text-brand-navy">
+            <Search size={24} />
+          </div>
+          <div className="text-left">
+            <span className="text-base font-black tracking-tight block">Seleccionar Cliente</span>
+            <span className="text-[10px] text-brand-muted/80 font-semibold block mt-0.5">Listado completo de clientes</span>
+          </div>
         </button>
         
         {/* Gastos y Resumen */}
@@ -1312,6 +1339,174 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
           >
             <Printer size={18} /> Confirmar Transmisión e Imprimir
           </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ==========================================
+// COMPONENTE: DRIVER ROADMAP (HOJA DE RUTA)
+// ==========================================
+interface DriverRoadmapProps {
+  driver: Driver
+  onBack: () => void
+  onSelectClient: (clientId: string) => void
+}
+
+const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectClient }) => {
+  const { weeklyRoutes, clients, products } = useStore()
+
+  const todayJS = new Date().getDay()
+  const todayISO = todayJS === 0 ? 7 : todayJS
+
+  // 1. Obtener paradas del día
+  const dayRoutes = useMemo(() => {
+    return weeklyRoutes
+      .filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type !== 'initial_load')
+      .sort((a, b) => a.route_order - b.route_order)
+  }, [weeklyRoutes, driver.id, todayISO])
+
+  // 2. Obtener primera carga
+  const initialLoadStop = useMemo(() => {
+    return weeklyRoutes.find(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'initial_load')
+  }, [weeklyRoutes, driver.id, todayISO])
+
+  const plannedLoad = useMemo(() => {
+    if (initialLoadStop && initialLoadStop.planned_load && Object.keys(initialLoadStop.planned_load).length > 0) {
+      return initialLoadStop.planned_load
+    }
+    // Si no hay carga inicial guardada en la base de datos, sumamos sugeridos de pedidos fijos de los clientes en la ruta de hoy
+    const suggested: Record<string, number> = {}
+    const routeClientStops = weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client')
+    const { clients: allClients } = useStore.getState()
+    
+    routeClientStops.forEach(stop => {
+      const clientObj = allClients.find(c => c.id === stop.client_id)
+      if (clientObj && clientObj.fixed_order) {
+        Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
+          suggested[prodId] = (suggested[prodId] || 0) + (qty as number)
+        })
+      }
+    })
+    return suggested
+  }, [initialLoadStop, weeklyRoutes, driver.id, todayISO])
+
+  const hasLoad = Object.keys(plannedLoad).length > 0
+
+  return (
+    <div className="flex flex-col h-full bg-bg-app">
+      {/* Header */}
+      <div className="bg-white px-5 py-4 flex items-center gap-3 border-b border-brand-muted/10 sticky top-0 z-10 shadow-sm rounded-b-3xl">
+        <button onClick={onBack} className="p-2 text-brand-navy hover:bg-brand-navy/5 rounded-xl border border-brand-muted/10 active:scale-90 transition-all">
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="text-xl font-black text-brand-deep flex-1 tracking-tight">Hoja de Ruta</h2>
+      </div>
+
+      {/* Contenido Timeline */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 pb-24 pr-2">
+        
+        {/* Timeline Line Conector */}
+        <div className="relative border-l-2 border-dashed border-brand-muted/20 ml-4 pl-6 space-y-6">
+          
+          {/* Parada 0: Carga Inicial */}
+          <div className="relative">
+            {/* Indicador del timeline */}
+            <span className="absolute -left-[35px] top-1 bg-brand-orange text-white w-6 h-6 rounded-full flex items-center justify-center shadow-sm border border-white">
+              <Package size={12} />
+            </span>
+            <div className="bg-white border border-brand-muted/10 rounded-2xl p-4 shadow-sm">
+              <span className="text-[9px] font-black text-brand-orange uppercase tracking-wider block mb-1">Punto de Salida</span>
+              <h4 className="font-bold text-brand-deep text-sm mb-2">Primera Carga (Fábrica)</h4>
+              
+              {hasLoad ? (
+                <div className="grid grid-cols-1 gap-1.5 mt-2 bg-brand-muted/5 p-3 rounded-xl border border-brand-muted/10">
+                  {products.map(p => {
+                    const qty = plannedLoad[p.id] || 0
+                    if (qty === 0) return null
+                    return (
+                      <div key={p.id} className="flex justify-between items-center text-xs">
+                        <span className="text-brand-deep font-semibold">{p.name}</span>
+                        <span className="font-black text-brand-navy bg-brand-navy/10 px-2 py-0.5 rounded text-[11px]">{qty} {p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bolsas' : p.unit_type}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-brand-muted/80 italic mt-1">Sin mercadería planificada para esta carga.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Demás paradas */}
+          {dayRoutes.map((stop, index) => {
+            const isLoad = stop.stop_type === 'load'
+            const client = isLoad ? null : clients.find(c => c.id === stop.client_id)
+            const stopLoad = stop.planned_load || {}
+            const stopHasLoad = Object.keys(stopLoad).length > 0
+
+            return (
+              <div key={stop.id} className="relative">
+                {/* Indicador del timeline */}
+                <span className={`absolute -left-[35px] top-1 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-sm border border-white text-xs font-black ${isLoad ? 'bg-brand-orange' : 'bg-brand-navy'}`}>
+                  {isLoad ? <Package size={12} /> : index + 1}
+                </span>
+
+                <div 
+                  onClick={() => {
+                    if (!isLoad && client) {
+                      onSelectClient(client.id)
+                    }
+                  }}
+                  className={`bg-white border rounded-2xl p-4 shadow-sm transition-all ${!isLoad ? 'hover:border-brand-navy/30 cursor-pointer hover:shadow-md active:scale-[0.99]' : 'border-brand-muted/10'}`}
+                >
+                  {isLoad ? (
+                    <div>
+                      <span className="text-[9px] font-black text-brand-orange uppercase tracking-wider block mb-1">Carga en Ruta</span>
+                      <h4 className="font-bold text-brand-deep text-sm mb-2">Carga Intermedia (Fábrica)</h4>
+                      
+                      {stopHasLoad ? (
+                        <div className="grid grid-cols-1 gap-1.5 mt-2 bg-brand-muted/5 p-3 rounded-xl border border-brand-muted/10">
+                          {products.map(p => {
+                            const qty = stopLoad[p.id] || 0
+                            if (qty === 0) return null
+                            return (
+                              <div key={p.id} className="flex justify-between items-center text-xs">
+                                <span className="text-brand-deep font-semibold">{p.name}</span>
+                                <span className="font-black text-brand-orange bg-brand-orange/10 px-2 py-0.5 rounded text-[11px]">{qty} {p.unit_type}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-brand-muted/80 italic mt-1">Sin mercadería planificada.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[9px] font-black text-brand-navy uppercase tracking-wider block mb-1">Cliente a Visitar</span>
+                        <h4 className="font-bold text-brand-deep text-sm truncate">{client?.business_name || 'Cliente Desconocido'}</h4>
+                        <p className="text-xs text-brand-muted truncate flex items-center gap-1.5 mt-1 font-medium">
+                          <MapPin size={12} className="text-brand-orange flex-shrink-0" /> {client?.address || 'Sin dirección'}
+                        </p>
+                      </div>
+                      <ChevronRight size={18} className="text-brand-muted/40" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {dayRoutes.length === 0 && (
+          <div className="text-center text-brand-muted/80 py-10">
+            <MapPin size={40} className="mx-auto mb-4 text-slate-700" />
+            <p className="font-bold text-brand-muted">Ruta sin paradas</p>
+            <p className="text-xs text-brand-muted/80 mt-1">No hay clientes ni recargas asignadas para hoy.</p>
+          </div>
         )}
       </div>
     </div>

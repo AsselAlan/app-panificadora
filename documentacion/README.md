@@ -33,6 +33,11 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
    - Añadida edición completa de productos (nombre, unidad, precios A y B).
    - Creado un modal de vista rápida que calcula dinámicamente el historial de cantidades vendidas y la recaudación total de cada producto consultando la base de datos.
 
+6. **Optimización del Flujo y Hoja de Ruta en App Móvil**:
+   - Simplificación del inicio de recorrido: se eliminó el paso intermedio obligatorio de "Verificar Carga", permitiendo iniciar el recorrido directamente. El stock en la furgoneta (`loads`) se inicializa automáticamente al iniciar.
+   - Nueva sección interactiva **"Ver Hoja de Ruta"**: muestra un timeline visual premium con la secuencia exacta de visitas a clientes y paradas de carga en ruta (incluyendo el detalle de la mercadería). Permite iniciar ventas directamente desde las paradas del timeline.
+   - Nueva sección **"Seleccionar Cliente"**: listado completo de clientes asignados a la ruta del día con buscador y saldos para acceso rápido.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git
