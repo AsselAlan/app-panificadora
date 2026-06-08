@@ -22,6 +22,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
   
   const [driverView, setDriverView] = useState<'HOME' | 'CLIENTS' | 'ROADMAP' | 'TERMINAL'>('HOME')
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+  const [navigationSource, setNavigationSource] = useState<'CLIENTS' | 'ROADMAP'>('CLIENTS')
 
   // Escuchar estado offline/online nativo
   useEffect(() => {
@@ -154,7 +155,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
         return (
           <DriverClients 
             onBack={() => setDriverView('HOME')} 
-            onSelectClient={(id) => { setSelectedClientId(id); setDriverView('TERMINAL'); }} 
+            onSelectClient={(id) => { setSelectedClientId(id); setNavigationSource('CLIENTS'); setDriverView('TERMINAL'); }} 
           />
         )
       case 'ROADMAP':
@@ -162,7 +163,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
           <DriverRoadmap 
             driver={driver}
             onBack={() => setDriverView('HOME')} 
-            onSelectClient={(id) => { setSelectedClientId(id); setDriverView('TERMINAL'); }} 
+            onSelectClient={(id) => { setSelectedClientId(id); setNavigationSource('ROADMAP'); setDriverView('TERMINAL'); }} 
           />
         )
       case 'TERMINAL':
@@ -170,7 +171,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
           <DriverTerminal 
             driver={driver}
             clientId={selectedClientId!}
-            onBack={() => setDriverView('CLIENTS')}
+            onBack={() => setDriverView(navigationSource)}
             onComplete={() => setDriverView('HOME')}
           />
         )
