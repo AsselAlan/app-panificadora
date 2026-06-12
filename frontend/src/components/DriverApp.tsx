@@ -47,7 +47,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
   const { 
     drivers, currentDriverId, setCurrentDriver, fetchInitialData, 
     fetchDriverData, isOffline, setOffline, syncQueue, isSyncing,
-    loads, weeklyRoutes, products
+    loads, weeklyRoutes, products, userSession
   } = useStore()
   
   const [navigationSource, setNavigationSource] = useState<'CLIENTS' | 'ROADMAP'>('CLIENTS')
@@ -82,6 +82,16 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
       fetchDriverData(currentDriverId)
     }
   }, [currentDriverId, fetchDriverData])
+
+  // Autoseleccionar chofer según la sesión activa
+  useEffect(() => {
+    if (!currentDriverId && userSession && drivers.length > 0) {
+      const myDriver = drivers.find(d => d.user_id === userSession.user.id)
+      if (myDriver) {
+        setCurrentDriver(myDriver.id)
+      }
+    }
+  }, [currentDriverId, userSession, drivers, setCurrentDriver])
 
   const driver = drivers.find(d => d.id === currentDriverId)
 
@@ -232,6 +242,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
                   Swal.fire('Advertencia', `Tienes ${syncQueue.length} ventas sin sincronizar. Asegúrate de tener conexión antes de salir.`, 'warning')
                 }
                 setCurrentDriver(null)
+                onLogout()
               }} 
               className="flex flex-col items-center justify-center p-2 rounded-2xl w-20 text-brand-muted hover:text-red-500 hover:bg-red-50 font-semibold active:scale-95 transition-all"
             >

@@ -33,11 +33,8 @@ export const ForceChangePassword = () => {
 
       if (authError) throw authError
 
-      // 2. Actualizar flag en user_roles
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .update({ requires_password_change: false })
-        .eq('user_id', userSession.user.id)
+      // 2. Actualizar flag en user_roles mediante RPC (por seguridad de RLS)
+      const { error: roleError } = await supabase.rpc('clear_password_change_flag')
 
       if (roleError) throw roleError
 
