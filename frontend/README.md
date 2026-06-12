@@ -1,73 +1,54 @@
-# React + TypeScript + Vite
+# Software Panificadora v0.1
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sistema integral de gestión para panificadoras que manejan distribución por rutas (repartidores) y venta al mostrador (Punto de Venta). 
 
-Currently, two official plugins are available:
+Este proyecto está construido con **React + TypeScript + Vite** en el frontend, estilizado con **Tailwind CSS**, y respaldado por **Supabase** (PostgreSQL) en el backend.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Roles y Accesos
 
-## React Compiler
+El sistema cuenta con un sistema de autenticación centralizado a través de Supabase Auth, complementado con una tabla `user_roles` que define el comportamiento y las vistas a las que puede acceder cada usuario:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. **Administrador (`admin`)**
+   - Acceso total al panel general (`AdminApp.tsx`).
+   - Gestión de Usuarios (Creación, asignación de roles, reseteo de contraseñas obligatorias).
+   - Monitoreo de flota, rutas diarias, gestión de clientes, gastos, stock central, y catálogo de productos.
+   - Panel adaptativo a dispositivos móviles (Menú hamburguesa responsivo).
 
-## Expanding the ESLint configuration
+2. **Repartidor (`repartidor`)**
+   - Acceso exclusivo al panel de conductor (`DriverApp.tsx`).
+   - Flujo de ventas y cobranzas offline-first / PWA.
+   - Registro de mermas y devoluciones de panadería que descuentan el stock local cargado en su vehículo (`loads`).
+   - La primera vez que ingresan (tras ser creados por el admin) deben cambiar su clave por seguridad.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+3. **Mostrador (`mostrador`)**
+   - Acceso exclusivo al Punto de Venta local (`MostradorApp.tsx`).
+   - Interfaz de "Caja" optimizada para ventas ágiles (POS).
+   - El stock se descuenta en tiempo real de la central (`bakery_stock` en tabla `products`).
+   - La venta se realiza de manera atómica a través de RPC en base de datos (`process_mostrador_sale`).
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Arquitectura de Ventas
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Las ventas en la aplicación se dividen en dos ramas lógicas dentro de la misma tabla de `sales`, permitiendo tener métricas consolidadas:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- **Ventas de Ruta (Repartidores):** Tienen asociado un `driver_id` y descuentan stock del inventario móvil (`loads`).
+- **Ventas de Mostrador:** Tienen un `driver_id` nulo (ya que no viajan en vehículo), están vinculadas al "Consumidor Final", y descuentan de la central.
+
+## Funcionalidades Clave Implementadas
+
+* **Gestión de Stock Central y Vehicular:** Separación clara entre lo que hay en fábrica y lo que tienen las camionetas.
+* **Sistema POS:** Carrito dinámico, catálogo interactivo y cálculos automáticos de vuelto (Modal de Pagos).
+* **Responsive Design:** La aplicación es 100% responsiva. La app de Mostrador se apila en columnas en móviles para mejorar la experiencia táctil, y la del Administrador oculta el menú lateral y agrega un Overlay para maximizar el área de trabajo en pantallas chicas.
+* **Seguridad y Atomicidad:** Las ventas utilizan Procedimientos Almacenados (RPC) en Postgresql para que el descuento de stock, la generación del ticket y la actualización de deudas de clientes (Cuenta Corriente) sean a prueba de fallos de red.
+
+## Comandos Útiles
+
+```bash
+# Iniciar servidor de desarrollo
+npm run dev
+
+# Compilar para producción
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Estado Actual (v0.1)
+El frontend de la aplicación se encuentra en desarrollo activo. Las vistas y la integración principal a la base de datos están listas, incluyendo la respuesta visual dinámica, diseño Premium, interacciones adaptativas a celular y flujo completo de ventas de mostrador.

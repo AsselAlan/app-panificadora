@@ -140,6 +140,13 @@ interface AppState {
   setCurrentDriver: (id: string | null) => void;
   clearAllData: () => void;
   
+  // Autenticación
+  userSession: any | null;
+  userRole: 'admin' | 'repartidor' | 'mostrador' | null;
+  requiresPasswordChange: boolean;
+  setSession: (session: any | null, role: 'admin' | 'repartidor' | 'mostrador' | null, requiresPasswordChange?: boolean) => void;
+  logout: () => Promise<void>;
+  
   // Carga de datos de Supabase
   fetchInitialData: () => Promise<void>;
   fetchDriverData: (driverId: string) => Promise<void>;
@@ -175,6 +182,29 @@ export const useStore = create<AppState>()(
       isOffline: !navigator.onLine,
       isSyncing: false,
       syncQueue: [],
+      userSession: null,
+      userRole: null,
+      requiresPasswordChange: false,
+
+      // Autenticación
+      setSession: (session, role, requiresPasswordChange = false) => set({ userSession: session, userRole: role, requiresPasswordChange }),
+      logout: async () => {
+        await supabase.auth.signOut()
+        set({ 
+          userSession: null, 
+          userRole: null,
+          requiresPasswordChange: false,
+          currentDriverId: null,
+          products: [],
+          clients: [],
+          drivers: [],
+          loads: [],
+          sales: [],
+          weeklyRoutes: [],
+          expenses: [],
+          syncQueue: []
+        })
+      },
 
       // Cambiar estado de conexión y gatillar sincronización
       setOffline: (status) => {

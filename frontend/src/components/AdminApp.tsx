@@ -5,12 +5,14 @@ import {
   ClipboardList, Package, LogOut, Truck,
   Plus, Minus, ShoppingCart, Printer, Banknote, CreditCard,
   X, Calendar, Clock, History, BarChart, MapPin, Map, ArrowUp, ArrowDown, Trash2,
-  Pencil, Eye, Pause, Play
+  Pencil, Eye, Pause, Play, Shield, KeyRound, Menu
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { Product } from '../store/useStore'
 import Swal from 'sweetalert2'
 import { supabase } from '../supabaseClient'
+import { AdminUsers } from './admin/AdminUsers'
+import { AdminProfile } from './admin/AdminProfile'
 
 interface AdminAppProps {
   onLogout: () => void
@@ -20,12 +22,14 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { fetchInitialData } = useStore()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const currentPath = location.pathname.split('/')[2]?.toUpperCase() || 'DASHBOARD'
   const adminView = currentPath === '' ? 'DASHBOARD' : currentPath
 
   const setAdminView = (view: string) => {
     navigate(`/admin/${view.toLowerCase()}`)
+    setIsMobileMenuOpen(false)
   }
 
   useEffect(() => {
@@ -40,9 +44,21 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
   }, [fetchInitialData])
 
   return (
-    <div className="min-h-screen flex bg-bg-app font-sans text-slate-100">
+    <div className="min-h-screen flex bg-bg-app font-sans text-slate-100 relative">
+      
+      {/* Overlay para móviles */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 z-30 md:hidden animate-in fade-in"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar Lateral */}
-      <aside className="w-64 bg-brand-navy border-r border-brand-navy flex flex-col z-20 text-white">
+      <aside className={`
+        fixed inset-y-0 left-0 w-64 bg-brand-navy border-r border-brand-navy flex flex-col z-40 text-white transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
         <div className="h-16 flex items-center px-6 border-b border-brand-muted/20/60 bg-brand-navy font-black text-white text-lg gap-2.5">
           <div className="w-8 h-8 bg-brand-orange/10 text-orange-500 rounded-lg flex items-center justify-center">
             <Truck size={18} />
@@ -59,6 +75,8 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
             { id: 'STOCK', label: 'Stock Fábrica', icon: ClipboardList },
             { id: 'PRODUCTS', label: 'Catálogo y Precios', icon: Package },
             { id: 'ROUTES', label: 'Rutas Diarias', icon: Map },
+            { id: 'USERS', label: 'Gestión de Usuarios', icon: Shield },
+            { id: 'PROFILE', label: 'Mi Perfil', icon: KeyRound },
           ].map(item => (
             <button 
               key={item.id} 
@@ -70,7 +88,10 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
           ))}
         </nav>
         <div className="p-4 border-t border-brand-muted/10">
-          <div className="flex items-center gap-3 mb-4 px-2">
+          <button 
+            onClick={() => navigate('/admin/profile')}
+            className="flex items-center gap-3 mb-4 px-2 hover:bg-white/5 rounded-xl transition-colors w-full text-left py-2"
+          >
             <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white font-black text-sm">
               AD
             </div>
@@ -80,7 +101,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping"></span> Conectado
               </div>
             </div>
-          </div>
+          </button>
           <button 
             onClick={onLogout} 
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-xl transition-colors font-bold"
@@ -91,23 +112,33 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
       </aside>
 
       {/* Área de Trabajo */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-16 bg-bg-surface shadow-sm border-b border-brand-muted/20/80 flex items-center justify-between px-8 z-10">
-          <h2 className="text-lg font-black text-brand-deep tracking-tight">
-            {adminView === 'DASHBOARD' && 'Panel General Financiero'}
-            {adminView === 'POS' && 'Punto de Venta de Mostrador'}
-            {adminView === 'DRIVERS' && 'Monitoreo de Repartidores'}
+      <main className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
+        <header className="h-16 bg-bg-surface shadow-sm border-b border-brand-muted/20/80 flex items-center justify-between px-4 md:px-8 z-10 shrink-0 gap-4">
+          <div className="flex items-center gap-3">
+            <button 
+              className="md:hidden p-2 -ml-2 text-brand-deep hover:bg-brand-muted/10 rounded-xl"
+              onClick={() => setIsMobileMenuOpen(true)}
+            >
+              <Menu size={24} />
+            </button>
+            <h2 className="text-base md:text-lg font-black text-brand-deep tracking-tight truncate hidden sm:block">
+              {adminView === 'DASHBOARD' && 'Panel General Financiero'}
+              {adminView === 'POS' && 'Punto de Venta de Mostrador'}
+              {adminView === 'DRIVERS' && 'Monitoreo de Repartidores'}
             {adminView === 'CLIENTS' && 'Gestión de Clientes y Deudas'}
             {adminView === 'EXPENSES' && 'Control de Gastos de Fábrica'}
             {adminView === 'STOCK' && 'Carga de Stock (Post-Envasado)'}
             {adminView === 'PRODUCTS' && 'Catálogo de Productos y Precios'}
             {adminView === 'ROUTES' && 'Rutas Diarias'}
-          </h2>
-          <div className="text-xs text-brand-muted font-semibold bg-bg-app px-3 py-1.5 rounded-full border border-brand-muted/10">
-            Día de Operación: <span className="text-orange-500 font-black">{['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][new Date().getDay()]}</span>
+            {adminView === 'USERS' && 'Gestión de Accesos y Usuarios'}
+            {adminView === 'PROFILE' && 'Configuración de Mi Perfil'}
+            </h2>
+          </div>
+          <div className="text-[10px] md:text-xs text-brand-muted font-semibold bg-bg-app px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-brand-muted/10 whitespace-nowrap">
+            Op: <span className="text-orange-500 font-black">{['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][new Date().getDay()]}</span>
           </div>
         </header>
-        <div className="flex-1 overflow-auto p-8 bg-bg-app">
+        <div className="flex-1 overflow-auto p-4 md:p-8 bg-bg-app">
           <Routes>
             <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/dashboard" element={<AdminDashboard />} />
@@ -118,6 +149,8 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
             <Route path="/stock" element={<AdminStock />} />
             <Route path="/products" element={<AdminProducts />} />
             <Route path="/routes" element={<AdminRoutes />} />
+            <Route path="/users" element={<AdminUsers />} />
+            <Route path="/profile" element={<AdminProfile />} />
             <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
           </Routes>
         </div>
@@ -702,35 +735,8 @@ const AdminDrivers: React.FC = () => {
               className="bg-transparent text-sm font-bold text-brand-deep outline-none cursor-pointer"
             />
           </div>
-          <button 
-            onClick={() => setShowForm(!showForm)} 
-            className="bg-brand-navy hover:bg-brand-navy/90 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-transform active:scale-95 w-full sm:w-auto justify-center shadow-sm"
-          >
-            <Plus size={16} /> Nuevo Repartidor
-          </button>
         </div>
       </div>
-
-      {/* Formulario de Nuevo Repartidor */}
-      {showForm && (
-        <form onSubmit={handleAddDriver} className="bg-bg-surface shadow-sm border border-brand-muted/10 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
-          <h4 className="font-bold text-brand-deep text-sm">Nuevo Repartidor</h4>
-          <div>
-            <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Nombre Completo</label>
-            <input 
-              type="text" 
-              required
-              value={fullName}
-              onChange={e => setFullName(e.target.value)}
-              placeholder="Ej: Roberto Sánchez"
-              className="w-full bg-brand-muted/5 border border-brand-muted/30 rounded-xl p-3 text-sm text-brand-deep outline-none focus:ring-1 focus:ring-brand-navy transition-all"
-            />
-          </div>
-          <button type="submit" className="bg-brand-navy hover:bg-brand-navy/90 text-white px-5 py-2.5 rounded-xl text-xs font-bold">
-            Guardar Repartidor
-          </button>
-        </form>
-      )}
 
       {/* Grid de Tarjetas */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

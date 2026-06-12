@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { 
   Wifi, WifiOff, Truck, MapPin, Package, ClipboardCheck, 
-  X, CheckCircle, AlertCircle, Banknote, CreditCard, ShoppingCart, 
+  X, CheckCircle, AlertCircle, Banknote, CreditCard, 
   TrendingDown, ClipboardList, LogOut, ArrowLeft, Search, ChevronRight,
   Plus, Minus, Printer, MessageCircle, Star, RefreshCw, ChevronDown, ChevronUp
 } from 'lucide-react'
@@ -259,7 +259,6 @@ interface DriverHomeProps {
 const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadmap, onViewCashSummary, onSelectDifferentDriver }) => {
   const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories, sales, clients, loads } = useStore()
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
-  const [hasConfirmedLoad, setHasConfirmedLoad] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [showFullStockModal, setShowFullStockModal] = useState(false)
   const [stockSearchTerm, setStockSearchTerm] = useState('')
@@ -511,7 +510,6 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
                   })
                   useStore.setState({ loads: initialLoads })
 
-                  setHasConfirmedLoad(true)
                   setShowLoadChecklist(false)
                 }} 
                 className="w-full bg-brand-muted/10 hover:bg-brand-muted/20 text-brand-deep py-3.5 rounded-xl font-bold shadow-lg transition-colors text-sm"

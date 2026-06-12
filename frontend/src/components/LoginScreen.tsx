@@ -1,12 +1,42 @@
-import React from 'react'
-import { Truck, Settings, Cloud } from 'lucide-react'
+import React, { useState } from 'react'
+import { Truck, Cloud, Lock, Mail, AlertCircle, Loader2 } from 'lucide-react'
+import { supabase } from '../supabaseClient'
+import Swal from 'sweetalert2'
 
 interface LoginScreenProps {
-  setView: (view: 'LOGIN' | 'DRIVER' | 'ADMIN') => void
   isOffline: boolean
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ setView, isOffline }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ isOffline }) => {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isOffline) {
+      Swal.fire('Atención', 'Necesitas conexión a internet para iniciar sesión', 'warning')
+      return
+    }
+
+    setLoading(true)
+    setErrorMsg('')
+    
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+
+      if (error) throw error
+      // La redirección ocurrirá automáticamente por el listener en App.tsx
+    } catch (err: any) {
+      setErrorMsg(err.message === 'Invalid login credentials' ? 'Credenciales incorrectas' : err.message)
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
       {/* Elementos visuales decorativos premium */}
@@ -18,7 +48,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ setView, isOffline }) 
         <div className="absolute top-4 right-4 flex items-center gap-2 bg-slate-800/80 px-3 py-1 rounded-full text-xs font-semibold">
           <Cloud size={14} className={isOffline ? 'text-red-500' : 'text-green-500'} />
           <span className={isOffline ? 'text-slate-400' : 'text-slate-200'}>
-            {isOffline ? 'Modo Offline' : 'En Línea'}
+            {isOffline ? 'Offline' : 'Online'}
           </span>
         </div>
 
@@ -27,52 +57,69 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ setView, isOffline }) 
           <Truck size={48} className="animate-pulse" />
         </div>
 
-        {/* Títulos */}
         <h1 className="text-3xl font-black text-white mb-2 tracking-tight">
           Panificadora <span className="text-orange-500">System</span>
         </h1>
         <p className="text-slate-400 mb-8 text-sm font-medium">
-          Selecciona tu perfil de acceso para comenzar
+          Ingresa tus credenciales para acceder
         </p>
 
-        {/* Botones de Roles */}
-        <div className="space-y-4">
-          <button
-            onClick={() => setView('DRIVER')}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-2xl flex items-center justify-between transition-all duration-200 text-lg shadow-lg shadow-blue-600/10 hover:shadow-blue-600/20 active:scale-[0.98]"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-blue-700 rounded-xl">
-                <Truck size={24} />
+        {errorMsg && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-500 text-sm flex items-center gap-2 text-left">
+            <AlertCircle size={20} className="shrink-0" />
+            <p>{errorMsg}</p>
+          </div>
+        )}
+
+        {/* Formulario de Login */}
+        <form onSubmit={handleLogin} className="space-y-5 text-left">
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-300 ml-1">Correo Electrónico</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Mail size={18} className="text-slate-500" />
               </div>
-              <div className="text-left">
-                <span className="block font-black">Repartidores</span>
-                <span className="block text-xs text-blue-200 font-normal">Acceso móvil offline-first</span>
-              </div>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading || isOffline}
+                className="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl pl-11 pr-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all placeholder:text-slate-600"
+                placeholder="usuario@panificadora.com"
+              />
             </div>
-            <span className="text-blue-300">➔</span>
-          </button>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-300 ml-1">Contraseña</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Lock size={18} className="text-slate-500" />
+              </div>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading || isOffline}
+                className="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl pl-11 pr-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all placeholder:text-slate-600"
+                placeholder="••••••••"
+              />
+            </div>
+          </div>
 
           <button
-            onClick={() => setView('ADMIN')}
-            className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 px-6 rounded-2xl flex items-center justify-between transition-all duration-200 text-lg border border-slate-700/50 active:scale-[0.98]"
+            type="submit"
+            disabled={loading || isOffline}
+            className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 text-lg shadow-lg shadow-orange-600/20 active:scale-[0.98] mt-2"
           >
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-slate-900 rounded-xl">
-                <Settings size={24} className="text-slate-400" />
-              </div>
-              <div className="text-left">
-                <span className="block font-black">Administrador</span>
-                <span className="block text-xs text-slate-400 font-normal">Panel central y control de stock</span>
-              </div>
-            </div>
-            <span className="text-slate-500">➔</span>
+            {loading ? <Loader2 className="animate-spin" size={24} /> : 'Iniciar Sesión'}
           </button>
-        </div>
+        </form>
 
-        {/* Footer */}
         <div className="mt-8 pt-6 border-t border-slate-800/80 text-xs text-slate-500 font-medium">
-          Software de Gestión Panificadora v0.1
+          Software de Gestión Panificadora v0.2
         </div>
       </div>
     </div>

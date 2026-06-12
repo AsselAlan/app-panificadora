@@ -265,6 +265,30 @@ $$ language plpgsql;
 -- 8. POLÍTICAS DE SEGURIDAD RLS (ROW LEVEL SECURITY)
 -- ==========================================
 
+-- Tabla de Roles de Usuario
+create table public.user_roles (
+    user_id uuid primary key references auth.users(id) on delete cascade,
+    role varchar(50) not null check (role in ('admin', 'repartidor', 'mostrador')),
+    created_at timestamptz not null default now()
+);
+
+-- Función segura para obtener el rol del usuario actual (evita recursión RLS)
+create or replace function public.get_auth_role()
+returns text
+language sql
+security definer
+as $$
+  select role from public.user_roles where user_id = auth.uid();
+$$;
+
+-- Habilitar RLS en tabla de roles
+alter table public.user_roles enable row level security;
+create policy "Allow read user_roles" on public.user_roles for select to authenticated
+    using (user_id = auth.uid() or public.get_auth_role() = 'admin');
+create policy "Allow admin write user_roles" on public.user_roles for all to authenticated
+    using (public.get_auth_role() = 'admin')
+    with check (public.get_auth_role() = 'admin');
+
 -- Habilitar RLS en las tablas
 alter table public.products enable row level security;
 alter table public.clients enable row level security;
@@ -279,52 +303,52 @@ alter table public.expenses enable row level security;
 -- Lectura pública para cualquier usuario autenticado, escritura exclusiva para admin.
 create policy "Allow auth read products" on public.products for select to authenticated using (true);
 create policy "Allow admin write products" on public.products for all to authenticated 
-    using (auth.jwt() -> 'app_metadata' ->> 'role' = 'admin') 
-    with check (auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    using (public.get_auth_role() = 'admin') 
+    with check (public.get_auth_role() = 'admin');
 
 create policy "Allow auth read clients" on public.clients for select to authenticated using (true);
 create policy "Allow admin write clients" on public.clients for all to authenticated 
-    using (auth.jwt() -> 'app_metadata' ->> 'role' = 'admin') 
-    with check (auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    using (public.get_auth_role() = 'admin') 
+    with check (public.get_auth_role() = 'admin');
 
 -- Políticas para Drivers:
 -- Lectura pública para autenticados (ver su estado), pero escritura solo del mismo chofer o admin.
 create policy "Allow auth read drivers" on public.drivers for select to authenticated using (true);
 create policy "Allow admin or self update drivers" on public.drivers for update to authenticated
-    using (auth.uid() = user_id or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin')
-    with check (auth.uid() = user_id or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    using (auth.uid() = user_id or public.get_auth_role() = 'admin')
+    with check (auth.uid() = user_id or public.get_auth_role() = 'admin');
 
 -- Políticas para Cargas (Loads) y Rutas:
 -- Filtradas para el chofer de la ruta, o acceso completo para admin.
 create policy "Allow admin or assigned driver read loads" on public.loads for select to authenticated
-    using (driver_id in (select id from public.drivers where user_id = auth.uid()) or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    using (driver_id in (select id from public.drivers where user_id = auth.uid()) or public.get_auth_role() = 'admin');
 create policy "Allow admin or assigned driver write loads" on public.loads for all to authenticated
-    using (driver_id in (select id from public.drivers where user_id = auth.uid()) or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin')
-    with check (driver_id in (select id from public.drivers where user_id = auth.uid()) or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    using (driver_id in (select id from public.drivers where user_id = auth.uid()) or public.get_auth_role() = 'admin')
+    with check (driver_id in (select id from public.drivers where user_id = auth.uid()) or public.get_auth_role() = 'admin');
 
 create policy "Allow admin or assigned driver read routes" on public.weekly_routes for select to authenticated
-    using (driver_id in (select id from public.drivers where user_id = auth.uid()) or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    using (driver_id in (select id from public.drivers where user_id = auth.uid()) or public.get_auth_role() = 'admin');
 create policy "Allow admin write routes" on public.weekly_routes for all to authenticated
-    using (auth.jwt() -> 'app_metadata' ->> 'role' = 'admin')
-    with check (auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    using (public.get_auth_role() = 'admin')
+    with check (public.get_auth_role() = 'admin');
 
 -- Políticas para Transacciones Sensibles (sales, sale_items, expenses):
--- Los conductores solo pueden ver y crear sus propias transacciones. El admin ve todo.
+-- Los conductores solo pueden ver y crear sus propias transacciones. El admin y el mostrador ven lo que necesitan.
 create policy "Allow admin or assigned driver read sales" on public.sales for select to authenticated
-    using (driver_id in (select id from public.drivers where user_id = auth.uid()) or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    using (driver_id in (select id from public.drivers where user_id = auth.uid()) or public.get_auth_role() = 'admin' or public.get_auth_role() = 'mostrador');
 create policy "Allow assigned driver insert sales" on public.sales for insert to authenticated
-    with check (driver_id in (select id from public.drivers where user_id = auth.uid()) or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    with check (driver_id in (select id from public.drivers where user_id = auth.uid()) or public.get_auth_role() = 'admin' or public.get_auth_role() = 'mostrador');
 
 create policy "Allow admin or assigned driver read sale_items" on public.sale_items for select to authenticated
-    using (sale_id in (select id from public.sales where driver_id in (select id from public.drivers where user_id = auth.uid())) or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    using (sale_id in (select id from public.sales where driver_id in (select id from public.drivers where user_id = auth.uid())) or public.get_auth_role() = 'admin' or public.get_auth_role() = 'mostrador');
 create policy "Allow assigned driver insert sale_items" on public.sale_items for insert to authenticated
-    with check (sale_id in (select id from public.sales where driver_id in (select id from public.drivers where user_id = auth.uid())) or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    with check (sale_id in (select id from public.sales where driver_id in (select id from public.drivers where user_id = auth.uid())) or public.get_auth_role() = 'admin' or public.get_auth_role() = 'mostrador');
 
 -- Para gastos:
 create policy "Allow admin or self read expenses" on public.expenses for select to authenticated
-    using (origin in (select full_name from public.drivers where user_id = auth.uid()) or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    using (origin in (select full_name from public.drivers where user_id = auth.uid()) or public.get_auth_role() = 'admin');
 create policy "Allow authenticated insert expenses" on public.expenses for insert to authenticated
-    with check (origin in (select full_name from public.drivers where user_id = auth.uid()) or auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+    with check (origin in (select full_name from public.drivers where user_id = auth.uid()) or public.get_auth_role() = 'admin');
 
 -- ==========================================
 -- 9. CATEGORÍAS DE GASTOS DINÁMICAS
