@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Store, ShoppingCart, Plus, Minus, Trash2, Tag, Loader2, Package } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import type { Product } from '../../store/useStore'
@@ -90,7 +90,7 @@ export const POSLayout = () => {
         }))
       }
 
-      const { data, error } = await supabase.rpc('process_mostrador_sale', { payload })
+      const { error } = await supabase.rpc('process_mostrador_sale', { payload })
 
       if (error) throw error
 

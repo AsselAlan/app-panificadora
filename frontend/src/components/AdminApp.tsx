@@ -653,9 +653,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
 // SECCIÓN A.3: MONITOREO DE REPARTIDORES
 // ==========================================
 const AdminDrivers: React.FC = () => {
-  const { drivers, weeklyRoutes, fetchInitialData } = useStore()
-  const [showForm, setShowForm] = useState(false)
-  const [fullName, setFullName] = useState('')
+  const { drivers, weeklyRoutes } = useStore()
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [daySales, setDaySales] = useState<any[]>([])
 
@@ -682,26 +680,6 @@ const AdminDrivers: React.FC = () => {
     }
     fetchDaySales()
   }, [selectedDate])
-
-  const handleAddDriver = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!fullName.trim()) return
-
-    try {
-      const { error } = await supabase.from('drivers').insert([
-        { full_name: fullName, status: 'En Base', is_online: false }
-      ])
-      if (error) throw error
-
-      setFullName('')
-      setShowForm(false)
-      fetchInitialData()
-      Swal.fire('Repartidor Registrado', 'Se añadió el nuevo conductor exitosamente.', 'success')
-    } catch (err) {
-      console.error(err)
-      Swal.fire('Error', 'No se pudo crear el repartidor.', 'error')
-    }
-  }
 
   // Cálculos de Ventas en Local (Sede Central)
   // Asumimos que las ventas locales se registran bajo un ID específico o donde el driver no es un repartidor válido.

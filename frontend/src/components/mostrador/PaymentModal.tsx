@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { X, CreditCard, Banknote, FileText } from 'lucide-react'
+import { X, Banknote, FileText } from 'lucide-react'
 
 type PaymentModalProps = {
   total: number
