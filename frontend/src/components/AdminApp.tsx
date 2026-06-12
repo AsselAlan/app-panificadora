@@ -1885,7 +1885,7 @@ const AdminExpenses: React.FC = () => {
 // ==========================================
 // SECCIÓN A.6: STOCK DE FÁBRICA (ENVASADO)
 // ==========================================
-const AdminStock: React.FC = () => {
+export const AdminStock: React.FC = () => {
   const { products, fetchInitialData } = useStore()
   const [productionInputs, setProductionInputs] = useState<Record<string, string>>({})
 
