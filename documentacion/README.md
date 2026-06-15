@@ -62,6 +62,13 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
       - Tarjeta en tiempo real **"Stock a Bordo"** en el inicio del chofer, desglosando el stock físico actual, el stock reservado para pedidos restantes y el disponible libre para mostrador.
       - Alerta visual en la terminal de cobro del chofer si la venta excede el mostrador libre disponible y compromete pedidos reservados posteriores.
 
+11. **Refinamiento de Cobros e Historiales**:
+    - **Terminología Clara**: Se actualizó "Pedido Fijo" a "Pedido Cliente" en la App del Chofer para mayor intuición.
+    - **Lógica de Cobro Mixto Segura**: Al incluir una "Deuda Previa", los inputs de cobro se resetean a cero, previniendo errores de tipeo del repartidor.
+    - **Sincronización de Base de Datos Corregida**: Se ajustó la regla de restricción (`sales_check`) en Supabase para validar matemáticamente de forma correcta ventas que incluyan pago simultáneo de saldos adeudados, desbloqueando el guardado offline.
+    - **Recibos Dinámicos**: Los comprobantes de la boleta y mensajes de WhatsApp ahora diferencian correctamente entre "Pago de Deuda" (cuando se salda la deuda parcial o totalmente) y "Saldo a Favor" (cuando el cliente paga de más).
+    - **Bugs Visuales Resueltos**: Corregido el mapeo de IDs en el Historial del Administrador, por lo que el "Top Productos del Mes" ahora muestra el nombre real en vez de `undefined`, y el listado de tickets especifica qué chofer realizó la visita.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git

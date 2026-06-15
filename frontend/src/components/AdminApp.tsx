@@ -313,6 +313,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
   const [payTransfer, setPayTransfer] = useState('')
   const [vueltoACuenta, setVueltoACuenta] = useState(false)
   const [includeDebt, setIncludeDebt] = useState(false)
+  const [showMobileCatalog, setShowMobileCatalog] = useState(false)
 
   const activeClient = clients.find(c => c.id === selectedClientId)
 
@@ -431,17 +432,32 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
   }
 
   return (
-    <div className="flex h-full gap-6 max-w-6xl mx-auto">
+    <div className="flex h-full gap-6 max-w-6xl mx-auto relative">
+      {/* Overlay para modal en móvil */}
+      {showMobileCatalog && (
+        <div className="fixed inset-0 bg-slate-900/60 z-40 lg:hidden animate-in fade-in" onClick={() => setShowMobileCatalog(false)} />
+      )}
+
       {/* Catálogo de Mostrador */}
-      <div className="flex-1 flex flex-col bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl overflow-hidden">
-        <div className="p-5 border-b border-brand-muted/20 bg-bg-app flex items-center gap-3">
-          <div className="w-10 h-10 bg-brand-navy/10 text-brand-navy rounded-xl flex items-center justify-center">
-            <Store size={20} />
+      <div className={`
+        flex-1 flex flex-col bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl overflow-hidden
+        ${showMobileCatalog ? 'fixed inset-4 z-50 shadow-2xl flex' : 'hidden lg:flex'}
+      `}>
+        <div className="p-5 border-b border-brand-muted/20 bg-bg-app flex justify-between items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-brand-navy/10 text-brand-navy rounded-xl flex items-center justify-center">
+              <Store size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-brand-deep text-sm">Productos de Panadería</h3>
+              <p className="text-xs text-brand-muted/80">Agregue items para venta inmediata en local</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-bold text-brand-deep text-sm">Productos de Panadería</h3>
-            <p className="text-xs text-brand-muted/80">Agregue items para venta inmediata en local</p>
-          </div>
+          {showMobileCatalog && (
+            <button onClick={() => setShowMobileCatalog(false)} className="w-10 h-10 bg-brand-muted/10 hover:bg-brand-muted/20 text-brand-deep rounded-xl flex items-center justify-center lg:hidden">
+              <X size={20} />
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 pr-2">
@@ -495,8 +511,8 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
       </div>
 
       {/* Carrito POS lateral */}
-      <div className="w-[360px] bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl flex flex-col shadow-xl">
-        <div className="p-5 border-b border-brand-muted/20 bg-bg-app">
+      <div className="w-full lg:w-[360px] flex-none bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl flex flex-col shadow-xl">
+        <div className="p-5 border-b border-brand-muted/20 bg-bg-app shrink-0">
           <div className="flex justify-between items-center mb-1.5">
             <label className="text-[10px] font-bold text-brand-muted/80 uppercase block">Cliente</label>
             {activeClient && (
@@ -526,6 +542,12 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
             <hr className="border-brand-muted/30 my-1" />
             {clients.map(c => <option key={c.id} value={c.id}>{c.business_name}</option>)}
           </select>
+          <button 
+            onClick={() => setShowMobileCatalog(true)}
+            className="mt-3 w-full lg:hidden bg-brand-navy/10 hover:bg-brand-navy/20 text-brand-navy border border-brand-navy/20 font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
+          >
+            <Store size={16} /> Seleccionar Productos
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
@@ -860,6 +882,7 @@ const AdminDrivers: React.FC = () => {
 // ==========================================
 
 const ClientProfileModal: React.FC<{ client: any, onClose: () => void }> = ({ client, onClose }) => {
+  const { products, drivers } = useStore()
   const [sales, setSales] = useState<any[]>([])
   const [saleItems, setSaleItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -916,7 +939,9 @@ const ClientProfileModal: React.FC<{ client: any, onClose: () => void }> = ({ cl
   
   const productStats = saleItems.reduce((acc, item) => {
     if (item.operation_type === 'sale') {
-      acc[item.name] = (acc[item.name] || 0) + item.quantity
+      const p = products.find(p => p.id === item.product_id)
+      const pName = p ? p.name : 'Producto Eliminado'
+      acc[pName] = (acc[pName] || 0) + item.quantity
     }
     return acc
   }, {} as Record<string, number>)
@@ -1034,7 +1059,7 @@ const ClientProfileModal: React.FC<{ client: any, onClose: () => void }> = ({ cl
                           <span className="text-xs text-brand-muted/80">• {new Date(sale.transaction_date).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                         <p className="text-xs text-brand-muted/80">
-                          Repartidor: <span className="text-brand-muted">{sale.driver_name || 'Desconocido'}</span>
+                          Repartidor: <span className="text-brand-muted">{drivers.find(d => d.id === sale.driver_id)?.full_name || 'Desconocido'}</span>
                         </p>
                       </div>
                       
