@@ -77,7 +77,7 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
 
 ## Próximos Pasos (Hoja de Ruta v0.2)
 
-- [ ] **Sistema de Autenticación**: Implementar Supabase Auth real para proteger las rutas y activar las políticas RLS de forma segura, diferenciando Choferes de Administradores.
+- [ ] **Sistema de Autenticación**: Implementar Supabase Auth real para proteger las rutas y activar las políticas RLS de forma segura, diferenciando Choferes de Administradores. *(Nota: Se ha restablecido la contraseña de todos los usuarios a "password" y se ha forzado el cambio de contraseña obligatorio para preparar este paso).*
 - [ ] **Tickets Térmicos PDF**: Implementar la generación de PDF o comandos ESC/POS para impresoras térmicas de 80mm.
 - [ ] **Assets PWA**: Diseñar e incluir los logotipos `pwa-192x192.png` y `pwa-512x512.png` en la carpeta `public/` para perfeccionar el manifiesto.
 - [ ] **Estadísticas Avanzadas**: Gráficos históricos de rentabilidad en el Dashboard de Administración.
