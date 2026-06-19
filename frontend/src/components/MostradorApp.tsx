@@ -9,24 +9,24 @@ export const MostradorApp = () => {
   const [activeTab, setActiveTab] = useState<'ventas' | 'stock'>('ventas')
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-bg-app flex flex-col font-sans">
       {/* Navbar Superior */}
-      <nav className="bg-slate-900 text-white p-3 md:p-4 shadow-md flex justify-between items-center sticky top-0 z-50">
+      <nav className="bg-brand-navy text-white p-3 md:p-4 shadow-md flex justify-between items-center sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <Store className="text-orange-500" size={20} />
           <h1 className="text-sm md:text-xl font-bold">Mostrador</h1>
         </div>
         
-        <div className="flex bg-slate-800 rounded-lg p-1 hidden sm:flex">
+        <div className="flex bg-brand-navy/50 rounded-lg p-1 hidden sm:flex border border-white/10">
           <button
             onClick={() => setActiveTab('ventas')}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${activeTab === 'ventas' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${activeTab === 'ventas' ? 'bg-brand-orange text-white shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
             <ShoppingCart size={16} /> Punto de Venta
           </button>
           <button
             onClick={() => setActiveTab('stock')}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${activeTab === 'stock' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${activeTab === 'stock' ? 'bg-brand-orange text-white shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
             <Package size={16} /> Carga de Stock
           </button>
@@ -41,23 +41,23 @@ export const MostradorApp = () => {
       </nav>
 
       {/* Navegación Móvil */}
-      <div className="sm:hidden flex bg-slate-800 p-1 text-white border-b border-slate-700">
+      <div className="sm:hidden flex bg-brand-navy p-1 text-white border-b border-white/10">
         <button
           onClick={() => setActiveTab('ventas')}
-          className={`flex-1 flex justify-center items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'ventas' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-700'}`}
+          className={`flex-1 flex justify-center items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'ventas' ? 'bg-brand-orange text-white shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
         >
           <ShoppingCart size={16} /> Ventas
         </button>
         <button
           onClick={() => setActiveTab('stock')}
-          className={`flex-1 flex justify-center items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'stock' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-700'}`}
+          className={`flex-1 flex justify-center items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'stock' ? 'bg-brand-orange text-white shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
         >
           <Package size={16} /> Stock
         </button>
       </div>
 
       {/* Contenido principal */}
-      <main className={`flex-1 bg-slate-100 ${activeTab === 'stock' ? 'p-4 md:p-6' : ''}`}>
+      <main className={`flex-1 bg-bg-app ${activeTab === 'stock' ? 'p-4 md:p-6' : ''}`}>
         {activeTab === 'ventas' ? (
           <POSLayout />
         ) : (

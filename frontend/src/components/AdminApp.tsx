@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import { 
   TrendingUp, TrendingDown, Wallet, Store, Activity, Users, 
@@ -8,7 +8,7 @@ import {
   Pencil, Eye, Pause, Play, Shield, KeyRound, Menu
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
-import type { Product } from '../store/useStore'
+import type { Product, Expense } from '../store/useStore'
 import Swal from 'sweetalert2'
 import { supabase } from '../supabaseClient'
 import { AdminUsers } from './admin/AdminUsers'
@@ -165,17 +165,63 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
 const AdminDashboard: React.FC = () => {
   const { sales, expenses, drivers } = useStore()
 
+  // Helper para saber si es hoy
+  const isToday = (dateString: string) => {
+    if (!dateString) return false
+    const d = new Date(dateString)
+    const today = new Date()
+    return d.getDate() === today.getDate() && 
+           d.getMonth() === today.getMonth() && 
+           d.getFullYear() === today.getFullYear()
+  }
+
+  const todaySales = useMemo(() => sales.filter(s => isToday(s.transaction_date)), [sales])
+  const todayExpenses = useMemo(() => expenses.filter(e => isToday(e.expense_date)), [expenses])
+
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().substring(0, 7))
+  const [monthlySales, setMonthlySales] = useState<any[]>([])
+  const [monthlyExpenses, setMonthlyExpenses] = useState<any[]>([])
+
+  const fetchMonthly = useCallback(async () => {
+    const start = new Date(selectedMonth + '-01T00:00:00').toISOString()
+    const endDate = new Date(selectedMonth + '-01T00:00:00')
+    endDate.setMonth(endDate.getMonth() + 1)
+    const end = endDate.toISOString()
+    
+    const [salesRes, expRes] = await Promise.all([
+      supabase.from('sales').select('*').gte('transaction_date', start).lt('transaction_date', end),
+      supabase.from('expenses').select('*').gte('expense_date', start).lt('expense_date', end)
+    ])
+    
+    if (!salesRes.error && salesRes.data) setMonthlySales(salesRes.data)
+    if (!expRes.error && expRes.data) setMonthlyExpenses(expRes.data)
+  }, [selectedMonth])
+
+  useEffect(() => {
+    fetchMonthly()
+  }, [fetchMonthly])
+
   // Calcular métricas
-  const totalSales = sales.reduce((acc, s) => acc + s.subtotal_sales, 0)
-  const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0)
+  const totalSales = monthlySales.reduce((acc, s) => acc + s.final_total, 0)
+  const totalExpenses = monthlyExpenses.reduce((acc, e) => acc + e.amount, 0)
   const netProfit = totalSales - totalExpenses
 
-  const cashInHand = sales.reduce((acc, s) => acc + s.payment_cash, 0)
-  const transferCollected = sales.reduce((acc, s) => acc + s.payment_transfer, 0)
-  const accountAdded = sales.reduce((acc, s) => acc + s.payment_account, 0)
+  const cashInHand = monthlySales.reduce((acc, s) => acc + s.payment_cash, 0)
+  const transferCollected = monthlySales.reduce((acc, s) => acc + s.payment_transfer, 0)
+  const accountAdded = monthlySales.reduce((acc, s) => acc + s.payment_account, 0)
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Selector de Mes */}
+      <div className="flex justify-end">
+        <input 
+          type="month" 
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="bg-bg-surface border border-brand-muted/30 text-brand-deep rounded-xl px-4 py-2 text-sm font-bold shadow-sm outline-none"
+        />
+      </div>
+
       {/* Indicadores Top */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-center">
@@ -226,9 +272,13 @@ const AdminDashboard: React.FC = () => {
         </h3>
         <div className="space-y-4">
           {drivers.map(d => {
-            const driverExpenses = expenses
+            const driverExpenses = todayExpenses
               .filter(e => e.origin === d.full_name)
               .reduce((acc, exp) => acc + exp.amount, 0);
+            
+            const driverSales = todaySales.filter(s => s.driver_id === d.id);
+            const driverCash = driverSales.reduce((acc, s) => acc + s.payment_cash, 0);
+            const driverTransfer = driverSales.reduce((acc, s) => acc + s.payment_transfer, 0);
             
             return (
             <div key={d.id} className="bg-bg-app border border-brand-muted/10 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -244,11 +294,11 @@ const AdminDashboard: React.FC = () => {
               <div className="flex items-center gap-8 justify-between sm:justify-end">
                 <div className="text-right">
                   <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Efectivo</span>
-                  <span className="font-bold text-brand-deep/80">${d.cash_collected.toLocaleString()}</span>
+                  <span className="font-bold text-brand-deep/80">${driverCash.toLocaleString()}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Transf.</span>
-                  <span className="font-bold text-brand-deep/80">${d.transfer_collected.toLocaleString()}</span>
+                  <span className="font-bold text-brand-deep/80">${driverTransfer.toLocaleString()}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Gastos</span>
@@ -256,7 +306,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Ventas Totales</span>
-                  <span className="font-black text-brand-navy">${(d.cash_collected + d.transfer_collected).toLocaleString()}</span>
+                  <span className="font-black text-brand-navy">${(driverCash + driverTransfer).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -280,19 +330,19 @@ const AdminDashboard: React.FC = () => {
             <div className="flex items-center gap-8 justify-between sm:justify-end">
               <div className="text-right">
                 <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Tickets</span>
-                <span className="font-bold text-brand-deep/80">{sales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').length}</span>
+                <span className="font-bold text-brand-deep/80">{todaySales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').length}</span>
               </div>
               <div className="text-right">
                 <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Efectivo</span>
-                <span className="font-bold text-brand-deep/80">${sales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').reduce((acc, s) => acc + s.payment_cash, 0).toLocaleString()}</span>
+                <span className="font-bold text-brand-deep/80">${todaySales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').reduce((acc, s) => acc + s.payment_cash, 0).toLocaleString()}</span>
               </div>
               <div className="text-right">
                 <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Transf.</span>
-                <span className="font-bold text-brand-deep/80">${sales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').reduce((acc, s) => acc + s.payment_transfer, 0).toLocaleString()}</span>
+                <span className="font-bold text-brand-deep/80">${todaySales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').reduce((acc, s) => acc + s.payment_transfer, 0).toLocaleString()}</span>
               </div>
               <div className="text-right">
                 <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Ventas Totales</span>
-                <span className="font-black text-brand-navy">${sales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').reduce((acc, s) => acc + s.final_total, 0).toLocaleString()}</span>
+                <span className="font-black text-brand-navy">${todaySales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').reduce((acc, s) => acc + s.final_total, 0).toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -1507,7 +1557,8 @@ const AdminExpenses: React.FC = () => {
 
       setAmount('')
       setDescription('')
-      fetchInitialData()
+      await fetchInitialData()
+      await fetchMonthly()
       Swal.fire('Gasto Registrado', 'Se guardó la salida de caja de fábrica.', 'success')
     } catch (err) {
       console.error(err)
@@ -1614,15 +1665,40 @@ const AdminExpenses: React.FC = () => {
     }
   }
 
-  const totalFiltered = expenses.reduce((acc, exp) => acc + exp.amount, 0)
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().substring(0, 7))
+  const [monthlyExpenses, setMonthlyExpenses] = useState<Expense[]>([])
+
+  const fetchMonthly = useCallback(async () => {
+    const start = new Date(selectedMonth + '-01T00:00:00').toISOString()
+    const endDate = new Date(selectedMonth + '-01T00:00:00')
+    endDate.setMonth(endDate.getMonth() + 1)
+    const end = endDate.toISOString()
+    
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .gte('expense_date', start)
+      .lt('expense_date', end)
+      .order('expense_date', { ascending: false })
+      
+    if (!error && data) {
+      setMonthlyExpenses(data)
+    }
+  }, [selectedMonth])
+
+  useEffect(() => {
+    fetchMonthly()
+  }, [fetchMonthly])
+
+  const totalFiltered = monthlyExpenses.reduce((acc, exp) => acc + exp.amount, 0)
 
   const categoryTotals = useMemo(() => {
     const totals: Record<string, number> = {}
-    expenses.forEach(exp => {
+    monthlyExpenses.forEach(exp => {
       totals[exp.category] = (totals[exp.category] || 0) + exp.amount
     })
     return Object.entries(totals).sort((a, b) => b[1] - a[1])
-  }, [expenses])
+  }, [monthlyExpenses])
 
   const conicGradient = useMemo(() => {
     if (totalFiltered === 0) return 'conic-gradient(#334155 0% 100%)'
@@ -1635,7 +1711,7 @@ const AdminExpenses: React.FC = () => {
       currentAngle += percent
     })
     return `conic-gradient(${stops.join(', ')})`
-  }, [categoryTotals, totalFiltered])
+  }, [categoryTotals, totalFiltered, expenseCategories])
 
   return (
     <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-6 h-full">
@@ -1808,6 +1884,16 @@ const AdminExpenses: React.FC = () => {
 
     {/* Gráfico Pizza e Historial */}
       <div className="flex-1 flex flex-col gap-6">
+        {/* Selector de Mes */}
+        <div className="flex justify-end">
+          <input 
+            type="month" 
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="bg-bg-surface border border-brand-muted/30 text-brand-deep rounded-xl px-4 py-2 text-sm font-bold shadow-sm outline-none"
+          />
+        </div>
+
         {/* Gráfico circular */}
         <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl p-6 flex flex-col md:flex-row items-center gap-8 shadow-md">
           <div 
@@ -1822,7 +1908,7 @@ const AdminExpenses: React.FC = () => {
 
           <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-1">
             {totalFiltered === 0 ? (
-              <div className="text-brand-muted/80 text-xs italic py-6 col-span-2 text-center">No hay gastos ingresados en fábrica hoy.</div>
+              <div className="text-brand-muted/80 text-xs italic py-6 col-span-2 text-center">No hay gastos ingresados en este mes.</div>
             ) : (
               categoryTotals.map(([cat, amt], index) => {
                 const percent = Math.round((amt / totalFiltered) * 100)
@@ -1842,11 +1928,11 @@ const AdminExpenses: React.FC = () => {
         </div>
 
         {/* Tabla Historial */}
-        <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl overflow-hidden shadow-lg flex-1 min-h-[250px]">
-          <div className="bg-bg-app p-4 border-b border-brand-muted/20/80">
+        <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl overflow-hidden shadow-lg flex-1 min-h-[250px] max-h-[500px] flex flex-col">
+          <div className="bg-bg-app p-4 border-b border-brand-muted/20/80 shrink-0">
             <h4 className="font-bold text-brand-deep text-xs uppercase tracking-wider">Historial de Salidas</h4>
           </div>
-          <div className="overflow-y-auto p-2">
+          <div className="overflow-y-auto p-2 flex-1">
             <table className="w-full text-left border-collapse text-[11px] font-mono">
               <thead>
                 <tr className="border-b border-brand-muted/10 text-brand-muted/80">
@@ -1858,8 +1944,12 @@ const AdminExpenses: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-850">
-                {expenses.map(e => (
-                  <tr key={e.id} className="hover:bg-brand-muted/5/20 text-brand-deep/80">
+                {monthlyExpenses.map(e => (
+                  <tr 
+                    key={e.id} 
+                    className="hover:opacity-80 text-brand-deep/80 transition-opacity"
+                    style={{ backgroundColor: getCategoryColor(e.category, 0) + '33' }}
+                  >
                     <td className="px-4 py-3 text-brand-muted/80 whitespace-nowrap">{new Date(e.expense_date).toLocaleDateString('es-AR')}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded font-bold border text-[9px] ${e.origin.includes('Administración') ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-brand-orange/10 text-orange-400 border-orange-500/20'}`}>
@@ -1871,7 +1961,7 @@ const AdminExpenses: React.FC = () => {
                     <td className="px-4 py-3 text-right font-bold text-red-400">-${e.amount.toLocaleString()}</td>
                   </tr>
                 ))}
-                {expenses.length === 0 && (
+                {monthlyExpenses.length === 0 && (
                   <tr>
                     <td colSpan={5} className="text-center py-8 text-brand-muted/80">No hay egresos cargados.</td>
                   </tr>
@@ -1886,84 +1976,210 @@ const AdminExpenses: React.FC = () => {
 }
 
 // ==========================================
-// SECCIÓN A.6: STOCK DE FÁBRICA (ENVASADO)
+// SECCIÓN A.6: ACTUALIZACIÓN Y MERMAS DE STOCK
 // ==========================================
 export const AdminStock: React.FC = () => {
-  const { products, fetchInitialData } = useStore()
-  const [productionInputs, setProductionInputs] = useState<Record<string, string>>({})
+  const { products, applyStockUpdate, revertStockUpdate } = useStore()
+  const [inputs, setInputs] = useState<Record<string, { added: string, removed: string }>>({})
+  const [history, setHistory] = useState<any[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
-  const handleStockAdd = async (e: React.FormEvent) => {
+  useEffect(() => {
+    loadHistory()
+  }, [])
+
+  const loadHistory = async () => {
+    setLoadingHistory(true)
+    try {
+      const { data, error } = await supabase
+        .from('stock_updates')
+        .select(`
+          id, status, created_at, 
+          stock_update_items(product_id, added_quantity, removed_quantity),
+          stock_losses(quantity, loss_type)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10)
+      
+      if (!error && data) {
+        setHistory(data)
+      }
+    } catch(err) {
+      console.error(err)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  const handleStockUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
     
     try {
-      for (const [id, value] of Object.entries(productionInputs)) {
-        const qty = parseFloat(value)
-        if (!isNaN(qty) && qty > 0) {
-          const p = products.find(prod => prod.id === id)
-          if (p) {
-            await supabase
-              .from('products')
-              .update({ bakery_stock: p.bakery_stock + qty })
-              .eq('id', id)
-          }
+      const itemsToUpdate: { product_id: string; added_quantity: number; removed_quantity: number }[] = []
+      
+      for (const [id, vals] of Object.entries(inputs)) {
+        const added = parseFloat(vals.added) || 0
+        const removed = parseFloat(vals.removed) || 0
+        if (added > 0 || removed > 0) {
+          itemsToUpdate.push({ product_id: id, added_quantity: added, removed_quantity: removed })
         }
       }
 
-      setProductionInputs({})
-      fetchInitialData()
-      Swal.fire('Stock Actualizado', 'Se cargaron los kilogramos/unidades producidas a la fábrica.', 'success')
+      if (itemsToUpdate.length === 0) {
+        Swal.fire('Sin cambios', 'Debes ingresar al menos una cantidad (producción o pérdida).', 'info')
+        return
+      }
+
+      const confirm = await Swal.fire({
+        title: '¿Confirmar actualización?',
+        text: `Vas a procesar ${itemsToUpdate.length} productos.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, procesar'
+      })
+
+      if (confirm.isConfirmed) {
+        await applyStockUpdate(itemsToUpdate)
+        setInputs({})
+        await loadHistory()
+        Swal.fire('Éxito', 'Stock y mermas actualizados correctamente.', 'success')
+      }
     } catch (err) {
       console.error(err)
       Swal.fire('Error', 'No se pudo actualizar el stock.', 'error')
     }
   }
 
-  return (
-    <div className="max-w-xl mx-auto bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl overflow-hidden shadow-xl">
-      <div className="p-6 bg-brand-orange/5 border-b border-brand-muted/20 flex items-start gap-4">
-        <div className="bg-brand-orange/10 p-3 rounded-xl text-orange-500">
-          <ClipboardList size={24} />
-        </div>
-        <div>
-          <h3 className="font-bold text-brand-deep text-base">Carga de Producción Diaria</h3>
-          <p className="text-xs text-brand-muted/80 mt-1">Registre el stock recién elaborado de la panadería</p>
-        </div>
-      </div>
+  const handleRevert = async (id: string) => {
+    const confirm = await Swal.fire({
+      title: '¿Revertir actualización?',
+      text: 'Se desharán todos los ingresos y mermas de este lote.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      confirmButtonText: 'Sí, deshacer'
+    })
 
-      <form onSubmit={handleStockAdd} className="p-6 space-y-4">
-        <div className="space-y-3">
-          {products.map(p => (
-            <div key={p.id} className="flex items-center justify-between p-4 bg-bg-app border border-brand-muted/10 rounded-2xl hover:border-brand-muted/20 transition-colors">
-              <div className="min-w-0 flex-1">
-                <div className="font-bold text-brand-deep text-sm">{p.name}</div>
-                <div className="text-xs text-brand-muted/80 mt-0.5">Stock en Fábrica: {p.bakery_stock} {p.unit_type}</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-brand-muted">Elaborado:</span>
-                <div className="relative">
-                  <input 
-                    type="number" 
-                    step={p.unit_type === 'kg' ? 'any' : '1'}
-                    min="0"
-                    value={productionInputs[p.id] || ''}
-                    onChange={(e) => setProductionInputs(prev => ({ ...prev, [p.id]: e.target.value }))}
-                    className="w-24 py-2 px-3 pr-10 bg-brand-muted/10 border border-brand-muted/30 rounded-xl text-right font-bold text-xs text-brand-deep outline-none"
-                    placeholder="0"
-                  />
-                  <span className="absolute right-3 top-2.5 text-[9px] text-brand-muted/80 font-bold uppercase">{p.unit_type}</span>
+    if (confirm.isConfirmed) {
+      try {
+        await revertStockUpdate(id)
+        await loadHistory()
+        Swal.fire('Revertido', 'La actualización fue cancelada y los números volvieron a la normalidad.', 'success')
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Error', 'No se pudo revertir.', 'error')
+      }
+    }
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto flex flex-col xl:flex-row gap-6">
+      {/* Formulario de Actualización */}
+      <div className="flex-1 bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl overflow-hidden">
+        <div className="p-6 bg-brand-orange/5 border-b border-brand-muted/20 flex items-start gap-4">
+          <div className="bg-brand-orange/10 p-3 rounded-xl text-brand-orange">
+            <ClipboardList size={24} />
+          </div>
+          <div>
+            <h3 className="font-bold text-brand-deep text-base">Actualización de Stock y Mermas</h3>
+            <p className="text-xs text-brand-muted/80 mt-1">Registre producción nueva y mermas del día</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleStockUpdate} className="p-6 space-y-4">
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+            {products.map(p => (
+              <div key={p.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-bg-app border border-brand-muted/10 rounded-2xl">
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-brand-deep text-sm flex items-center gap-2">
+                    {p.name}
+                  </div>
+                  <div className="text-xs text-brand-muted mt-0.5">Stock Actual: <span className="font-bold">{p.bakery_stock} {p.unit_type}</span></div>
+                </div>
+                
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  {/* Pérdida */}
+                  <div className="flex flex-col">
+                    <label className="text-[10px] uppercase font-bold text-red-400 mb-1">Merma (Sobró)</label>
+                    <input 
+                      type="number" 
+                      step={p.unit_type === 'kg' ? 'any' : '1'}
+                      min="0"
+                      value={inputs[p.id]?.removed || ''}
+                      onChange={(e) => setInputs(prev => ({ ...prev, [p.id]: { ...prev[p.id], removed: e.target.value } }))}
+                      className="w-24 py-2 px-3 bg-red-500/5 border border-red-500/20 rounded-xl text-right font-bold text-xs text-red-500 outline-none focus:border-red-500"
+                      placeholder="0"
+                    />
+                  </div>
+                  
+                  {/* Nuevo Stock */}
+                  <div className="flex flex-col">
+                    <label className="text-[10px] uppercase font-bold text-green-500 mb-1">Nueva Prod.</label>
+                    <input 
+                      type="number" 
+                      step={p.unit_type === 'kg' ? 'any' : '1'}
+                      min="0"
+                      value={inputs[p.id]?.added || ''}
+                      onChange={(e) => setInputs(prev => ({ ...prev, [p.id]: { ...prev[p.id], added: e.target.value } }))}
+                      className="w-24 py-2 px-3 bg-green-500/5 border border-green-500/20 rounded-xl text-right font-bold text-xs text-green-500 outline-none focus:border-green-500"
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        <button 
-          type="submit" 
-          className="w-full mt-6 bg-brand-orange hover:bg-brand-orange text-white font-bold py-3.5 rounded-xl active:bg-orange-700 transition-colors text-sm shadow-lg shadow-orange-600/10"
-        >
-          Confirmar y Cargar Producción
-        </button>
-      </form>
+          <button 
+            type="submit" 
+            className="w-full mt-6 bg-brand-orange hover:bg-orange-500 text-white font-bold py-3.5 rounded-xl transition-colors text-sm"
+          >
+            Procesar Actualización
+          </button>
+        </form>
+      </div>
+
+      {/* Historial para revertir */}
+      <div className="w-full xl:w-[350px] bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl p-6 flex flex-col h-fit">
+        <h3 className="font-bold text-brand-deep text-base mb-1">Historial</h3>
+        <p className="text-[11px] text-brand-muted/80 mb-5">Últimos movimientos realizados</p>
+
+        <div className="space-y-3">
+          {history.length === 0 && !loadingHistory ? (
+             <div className="text-center py-6 text-brand-muted/60 text-xs">No hay actualizaciones recientes</div>
+          ) : history.map(item => {
+             const mermasTotales = item.stock_losses?.reduce((acc: number, l: any) => acc + l.quantity, 0) || 0;
+             const ingresado = item.stock_update_items?.reduce((acc: number, l: any) => acc + l.added_quantity, 0) || 0;
+
+             return (
+              <div key={item.id} className="p-3 bg-bg-app border border-brand-muted/10 rounded-xl relative">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-xs text-brand-muted font-bold">{new Date(item.created_at).toLocaleString('es-AR')}</span>
+                  {item.status === 'applied' ? (
+                    <span className="text-[9px] bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded font-bold">Aplicado</span>
+                  ) : (
+                    <span className="text-[9px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded font-bold">Cancelado</span>
+                  )}
+                </div>
+                
+                <div className="text-[11px] text-brand-deep mb-3 space-y-1">
+                  <p>Mermas Totales: <strong className="text-red-400">{mermasTotales}</strong></p>
+                  <p>Nueva Prod: <strong className="text-green-500">{ingresado}</strong></p>
+                </div>
+
+                {item.status === 'applied' && (
+                  <button 
+                    onClick={() => handleRevert(item.id)}
+                    className="text-[10px] w-full py-1.5 bg-red-500/10 text-red-500 font-bold rounded-lg hover:bg-red-500 hover:text-white transition-colors"
+                  >
+                    Deshacer/Revertir
+                  </button>
+                )}
+              </div>
+             )
+          })}
+        </div>
+      </div>
     </div>
   )
 }

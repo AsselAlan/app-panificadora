@@ -69,6 +69,13 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
     - **Recibos Dinámicos**: Los comprobantes de la boleta y mensajes de WhatsApp ahora diferencian correctamente entre "Pago de Deuda" (cuando se salda la deuda parcial o totalmente) y "Saldo a Favor" (cuando el cliente paga de más).
     - **Bugs Visuales Resueltos**: Corregido el mapeo de IDs en el Historial del Administrador, por lo que el "Top Productos del Mes" ahora muestra el nombre real en vez de `undefined`, y el listado de tickets especifica qué chofer realizó la visita.
 
+12. **Módulo de Punto de Venta (Mostrador)**:
+    - **Unificación UI/UX**: Se aplicó la misma paleta de colores corporativa (fondo oscuro/superficies contrastadas y acentos en `brand-navy` y `brand-orange`) en el panel de Mostrador y Login.
+    - **Asignación de Ventas**: Ahora el operador puede seleccionar al cliente del mostrador mediante un selector desplegable (por defecto "Consumidor Final") para asignar las ventas.
+    - **Ingreso Rápido de Cantidad**: Se cambió el selector estático de botones a un input numérico que permite teclear directamente la cantidad a vender, agilizando cobros grandes.
+    - **Validación Estricta de Stock**: El sistema ahora bloquea la selección de productos con stock agotado (0 o negativo) y capa las cantidades ingresadas manualmente al límite real de stock existente en la fábrica.
+    - **Tickets e Impresión Térmica**: Luego de cobrar, el sistema lanza un "Ticket de Compra" virtual que permite ser impreso rápidamente (`CSS @media print` especial para ocultar interfaz y redimensionar a ticket) o compartido de forma instantánea mediante la API nativa o WhatsApp Web.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git
@@ -81,4 +88,3 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
 - [ ] **Tickets Térmicos PDF**: Implementar la generación de PDF o comandos ESC/POS para impresoras térmicas de 80mm.
 - [ ] **Assets PWA**: Diseñar e incluir los logotipos `pwa-192x192.png` y `pwa-512x512.png` en la carpeta `public/` para perfeccionar el manifiesto.
 - [ ] **Estadísticas Avanzadas**: Gráficos históricos de rentabilidad en el Dashboard de Administración.
-ñ

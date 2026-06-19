@@ -97,6 +97,11 @@ ForceChangePassword al primer login	✅ Implementado
 5-6	Carga de 500 ventas + polling agresivo	🟠 Alto
 7-8	Funciones costosas sin memo	🟡 Medio
 9-11	Estado local perdido al navegar	🟡 Medio
-10	Listener duplicado online/offline	🟡 Medio
-15	RLS abierta en categorías	🔵 Seguridad
-16	Session en IndexedDB	🔵 Seguridad
+100	Listener duplicado online/offline	🟡 Medio
+101	RLS abierta en categorías	🔵 Seguridad
+102	Session en IndexedDB	🔵 Seguridad
+
+## 🚀 Actualizaciones Recientes (v0.4)
+- **Sistema de Stock y Mermas**: Se implementó una nueva tabla `stock_losses` para registrar mermas de producción y devoluciones.
+- **Fin de Día Repartidor**: Al finalizar la ruta, el repartidor ejecuta un proceso atómico (`process_driver_end_of_day`) que devuelve su stock sobrante a la fábrica y pasa las devoluciones a pérdida.
+- **Control de Mostrador**: Se reemplazó la simple carga de producción por un panel completo de "Actualización de Stock" que agrupa ingresos y mermas en la tabla `stock_updates`, permitiendo además **revertir** cualquier actualización equivocada.

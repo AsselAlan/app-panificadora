@@ -113,8 +113,34 @@ export interface Expense {
 
 export interface SyncItem {
   id: string;
-  type: 'sale' | 'expense';
+  type: 'sale' | 'expense' | 'end_route';
   payload: any;
+}
+
+export interface StockLoss {
+  id: string;
+  product_id: string;
+  quantity: number;
+  loss_type: 'devolucion' | 'merma_admin';
+  client_id?: string;
+  driver_id?: string;
+  stock_update_id?: string;
+  loss_date: string;
+}
+
+export interface StockUpdate {
+  id: string;
+  user_id: string;
+  status: 'applied' | 'cancelled';
+  created_at: string;
+}
+
+export interface StockUpdateItem {
+  id: string;
+  update_id: string;
+  product_id: string;
+  added_quantity: number;
+  removed_quantity: number;
 }
 
 interface AppState {
@@ -160,6 +186,10 @@ interface AppState {
   
   // Sincronización
   processSyncQueue: () => Promise<void>;
+
+  // Acciones de Stock
+  applyStockUpdate: (items: { product_id: string; added_quantity: number; removed_quantity: number }[]) => Promise<void>;
+  revertStockUpdate: (updateId: string) => Promise<void>;
 }
 
 // ==========================================
@@ -425,13 +455,37 @@ export const useStore = create<AppState>()(
 
       // Finalizar recorrido del chofer
       endDriverRoute: async (driverId) => {
+        const actionId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(7);
         set(state => ({
-          drivers: state.drivers.map(d => d.id === driverId ? { ...d, status: 'Finalizado', is_online: false, last_active: new Date().toISOString() } : d)
+          drivers: state.drivers.map(d => d.id === driverId ? { ...d, status: 'Finalizado', is_online: false, last_active: new Date().toISOString() } : d),
+          syncQueue: [...state.syncQueue, { id: actionId, type: 'end_route', payload: { driver_id: driverId } }]
         }))
 
         if (!get().isOffline) {
-          await supabase.from('drivers').update({ status: 'Finalizado', is_online: false, last_active: new Date() }).eq('id', driverId)
+          await get().processSyncQueue()
         }
+      },
+
+      // Aplicar actualización manual de stock (Admin/Mostrador)
+      applyStockUpdate: async (items) => {
+        if (get().isOffline) {
+          alert('Debes estar conectado a internet para realizar esta acción masiva.');
+          return;
+        }
+        const { error } = await supabase.rpc('apply_stock_update', { payload: { items } });
+        if (error) throw error;
+        await get().fetchInitialData(); // Refrescar los datos locales de productos
+      },
+
+      // Revertir actualización manual de stock (Admin/Mostrador)
+      revertStockUpdate: async (updateId) => {
+        if (get().isOffline) {
+          alert('Debes estar conectado a internet para revertir una actualización.');
+          return;
+        }
+        const { error } = await supabase.rpc('revert_stock_update', { p_update_id: updateId });
+        if (error) throw error;
+        await get().fetchInitialData();
       },
 
       // ==========================================
@@ -485,6 +539,9 @@ export const useStore = create<AppState>()(
                 expense_date: item.payload.expense_date
               }])
               if (error) throw error
+            } else if (item.type === 'end_route') {
+              const { error } = await supabase.rpc('process_driver_end_of_day', { p_driver_id: item.payload.driver_id });
+              if (error) throw error;
             }
 
             // Si se procesó correctamente, lo quitamos de la lista

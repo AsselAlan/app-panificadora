@@ -21,7 +21,7 @@ create table public.products (
     unit_type varchar(20) not null check (unit_type in ('kg', 'docena', 'bolsa', 'unidad', 'caja')),
     price_a numeric(10,2) not null check (price_a >= 0),
     price_b numeric(10,2) not null check (price_b >= 0),
-    bakery_stock numeric(10,2) not null default 0 check (bakery_stock >= 0),
+    bakery_stock numeric(10,2) not null default 0,
     is_deleted boolean not null default false,
     is_paused boolean not null default false,
     updated_at timestamptz not null default now()
@@ -129,6 +129,35 @@ create table public.expenses (
     expense_date timestamptz not null default now()
 );
 
+-- Tabla de Historial de Actualizaciones (stock_updates)
+create table public.stock_updates (
+    id uuid primary key default uuid_generate_v4(),
+    user_id uuid references auth.users(id) on delete set null,
+    status varchar(20) not null default 'applied' check (status in ('applied', 'cancelled')),
+    created_at timestamptz not null default now()
+);
+
+-- Tabla de Mermas (stock_losses)
+create table public.stock_losses (
+    id uuid primary key default uuid_generate_v4(),
+    product_id uuid not null references public.products(id) on delete cascade,
+    quantity numeric(10,2) not null check (quantity > 0),
+    loss_type varchar(50) not null check (loss_type in ('devolucion', 'merma_admin')),
+    client_id uuid references public.clients(id) on delete set null,
+    driver_id uuid references public.drivers(id) on delete set null,
+    stock_update_id uuid references public.stock_updates(id) on delete cascade,
+    loss_date timestamptz not null default now()
+);
+
+-- Tabla de Detalles de Actualización (stock_update_items)
+create table public.stock_update_items (
+    id uuid primary key default uuid_generate_v4(),
+    update_id uuid not null references public.stock_updates(id) on delete cascade,
+    product_id uuid not null references public.products(id) on delete cascade,
+    added_quantity numeric(10,2) not null default 0 check (added_quantity >= 0),
+    removed_quantity numeric(10,2) not null default 0 check (removed_quantity >= 0)
+);
+
 -- ==========================================
 -- 5. ÍNDICES PARA ALTO RENDIMIENTO Y BÚSQUEDA DIFUSA
 -- ==========================================
@@ -231,11 +260,9 @@ begin
               and product_id = v_item.product_id 
               and date_loaded = v_transaction_date::date;
         elsif v_item.operation_type = 'return' then
-            update public.loads
-            set current_quantity = current_quantity + v_item.quantity
-            where driver_id = v_driver_id 
-              and product_id = v_item.product_id 
-              and date_loaded = v_transaction_date::date;
+            -- Las devoluciones van directo a pérdida
+            insert into public.stock_losses (product_id, quantity, loss_type, client_id, driver_id, loss_date)
+            values (v_item.product_id, v_item.quantity, 'devolucion', v_client_id, v_driver_id, v_transaction_date);
         end if;
     end loop;
 
@@ -258,6 +285,108 @@ begin
 exception when others then
     -- Ante cualquier fallo, se hace un ROLLBACK automático de toda la transacción
     raise exception 'Error processing offline sale: %', SQLERRM;
+end;
+$$ language plpgsql;
+
+create or replace function public.process_driver_end_of_day(p_driver_id uuid)
+returns jsonb
+security definer
+as $$
+declare
+    v_load record;
+begin
+    for v_load in 
+        select id, product_id, current_quantity 
+        from public.loads 
+        where driver_id = p_driver_id and current_quantity > 0
+    loop
+        update public.products
+        set bakery_stock = bakery_stock + v_load.current_quantity
+        where id = v_load.product_id;
+        
+        update public.loads
+        set current_quantity = 0
+        where id = v_load.id;
+    end loop;
+
+    update public.drivers
+    set status = 'Finalizado', is_online = false, last_active = now()
+    where id = p_driver_id;
+
+    return jsonb_build_object('success', true, 'message', 'Driver day finished and stock returned to bakery');
+end;
+$$ language plpgsql;
+
+create or replace function public.apply_stock_update(payload jsonb)
+returns jsonb
+security definer
+as $$
+declare
+    v_update_id uuid;
+    v_user_id uuid;
+    v_item record;
+begin
+    v_user_id := auth.uid();
+    
+    insert into public.stock_updates (user_id, status)
+    values (v_user_id, 'applied')
+    returning id into v_update_id;
+
+    for v_item in 
+        select 
+            (elem->>'product_id')::uuid as product_id,
+            (elem->>'added_quantity')::numeric as added_quantity,
+            (elem->>'removed_quantity')::numeric as removed_quantity
+        from jsonb_array_elements(payload->'items') as elem
+    loop
+        insert into public.stock_update_items (update_id, product_id, added_quantity, removed_quantity)
+        values (v_update_id, v_item.product_id, v_item.added_quantity, v_item.removed_quantity);
+
+        if v_item.removed_quantity > 0 then
+            insert into public.stock_losses (product_id, quantity, loss_type, stock_update_id, loss_date)
+            values (v_item.product_id, v_item.removed_quantity, 'merma_admin', v_update_id, now());
+        end if;
+
+        update public.products
+        set bakery_stock = bakery_stock + v_item.added_quantity - v_item.removed_quantity
+        where id = v_item.product_id;
+    end loop;
+
+    return jsonb_build_object('success', true, 'message', 'Stock update applied', 'update_id', v_update_id);
+end;
+$$ language plpgsql;
+
+create or replace function public.revert_stock_update(p_update_id uuid)
+returns jsonb
+security definer
+as $$
+declare
+    v_status varchar;
+    v_item record;
+begin
+    select status into v_status from public.stock_updates where id = p_update_id;
+    
+    if v_status = 'cancelled' then
+        return jsonb_build_object('success', false, 'message', 'Update already cancelled');
+    end if;
+
+    for v_item in 
+        select product_id, added_quantity, removed_quantity 
+        from public.stock_update_items 
+        where update_id = p_update_id
+    loop
+        update public.products
+        set bakery_stock = bakery_stock - v_item.added_quantity + v_item.removed_quantity
+        where id = v_item.product_id;
+    end loop;
+
+    update public.stock_updates
+    set status = 'cancelled'
+    where id = p_update_id;
+
+    delete from public.stock_losses where stock_update_id = p_update_id;
+
+    return jsonb_build_object('success', true, 'message', 'Stock update reverted');
 end;
 $$ language plpgsql;
 
