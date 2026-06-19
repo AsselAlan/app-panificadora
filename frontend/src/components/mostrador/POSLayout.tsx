@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient'
 import { PaymentModal } from './PaymentModal'
 import Swal from 'sweetalert2'
 import { useStore } from '../../store/useStore'
+import type { Product } from '../../store/useStore'
 
 type CartItem = Product & { quantity: number }
 
@@ -311,7 +312,7 @@ export const POSLayout = () => {
           >
             <option value={CONSUMIDOR_FINAL_ID} className="text-black">Consumidor Final</option>
             {clients.filter(c => c.id !== CONSUMIDOR_FINAL_ID).map(c => (
-              <option key={c.id} value={c.id} className="text-black">{c.business_name || c.full_name}</option>
+              <option key={c.id} value={c.id} className="text-black">{c.business_name || c.legal_name}</option>
             ))}
           </select>
         </div>

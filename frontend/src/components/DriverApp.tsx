@@ -277,7 +277,7 @@ const EditableLoadModal: React.FC<EditableLoadModalProps> = ({ plannedLoad, onCl
     return init
   })
 
-  const hasLoad = Object.values(actualLoads).some(qty => qty > 0) || Object.keys(plannedLoad).length > 0;
+
 
   // Ordenar productos: primero los que tienen carga, luego el resto
   const sortedProducts = [...products].sort((a, b) => {
@@ -464,7 +464,7 @@ interface DriverHomeProps {
 }
 
 const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadmap, onViewCashSummary, onSelectDifferentDriver }) => {
-  const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories, sales, clients, loads } = useStore()
+  const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories } = useStore()
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [showStockModal, setShowStockModal] = useState(false)
@@ -501,7 +501,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
     return suggested
   }, [initialLoadStop, weeklyRoutes, driver.id, todayISO])
 
-  const hasLoad = Object.keys(plannedLoad).length > 0
+
 
 
   useEffect(() => {
@@ -514,34 +514,9 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
     return weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client').length
   }, [weeklyRoutes, driver.id, todayISO])
 
-  const todaySales = useMemo(() => {
-    const todayStr = new Date().toLocaleDateString('sv')
-    return sales.filter(s => {
-      const saleDate = new Date(s.transaction_date).toLocaleDateString('sv')
-      return s.driver_id === driver.id && saleDate === todayStr
-    })
-  }, [sales, driver.id])
 
-  const remainingPedidosFijos = useMemo(() => {
-    const visitedClientIds = todaySales.map(s => s.client_id)
-    const remainingClientStops = weeklyRoutes.filter(r => 
-      r.driver_id === driver.id && 
-      r.day_of_week === todayISO && 
-      r.stop_type === 'client' && 
-      !visitedClientIds.includes(r.client_id)
-    )
 
-    const totals: Record<string, number> = {}
-    remainingClientStops.forEach(stop => {
-      const clientObj = clients.find(c => c.id === stop.client_id)
-      if (clientObj && clientObj.fixed_order) {
-        Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
-          totals[prodId] = (totals[prodId] || 0) + (qty as number)
-        })
-      }
-    })
-    return totals
-  }, [weeklyRoutes, driver.id, todayISO, todaySales, clients])
+
 
   const handleStart = async (actualLoads: Record<string, number>) => {
     // Inicializar stock (loads) en el store a partir de la carga confirmada

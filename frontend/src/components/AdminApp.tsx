@@ -1514,7 +1514,7 @@ const AdminClients: React.FC = () => {
 // SECCIÓN A.5: GASTOS OPERATIVOS
 // ==========================================
 const AdminExpenses: React.FC = () => {
-  const { expenses, expenseCategories, driverExpenseCategories, fetchInitialData } = useStore()
+  const { expenseCategories, driverExpenseCategories, fetchInitialData } = useStore()
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
