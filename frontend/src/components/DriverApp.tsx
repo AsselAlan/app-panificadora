@@ -1037,7 +1037,25 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
   const { products, clients, loads, addSale, weeklyRoutes, sales } = useStore()
   
   const [tab, setTab] = useState<1 | 2 | 3>(1)
-  const [cart, setCart] = useState<Record<string, number>>({}) // product_uuid -> qty
+  
+  const client = clients.find(c => c.id === clientId)
+  
+  const [cart, setCart] = useState<Record<string, number>>(() => {
+    if (client && client.fixed_order) {
+      const clampedCart: Record<string, number> = {}
+      Object.entries(client.fixed_order).forEach(([prodId, qty]) => {
+        const l = loads.find(load => load.product_id === prodId)
+        const maxStock = l ? l.current_quantity : 0
+        const finalQty = Math.min(qty as number, maxStock)
+        if (finalQty > 0) {
+          clampedCart[prodId] = finalQty
+        }
+      })
+      return clampedCart
+    }
+    return {}
+  }) // product_uuid -> qty
+  
   const [returns, setReturns] = useState<Record<string, number>>({}) // product_uuid -> qty
   
   // Pagos mixtos
@@ -1045,8 +1063,6 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
   const [payTransfer, setPayTransfer] = useState('')
   const [includeDebt, setIncludeDebt] = useState(false)
   const [generatedTicket, setGeneratedTicket] = useState<Sale | null>(null)
-
-  const client = clients.find(c => c.id === clientId)
 
   const todayJS = new Date().getDay()
   const todayISO = todayJS === 0 ? 7 : todayJS
@@ -1085,12 +1101,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     return { reservedOthers, availableFree, currentStock: loadItem.current_quantity }
   }
 
-  // Carga del pedido fijo al iniciar
-  useEffect(() => {
-    if (client && client.fixed_order) {
-      setCart({ ...client.fixed_order })
-    }
-  }, [client])
+  // El carrito ya se precarga y se limita al stock máximo de la camioneta (loads) en su estado inicial.
 
   if (!client) return null
 

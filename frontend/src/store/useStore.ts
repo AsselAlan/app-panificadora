@@ -329,37 +329,38 @@ export const useStore = create<AppState>()(
         if (get().isOffline) return
 
         try {
-          // 1. Obtener datos del chofer
-          const { data: driver, error: errDriv } = await supabase
-            .from('drivers')
-            .select('*')
-            .eq('id', driverId)
-            .single()
+          const today = new Date().toISOString().split('T')[0]
 
-          if (errDriv) throw errDriv
+          // Consultar datos del chofer, productos y loads del día en paralelo
+          const [driverRes, productsRes, loadsRes] = await Promise.all([
+            supabase.from('drivers').select('*').eq('id', driverId).single(),
+            supabase.from('products').select('*').eq('is_deleted', false).eq('is_paused', false),
+            supabase.from('loads').select('*').eq('driver_id', driverId).eq('date_loaded', today)
+          ])
 
-          // La carga vehicular y los clientes de ruta ahora se leen directamente desde weeklyRoutes y clients de fetchInitialData.
-          // Ya no necesitamos sobrescribir clients ni usar la tabla loads.
+          if (driverRes.error) throw driverRes.error
+          if (productsRes.error) throw productsRes.error
+          // Los loads pueden no existir si aún no inició ruta, no es error crítico
 
-          // Cargar productos para que el repartidor tenga el catálogo de precios actualizados
-          const { data: products, error: errProd } = await supabase
-            .from('products')
-            .select('*')
-            .eq('is_deleted', false)
-            .eq('is_paused', false)
+          const driver = driverRes.data
+          const products = productsRes.data
+          const loadsFromDB = loadsRes.data || []
 
-          if (errProd) throw errProd
-
-          // Guardar en la caché local del store (Zustand persistido)
           set(state => {
-            // Actualizamos la lista de choferes agregando/actualizando el actual
+            // Actualizar perfil del conductor
             const updatedDrivers = state.drivers.map(d => d.id === driverId ? { ...d, ...driver } : d)
             if (!updatedDrivers.some(d => d.id === driverId) && driver) {
               updatedDrivers.push(driver)
             }
+
+            // Si hay loads registrados hoy en Supabase, los sincronizamos (el admin los cargó)
+            // Si no hay loads en BD, mantenemos los locales (el repartidor puede estar offline o aún no inició ruta)
+            const updatedLoads = loadsFromDB.length > 0 ? loadsFromDB : state.loads
+
             return {
               drivers: updatedDrivers,
-              products: products || state.products
+              products: products || state.products,
+              loads: updatedLoads
             }
           })
         } catch (error) {
@@ -539,6 +540,21 @@ export const useStore = create<AppState>()(
                 expense_date: item.payload.expense_date
               }])
               if (error) throw error
+              
+              // Descontar caja en Supabase si el origin coincide con el nombre de un chofer activo
+              const driverObj = state.drivers.find(d => d.full_name === item.payload.origin)
+              if (driverObj) {
+                const { data: currentDriver } = await supabase.from('drivers').select('cash_collected, transfer_collected').eq('id', driverObj.id).single()
+                if (currentDriver) {
+                  const updates: any = {}
+                  if (item.payload.payment_method === 'efectivo') {
+                    updates.cash_collected = Math.max(0, currentDriver.cash_collected - item.payload.amount)
+                  } else {
+                    updates.transfer_collected = Math.max(0, currentDriver.transfer_collected - item.payload.amount)
+                  }
+                  await supabase.from('drivers').update(updates).eq('id', driverObj.id)
+                }
+              }
             } else if (item.type === 'end_route') {
               const { error } = await supabase.rpc('process_driver_end_of_day', { p_driver_id: item.payload.driver_id });
               if (error) throw error;
@@ -566,13 +582,3 @@ export const useStore = create<AppState>()(
     }
   )
 )
-
-// Oyente de conectividad del navegador para sincronizar al volver a estar online
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => {
-    useStore.getState().setOffline(false)
-  })
-  window.addEventListener('offline', () => {
-    useStore.getState().setOffline(true)
-  })
-}

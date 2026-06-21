@@ -163,7 +163,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
 // SECCIÓN A.1: DASHBOARD GENERAL
 // ==========================================
 const AdminDashboard: React.FC = () => {
-  const { sales, expenses, drivers } = useStore()
+  const { sales, expenses, drivers, products } = useStore()
 
   // Helper para saber si es hoy
   const isToday = (dateString: string) => {
@@ -181,6 +181,7 @@ const AdminDashboard: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().substring(0, 7))
   const [monthlySales, setMonthlySales] = useState<any[]>([])
   const [monthlyExpenses, setMonthlyExpenses] = useState<any[]>([])
+  const [monthlyLosses, setMonthlyLosses] = useState<any[]>([])
 
   const fetchMonthly = useCallback(async () => {
     const start = new Date(selectedMonth + '-01T00:00:00').toISOString()
@@ -188,13 +189,15 @@ const AdminDashboard: React.FC = () => {
     endDate.setMonth(endDate.getMonth() + 1)
     const end = endDate.toISOString()
     
-    const [salesRes, expRes] = await Promise.all([
+    const [salesRes, expRes, lossesRes] = await Promise.all([
       supabase.from('sales').select('*').gte('transaction_date', start).lt('transaction_date', end),
-      supabase.from('expenses').select('*').gte('expense_date', start).lt('expense_date', end)
+      supabase.from('expenses').select('*').gte('expense_date', start).lt('expense_date', end),
+      supabase.from('stock_losses').select('*').gte('loss_date', start).lt('loss_date', end)
     ])
     
     if (!salesRes.error && salesRes.data) setMonthlySales(salesRes.data)
     if (!expRes.error && expRes.data) setMonthlyExpenses(expRes.data)
+    if (!lossesRes.error && lossesRes.data) setMonthlyLosses(lossesRes.data)
   }, [selectedMonth])
 
   useEffect(() => {
@@ -209,6 +212,16 @@ const AdminDashboard: React.FC = () => {
   const cashInHand = monthlySales.reduce((acc, s) => acc + s.payment_cash, 0)
   const transferCollected = monthlySales.reduce((acc, s) => acc + s.payment_transfer, 0)
   const accountAdded = monthlySales.reduce((acc, s) => acc + s.payment_account, 0)
+
+  // Mermas y Devoluciones
+  const totalDevoluciones = monthlySales.reduce((acc, s) => acc + (s.total_returns || 0), 0)
+  const totalMermas = monthlyLosses
+    .filter(l => l.loss_type === 'merma_admin')
+    .reduce((acc, l) => {
+      const p = products.find(prod => prod.id === l.product_id)
+      return acc + (l.quantity * (p?.price_a || 0))
+    }, 0)
+  const totalPerdidasGlobal = totalDevoluciones + totalMermas
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -265,6 +278,30 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Pérdidas y Devoluciones */}
+      <div className="bg-bg-surface shadow-sm border border-red-500/10 rounded-3xl p-6 mb-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-1.5 h-full bg-red-500/80"></div>
+        <h3 className="text-base font-bold text-brand-deep mb-6 flex items-center gap-2">
+          <TrendingDown size={18} className="text-red-500"/> Estadísticas de Pérdidas y Devoluciones
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-red-500/5 border border-red-500/10 p-5 rounded-2xl">
+            <h4 className="text-red-500/80 text-xs font-bold uppercase tracking-wider mb-2">Devoluciones (Reparto)</h4>
+            <p className="text-2xl font-black text-red-500">${totalDevoluciones.toLocaleString()}</p>
+            <p className="text-[10px] text-brand-muted mt-1 font-semibold">Producto devuelto por clientes</p>
+          </div>
+          <div className="bg-orange-500/5 border border-orange-500/10 p-5 rounded-2xl">
+            <h4 className="text-orange-500/80 text-xs font-bold uppercase tracking-wider mb-2">Mermas (Fábrica)</h4>
+            <p className="text-2xl font-black text-orange-500">${totalMermas.toLocaleString()}</p>
+            <p className="text-[10px] text-brand-muted mt-1 font-semibold">Roturas, sobrantes o defectos</p>
+          </div>
+          <div className="bg-red-950/10 border border-red-500/20 p-5 rounded-2xl flex flex-col justify-center">
+            <h4 className="text-red-400 text-xs font-bold uppercase tracking-wider mb-2">Impacto Negativo Total</h4>
+            <p className="text-3xl font-black text-red-500">-${totalPerdidasGlobal.toLocaleString()}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Monitoreo de Camionetas en Tiempo Real */}
       <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl p-6">
         <h3 className="text-base font-bold text-brand-deep mb-6 flex items-center gap-2">
@@ -272,13 +309,23 @@ const AdminDashboard: React.FC = () => {
         </h3>
         <div className="space-y-4">
           {drivers.map(d => {
-            const driverExpenses = todayExpenses
-              .filter(e => e.origin === d.full_name)
+            const driverExpensesCash = todayExpenses
+              .filter(e => e.origin === d.full_name && e.payment_method === 'efectivo')
               .reduce((acc, exp) => acc + exp.amount, 0);
+              
+            const driverExpensesTransfer = todayExpenses
+              .filter(e => e.origin === d.full_name && e.payment_method === 'transferencia')
+              .reduce((acc, exp) => acc + exp.amount, 0);
+              
+            const driverExpenses = driverExpensesCash + driverExpensesTransfer;
             
             const driverSales = todaySales.filter(s => s.driver_id === d.id);
-            const driverCash = driverSales.reduce((acc, s) => acc + s.payment_cash, 0);
-            const driverTransfer = driverSales.reduce((acc, s) => acc + s.payment_transfer, 0);
+            const driverGrossCash = driverSales.reduce((acc, s) => acc + s.payment_cash, 0);
+            const driverGrossTransfer = driverSales.reduce((acc, s) => acc + s.payment_transfer, 0);
+            
+            const driverCash = Math.max(0, driverGrossCash - driverExpensesCash);
+            const driverTransfer = Math.max(0, driverGrossTransfer - driverExpensesTransfer);
+            const driverSalesTotal = driverGrossCash + driverGrossTransfer;
             
             return (
             <div key={d.id} className="bg-bg-app border border-brand-muted/10 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -293,20 +340,20 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div className="flex items-center gap-8 justify-between sm:justify-end">
                 <div className="text-right">
-                  <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Efectivo</span>
+                  <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Efectivo (Neta)</span>
                   <span className="font-bold text-brand-deep/80">${driverCash.toLocaleString()}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Transf.</span>
+                  <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Transf. (Neta)</span>
                   <span className="font-bold text-brand-deep/80">${driverTransfer.toLocaleString()}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Gastos</span>
+                  <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Gastos Totales</span>
                   <span className="font-bold text-red-400">${driverExpenses.toLocaleString()}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Ventas Totales</span>
-                  <span className="font-black text-brand-navy">${(driverCash + driverTransfer).toLocaleString()}</span>
+                  <span className="font-black text-brand-navy">${driverSalesTotal.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -316,36 +363,46 @@ const AdminDashboard: React.FC = () => {
           )}
 
           {/* Tarjeta de Mostrador (Sede Central) */}
-          <div className="bg-bg-app border border-brand-navy/20 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-6 relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-navy"></div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-brand-navy/10 text-brand-navy flex items-center justify-center font-black">
-                <Store size={20} />
+          {(() => {
+            const mostradorDriver = drivers.find(d => d.full_name.toLowerCase().includes('mostrador'))
+            const mostradorSalesToday = todaySales.filter(s => mostradorDriver && s.driver_id === mostradorDriver.id)
+            return (
+              <div className="bg-bg-app border border-brand-navy/20 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-6 relative overflow-hidden group">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-navy"></div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-brand-navy/10 text-brand-navy flex items-center justify-center font-black">
+                    <Store size={20} />
+                  </div>
+                  <div>
+                    <span className="block font-bold text-brand-deep">Mostrador Sede Central</span>
+                    {mostradorDriver ? (
+                      <span className="text-xs text-brand-navy font-bold flex items-center gap-1.5 mt-0.5"><span className="w-1.5 h-1.5 rounded-full bg-brand-navy animate-pulse"></span> Mostrador Activo</span>
+                    ) : (
+                      <span className="text-xs text-orange-500 font-bold flex items-center gap-1.5 mt-0.5">⚠️ Crear conductor "Mostrador" para activar</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-8 justify-between sm:justify-end">
+                  <div className="text-right">
+                    <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Tickets</span>
+                    <span className="font-bold text-brand-deep/80">{mostradorSalesToday.length}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Efectivo</span>
+                    <span className="font-bold text-brand-deep/80">${mostradorSalesToday.reduce((acc, s) => acc + s.payment_cash, 0).toLocaleString()}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Transf.</span>
+                    <span className="font-bold text-brand-deep/80">${mostradorSalesToday.reduce((acc, s) => acc + s.payment_transfer, 0).toLocaleString()}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Ventas Totales</span>
+                    <span className="font-black text-brand-navy">${mostradorSalesToday.reduce((acc, s) => acc + s.final_total, 0).toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <span className="block font-bold text-brand-deep">Mostrador Sede Central</span>
-                <span className="text-xs text-brand-navy font-bold flex items-center gap-1.5 mt-0.5"><span className="w-1.5 h-1.5 rounded-full bg-brand-navy animate-pulse"></span> Mostrador Activo</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-8 justify-between sm:justify-end">
-              <div className="text-right">
-                <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Tickets</span>
-                <span className="font-bold text-brand-deep/80">{todaySales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').length}</span>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Efectivo</span>
-                <span className="font-bold text-brand-deep/80">${todaySales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').reduce((acc, s) => acc + s.payment_cash, 0).toLocaleString()}</span>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Transf.</span>
-                <span className="font-bold text-brand-deep/80">${todaySales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').reduce((acc, s) => acc + s.payment_transfer, 0).toLocaleString()}</span>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Ventas Totales</span>
-                <span className="font-black text-brand-navy">${todaySales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000').reduce((acc, s) => acc + s.final_total, 0).toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
+            )
+          })()}
         </div>
       </div>
     </div>
@@ -399,27 +456,40 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
     if ((subtotalSales === 0 && totalPaid === 0) || !selectedClientId) return
 
     try {
+      // Buscar el conductor designado como "Mostrador" (el nombre debe contener esa palabra)
+      const mostradorDriver = useStore.getState().drivers.find(d => 
+        d.full_name.toLowerCase().includes('mostrador')
+      )
+
+      if (!mostradorDriver) {
+        Swal.fire({
+          title: 'Configuración requerida',
+          html: `No se encontró un conductor con el nombre <b>"Mostrador"</b> en el sistema.<br><br>Ve a <b>Gestión de Usuarios</b> y crea un conductor (repartidor) llamado exactamente <b>"Mostrador"</b> para habilitar las ventas del local.`,
+          icon: 'warning',
+          confirmButtonColor: '#2563eb'
+        })
+        return
+      }
+
       let finalCash = cashAmt
       let finalAccount = remainingToPay
 
       if (remainingToPay < 0) {
         if (subtotalSales === 0 || vueltoACuenta) {
-           // Si no lleva nada o explícitamente quiere dejarlo a cuenta
            finalCash = cashAmt
            finalAccount = remainingToPay
         } else {
-           // Vuelto en mano
            finalCash = cashAmt - Math.abs(remainingToPay)
            finalAccount = 0
         }
       }
 
-      // 1. Registrar venta en Supabase
+      // 1. Registrar venta en Supabase usando el driver de Mostrador
       const saleId = crypto.randomUUID()
       const newSale = {
         id: saleId,
         client_id: selectedClientId,
-        driver_id: '00000000-0000-0000-0000-000000000000', // ID ficticio o ID de admin
+        driver_id: mostradorDriver.id, // ← siempre el conductor "Mostrador"
         transaction_date: new Date().toISOString(),
         subtotal_sales: subtotalSales,
         total_returns: 0,
@@ -428,16 +498,6 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
         payment_cash: finalCash,
         payment_transfer: transferAmt,
         payment_account: finalAccount
-      }
-
-      // Simular driver en Supabase o tener uno por defecto
-      // Para evitar fallos si no existe driver_id, buscamos el primer driver de base
-      const firstDriverId = useStore.getState().drivers[0]?.id
-      if (firstDriverId) {
-        newSale.driver_id = firstDriverId
-      } else {
-        Swal.fire('Error', 'Debes registrar al menos un chofer en la base de datos antes de realizar ventas de mostrador.', 'error')
-        return
       }
 
       const cleanItems = Object.entries(cart).map(([id, qty]) => {

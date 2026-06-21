@@ -18,7 +18,7 @@ const TicketModal = ({ sale, onClose }: { sale: any, onClose: () => void }) => {
     text += `Cliente: ${sale.clientName}\n`
     text += `Fecha: ${sale.date.toLocaleString()}\n\n`
     sale.items.forEach((i: any) => {
-      text += `${i.quantity}x ${i.name} - $${i.price_a * i.quantity}\n`
+      text += `${i.quantity}x ${i.name} - $${(i.unit_price * i.quantity).toLocaleString()}\n`
     })
     text += `\n*Total: $${sale.total.toLocaleString()}*`
     
@@ -73,7 +73,7 @@ const TicketModal = ({ sale, onClose }: { sale: any, onClose: () => void }) => {
                 <tr key={idx}>
                   <td className="py-1 border-b border-gray-100">{i.quantity}</td>
                   <td className="py-1 border-b border-gray-100 truncate max-w-[120px]">{i.name}</td>
-                  <td className="py-1 border-b border-gray-100 text-right">${i.price_a * i.quantity}</td>
+                  <td className="py-1 border-b border-gray-100 text-right">${(i.unit_price * i.quantity).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -179,7 +179,13 @@ export const POSLayout = () => {
     }))
   }
 
-  const total = cart.reduce((sum, item) => sum + (item.price_a * item.quantity), 0)
+  // Precio efectivo según categoría del cliente
+  const getItemPrice = (item: Product) => {
+    const activeClient = clients.find(c => c.id === selectedClientId)
+    return activeClient?.price_category === 'A' ? item.price_a : item.price_b
+  }
+
+  const total = cart.reduce((sum, item) => sum + (getItemPrice(item) * item.quantity), 0)
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
 
   const handleProcessSale = async (paymentCash: number, paymentTransfer: number) => {
@@ -203,7 +209,7 @@ export const POSLayout = () => {
           product_id: item.id,
           operation_type: 'sale',
           quantity: item.quantity,
-          unit_price: item.price_a
+          unit_price: getItemPrice(item) // precio según categoría del cliente
         }))
       }
 
@@ -222,7 +228,10 @@ export const POSLayout = () => {
 
       // Guardar ticket y mostrar modal de éxito
       const saleData = {
-        items: [...cart.filter(i => i.quantity > 0)],
+        items: [...cart.filter(i => i.quantity > 0)].map(item => ({
+          ...item,
+          unit_price: getItemPrice(item) // precio efectivo cobrado
+        })),
         total,
         paymentCash,
         paymentTransfer,
@@ -249,10 +258,10 @@ export const POSLayout = () => {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-72px)] gap-4 md:gap-6 p-4 md:p-6 overflow-hidden">
+    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-72px)] lg:h-[calc(100vh-72px)] gap-4 md:gap-6 p-4 md:p-6 lg:overflow-hidden">
       
       {/* SECCIÓN IZQUIERDA: PRODUCTOS */}
-      <div className="flex-1 lg:flex-[2] bg-bg-surface rounded-2xl md:rounded-3xl shadow-sm border border-brand-muted/20 flex flex-col min-h-0">
+      <div className="flex-1 lg:flex-[2] bg-bg-surface rounded-2xl md:rounded-3xl shadow-sm border border-brand-muted/20 flex flex-col min-h-[500px] lg:min-h-0">
         <div className="p-4 md:p-6 border-b border-brand-muted/10 flex justify-between items-center bg-bg-app shrink-0 rounded-t-2xl md:rounded-t-3xl">
           <div>
             <h2 className="text-lg md:text-xl font-bold text-brand-deep flex items-center gap-2">
@@ -294,7 +303,7 @@ export const POSLayout = () => {
       </div>
 
       {/* SECCIÓN DERECHA: TICKET / CARRITO */}
-      <div className="flex-1 lg:flex-none lg:w-96 bg-bg-surface rounded-2xl md:rounded-3xl shadow-sm border border-brand-muted/20 flex flex-col min-h-0 shrink-0">
+      <div className="flex-1 lg:flex-none lg:w-96 bg-bg-surface rounded-2xl md:rounded-3xl shadow-sm border border-brand-muted/20 flex flex-col min-h-[350px] lg:min-h-0 shrink-0">
         <div className="p-4 md:p-6 border-b border-white/10 bg-brand-navy text-white shrink-0 rounded-t-2xl md:rounded-t-3xl">
           <div className="flex justify-between items-start mb-3">
             <div>
@@ -329,7 +338,7 @@ export const POSLayout = () => {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <h4 className="font-bold text-brand-deep text-sm">{item.name}</h4>
-                    <p className="text-xs font-bold text-orange-600">${item.price_a} c/u</p>
+                    <p className="text-xs font-bold text-orange-600">${getItemPrice(item)} c/u</p>
                   </div>
                   <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600 p-1">
                     <Trash2 size={16} />
@@ -352,7 +361,7 @@ export const POSLayout = () => {
                     </button>
                   </div>
                   <span className="font-black text-brand-deep text-lg">
-                    ${(item.price_a * item.quantity).toLocaleString()}
+                    ${(getItemPrice(item) * item.quantity).toLocaleString()}
                   </span>
                 </div>
               </div>
