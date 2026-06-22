@@ -2043,15 +2043,20 @@ export const AdminStock: React.FC = () => {
   const [inputs, setInputs] = useState<Record<string, { added: string, removed: string }>>({})
   const [history, setHistory] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  
+  // Nuevos estados para el historial
+  const [filterDate, setFilterDate] = useState('')
+  const [visibleCount, setVisibleCount] = useState(2)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
     loadHistory()
-  }, [])
+  }, [filterDate])
 
   const loadHistory = async () => {
     setLoadingHistory(true)
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('stock_updates')
         .select(`
           id, status, created_at, 
@@ -2059,8 +2064,16 @@ export const AdminStock: React.FC = () => {
           stock_losses(quantity, loss_type)
         `)
         .order('created_at', { ascending: false })
-        .limit(10)
+
+      if (filterDate) {
+        const start = new Date(`${filterDate}T00:00:00-03:00`)
+        const end = new Date(`${filterDate}T23:59:59-03:00`)
+        query = query.gte('created_at', start.toISOString()).lte('created_at', end.toISOString())
+      }
+
+      query = query.limit(50) // Cargar un lote generoso
       
+      const { data, error } = await query
       if (!error && data) {
         setHistory(data)
       }
@@ -2201,13 +2214,23 @@ export const AdminStock: React.FC = () => {
 
       {/* Historial para revertir */}
       <div className="w-full xl:w-[350px] bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl p-6 flex flex-col h-fit">
-        <h3 className="font-bold text-brand-deep text-base mb-1">Historial</h3>
-        <p className="text-[11px] text-brand-muted/80 mb-5">Últimos movimientos realizados</p>
+        <div className="flex justify-between items-center mb-5">
+          <div>
+            <h3 className="font-bold text-brand-deep text-base mb-1">Historial</h3>
+            <p className="text-[11px] text-brand-muted/80">Últimos movimientos</p>
+          </div>
+          <input 
+            type="date"
+            value={filterDate}
+            onChange={(e) => { setFilterDate(e.target.value); setVisibleCount(2); }}
+            className="text-[10px] bg-bg-app border border-brand-muted/20 rounded-lg px-2 py-1.5 outline-none text-brand-deep font-bold"
+          />
+        </div>
 
         <div className="space-y-3">
           {history.length === 0 && !loadingHistory ? (
-             <div className="text-center py-6 text-brand-muted/60 text-xs">No hay actualizaciones recientes</div>
-          ) : history.map(item => {
+             <div className="text-center py-6 text-brand-muted/60 text-xs">No hay actualizaciones en esta fecha</div>
+          ) : history.slice(0, visibleCount).map(item => {
              const mermasTotales = item.stock_losses?.reduce((acc: number, l: any) => acc + l.quantity, 0) || 0;
              const ingresado = item.stock_update_items?.reduce((acc: number, l: any) => acc + l.added_quantity, 0) || 0;
 
@@ -2227,17 +2250,56 @@ export const AdminStock: React.FC = () => {
                   <p>Nueva Prod: <strong className="text-green-500">{ingresado}</strong></p>
                 </div>
 
-                {item.status === 'applied' && (
-                  <button 
-                    onClick={() => handleRevert(item.id)}
-                    className="text-[10px] w-full py-1.5 bg-red-500/10 text-red-500 font-bold rounded-lg hover:bg-red-500 hover:text-white transition-colors"
-                  >
-                    Deshacer/Revertir
-                  </button>
+                {/* Detalle expandible */}
+                {expandedId === item.id && (
+                  <div className="mt-2 mb-3 p-2 bg-bg-surface/80 rounded-lg text-[10px] space-y-1 border border-brand-muted/5">
+                    <p className="font-bold text-brand-muted mb-1">Detalle por producto:</p>
+                    {item.stock_update_items?.map((detail: any, idx: number) => {
+                      if (detail.added_quantity === 0 && detail.removed_quantity === 0) return null
+                      const prodName = products.find(p => p.id === detail.product_id)?.name || 'Producto'
+                      return (
+                        <div key={idx} className="flex justify-between border-b border-brand-muted/5 pb-1">
+                          <span className="truncate pr-2 font-medium">{prodName}</span>
+                          <div className="flex gap-2 font-bold">
+                            {detail.added_quantity > 0 && <span className="text-green-500">+{detail.added_quantity}</span>}
+                            {detail.removed_quantity > 0 && <span className="text-red-400">-{detail.removed_quantity}</span>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
+
+                <div className="flex flex-col gap-1.5">
+                  <button 
+                    onClick={() => setExpandedId(prev => prev === item.id ? null : item.id)}
+                    className="text-[10px] w-full py-1.5 bg-brand-navy/5 text-brand-navy font-bold rounded-lg hover:bg-brand-navy/10 transition-colors"
+                  >
+                    {expandedId === item.id ? 'Ocultar detalles' : 'Ver qué se agregó/descontó'}
+                  </button>
+
+                  {item.status === 'applied' && (
+                    <button 
+                      onClick={() => handleRevert(item.id)}
+                      className="text-[10px] w-full py-1.5 bg-red-500/10 text-red-500 font-bold rounded-lg hover:bg-red-500 hover:text-white transition-colors"
+                    >
+                      Deshacer/Revertir
+                    </button>
+                  )}
+                </div>
               </div>
              )
           })}
+
+          {/* Botón Ver Más */}
+          {history.length > visibleCount && (
+            <button
+              onClick={() => setVisibleCount(prev => prev + 3)}
+              className="w-full mt-2 py-2 text-xs font-bold text-brand-navy bg-brand-navy/5 rounded-xl hover:bg-brand-navy/10 transition-colors"
+            >
+              Cargar más antiguas...
+            </button>
+          )}
         </div>
       </div>
     </div>
