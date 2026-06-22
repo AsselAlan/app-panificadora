@@ -308,7 +308,7 @@ const AdminDashboard: React.FC = () => {
           <Activity size={18} className="text-brand-navy animate-pulse"/> Rendimiento de Furgonetas Hoy
         </h3>
         <div className="space-y-4">
-          {drivers.map(d => {
+          {drivers.filter(d => !d.full_name.toLowerCase().includes('mostrador')).map(d => {
             const driverExpensesCash = todayExpenses
               .filter(e => e.origin === d.full_name && e.payment_method === 'efectivo')
               .reduce((acc, exp) => acc + exp.amount, 0);
@@ -899,7 +899,7 @@ const AdminDrivers: React.FC = () => {
         </div>
 
         {/* Tarjetas de Repartidores de la Flota */}
-        {drivers.map(d => {
+        {drivers.filter(d => !d.full_name.toLowerCase().includes('mostrador')).map(d => {
           const dSales = daySales.filter(s => s.driver_id === d.id)
           const dTotal = dSales.reduce((acc, s) => acc + s.final_total, 0)
           const dCash = dSales.reduce((acc, s) => acc + s.payment_cash, 0)
