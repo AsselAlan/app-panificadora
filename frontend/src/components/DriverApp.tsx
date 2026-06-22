@@ -1116,8 +1116,9 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
 
   if (!client) return null
 
-  const getPrice = (product: Product) => 
-    client.price_category === 'A' ? product.price_a : product.price_b
+  const getPrice = (product: Product) => {
+    return client.price_category === 'B' ? product.price_b : product.price_a;
+  }
 
   // Totales
   const subtotalSales = Object.entries(cart).reduce((acc, [id, qty]) => {
