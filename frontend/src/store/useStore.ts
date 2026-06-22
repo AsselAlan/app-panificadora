@@ -293,6 +293,28 @@ export const useStore = create<AppState>()(
         }
       },
 
+      approveSettlement: async (driverId: string, amountCash: number, amountTransfer: number) => {
+        try {
+          const todayStr = new Date().toLocaleDateString('sv')
+          const newSettlement = {
+            driver_id: driverId,
+            settlement_date: todayStr,
+            amount_cash: amountCash,
+            amount_transfer: amountTransfer
+          }
+
+          const { data, error } = await supabase.from('driver_settlements').insert([newSettlement]).select().single()
+          if (error) throw error
+
+          set(state => ({
+            settlements: [...state.settlements, data]
+          }))
+        } catch (err: any) {
+          console.error('Error approving settlement:', err)
+          throw err
+        }
+      },
+
       fetchSettlements: async () => {
         try {
           const todayStr = new Date().toLocaleDateString('sv')

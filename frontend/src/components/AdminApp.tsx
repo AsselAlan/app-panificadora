@@ -841,8 +841,8 @@ const AdminDrivers: React.FC = () => {
             showConfirmButton: false,
             timer: 2000
           })
-          // Actualizamos la fecha para que re-renderice el useEffect
-          setSelectedDate(prev => prev)
+          // Agregamos localmente para que la UI se actualice al instante
+          setDaySettlements(prev => [...prev, { driver_id: driverId, amount_cash: cash, amount_transfer: transfer, settlement_date: selectedDate }])
         } catch (e: any) {
           Swal.fire('Error', 'No se pudo guardar la rendición.', 'error')
         }
