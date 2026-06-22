@@ -134,6 +134,9 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
 
   // Pantalla de selección de repartidor si no hay ninguno seleccionado
   if (!currentDriverId) {
+    // Solo mostrar el conductor vinculado a la sesión activa
+    const myDriver = userSession ? drivers.find(d => d.user_id === userSession.user.id) : null
+
     return (
       <div className="min-h-screen bg-bg-app flex items-center justify-center p-4">
         <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl shadow-2xl max-w-md w-full p-8 text-center">
@@ -141,36 +144,44 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
             <Truck size={32} />
           </div>
           <h2 className="text-2xl font-black text-brand-deep mb-2 tracking-tight">Acceso Repartidor</h2>
-          <p className="text-brand-muted/80 mb-6 text-sm">Selecciona tu nombre para cargar tu hoja de ruta</p>
+          <p className="text-brand-muted/80 mb-6 text-sm">Verificando tu perfil de conductor...</p>
           
-          <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+          <div className="space-y-3">
             {drivers.length === 0 ? (
               <div className="text-brand-muted/80 py-6 flex flex-col items-center gap-2">
                 <RefreshCw className="animate-spin text-brand-navy" size={24} />
-                <span>Cargando repartidores de Supabase...</span>
+                <span>Cargando datos desde el servidor...</span>
               </div>
-            ) : (
-              drivers.map(d => (
-                <button
-                  key={d.id}
-                  onClick={() => setCurrentDriver(d.id)}
-                  className="w-full bg-white hover:bg-brand-navy/5 text-brand-deep font-bold p-4 rounded-2xl shadow-sm border border-brand-muted/10 transition-all flex justify-between items-center group mb-2 active:scale-95"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-brand-navy/5 text-brand-navy flex items-center justify-center border border-brand-navy/10">
-                      <Truck size={18} />
-                    </div>
-                    <div className="text-left">
-                      <span className="block text-sm">{d.full_name}</span>
-                      <span className="text-[10px] font-semibold text-brand-muted/80 flex items-center gap-1 mt-0.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${d.status === 'En Ruta' ? 'bg-brand-orange animate-pulse' : d.status === 'Finalizado' ? 'bg-green-500' : 'bg-brand-muted/40'}`}></span>
-                        {d.status}
-                      </span>
-                    </div>
+            ) : myDriver ? (
+              // Solo mostrar el propio conductor de la sesión activa
+              <button
+                key={myDriver.id}
+                onClick={() => setCurrentDriver(myDriver.id)}
+                className="w-full bg-white hover:bg-brand-navy/5 text-brand-deep font-bold p-4 rounded-2xl shadow-sm border border-brand-muted/10 transition-all flex justify-between items-center group mb-2 active:scale-95"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-brand-navy/5 text-brand-navy flex items-center justify-center border border-brand-navy/10">
+                    <Truck size={18} />
                   </div>
-                  <ChevronRight size={18} className="text-brand-muted/40 group-hover:text-brand-navy transition-colors" />
-                </button>
-              ))
+                  <div className="text-left">
+                    <span className="block text-sm">{myDriver.full_name}</span>
+                    <span className="text-[10px] font-semibold text-brand-muted/80 flex items-center gap-1 mt-0.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${myDriver.status === 'En Ruta' ? 'bg-brand-orange animate-pulse' : myDriver.status === 'Finalizado' ? 'bg-green-500' : 'bg-brand-muted/40'}`}></span>
+                      {myDriver.status}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={18} className="text-brand-muted/40 group-hover:text-brand-navy transition-colors" />
+              </button>
+            ) : (
+              // Sin conductor asociado a esta cuenta
+              <div className="text-brand-muted/80 py-6 flex flex-col items-center gap-3">
+                <AlertCircle className="text-orange-500" size={28} />
+                <div>
+                  <p className="font-bold text-brand-deep text-sm">Sin perfil de conductor</p>
+                  <p className="text-xs text-brand-muted mt-1">Esta cuenta no está vinculada a ningún conductor activo.<br/>Contactá al administrador.</p>
+                </div>
+              </div>
             )}
           </div>
           
@@ -178,7 +189,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
             onClick={onLogout}
             className="w-full mt-6 bg-bg-app text-brand-muted border border-brand-muted/20 font-bold py-3 rounded-xl hover:bg-bg-surface shadow-sm active:scale-[0.98] transition-all text-sm"
           >
-            Volver al Selector General
+            Volver al Inicio de Sesión
           </button>
         </div>
       </div>

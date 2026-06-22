@@ -36,6 +36,7 @@ export interface Product {
   bakery_stock: number;
   is_deleted?: boolean;
   is_paused?: boolean;
+  updated_at?: string;
 }
 
 export interface Client {
@@ -52,6 +53,8 @@ export interface Client {
   credit_limit: number | null;
   allow_credit: boolean;
   fixed_order: Record<string, number> | null; // product_id -> qty
+  is_deleted?: boolean;
+  updated_at?: string;
 }
 
 export interface Driver {

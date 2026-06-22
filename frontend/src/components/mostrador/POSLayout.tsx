@@ -193,10 +193,20 @@ export const POSLayout = () => {
     setIsProcessing(true)
 
     try {
-      // Formatear payload para process_mostrador_sale
+      // Buscar el conductor "Mostrador" vinculado a este sistema
+      const { drivers } = useStore.getState()
+      const mostradorDriver = drivers.find(d => d.full_name.toLowerCase().includes('mostrador'))
+
+      if (!mostradorDriver) {
+        Swal.fire('Error de configuración', 'No se encontró el conductor "Mostrador" en la base de datos. Contacte al administrador.', 'error')
+        return
+      }
+
+      // Formatear payload para process_offline_sale
       const payload = {
         id: crypto.randomUUID(),
         client_id: selectedClientId,
+        driver_id: mostradorDriver.id, // ← conductor Mostrador
         transaction_date: new Date().toISOString(),
         subtotal_sales: total,
         total_returns: 0,
@@ -209,13 +219,21 @@ export const POSLayout = () => {
           product_id: item.id,
           operation_type: 'sale',
           quantity: item.quantity,
-          unit_price: getItemPrice(item) // precio según categoría del cliente
+          unit_price: getItemPrice(item)
         }))
       }
 
-      const { error } = await supabase.rpc('process_mostrador_sale', { payload })
+      const { error } = await supabase.rpc('process_offline_sale', { payload })
 
       if (error) throw error
+
+      // Descontar stock de panadería (bakery_stock) para cada producto vendido
+      for (const item of cart.filter(i => i.quantity > 0)) {
+        await supabase
+          .from('products')
+          .update({ bakery_stock: Math.max(0, item.bakery_stock - item.quantity) })
+          .eq('id', item.id)
+      }
 
       Swal.fire({
         toast: true,
