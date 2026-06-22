@@ -47,7 +47,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
   const { 
     drivers, currentDriverId, setCurrentDriver, fetchInitialData, 
     fetchDriverData, isOffline, setOffline, syncQueue, isSyncing,
-    loads, weeklyRoutes, products, userSession
+    loads, weeklyRoutes, products, userSession, settlements
   } = useStore()
   
   const [navigationSource, setNavigationSource] = useState<'CLIENTS' | 'ROADMAP'>('CLIENTS')
@@ -658,13 +658,24 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
 
   // Vista "Finalizado" (Rendición realizada)
   if (driver.status === 'Finalizado') {
+    const isSettled = settlements.some(s => s.driver_id === driver.id)
+
     return (
       <div className="flex flex-col items-center justify-center h-full bg-bg-surface shadow-sm p-8 text-center relative z-10">
-        <div className="w-20 h-20 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
-          <CheckCircle size={44} />
+        <div className={`w-20 h-20 ${isSettled ? 'bg-green-500/10 text-green-500' : 'bg-brand-orange/10 text-brand-orange'} rounded-full flex items-center justify-center mb-6 shadow-inner`}>
+          {isSettled ? <CheckCircle size={44} /> : <AlertCircle size={44} />}
         </div>
         <h2 className="text-2xl font-black text-brand-deep mb-2">Ruta Finalizada</h2>
-        <p className="text-brand-muted mb-8 text-sm">Tus planillas y cobros de caja se han guardado con éxito.</p>
+        
+        {isSettled ? (
+          <p className="text-green-600 font-bold mb-8 text-sm flex items-center justify-center gap-1">
+            <CheckCircle size={16} /> Rendición Recibida por Administración
+          </p>
+        ) : (
+          <p className="text-brand-orange font-bold mb-8 text-sm flex items-center justify-center gap-1">
+            <AlertCircle size={16} /> Pendiente de Entrega en Base
+          </p>
+        )}
         
         <div className="bg-brand-muted/10/40 border border-brand-muted/20 rounded-2xl p-5 w-full mb-8 text-left space-y-3">
           <p className="text-xs text-brand-muted font-bold uppercase border-b border-brand-muted/20 pb-2">Rendición de Caja Real</p>
