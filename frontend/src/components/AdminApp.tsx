@@ -796,9 +796,10 @@ const AdminDrivers: React.FC = () => {
   useEffect(() => {
     const fetchDayData = async () => {
       try {
-        const start = new Date(selectedDate)
+        const [year, month, day] = selectedDate.split('-').map(Number)
+        const start = new Date(year, month - 1, day)
         start.setHours(0, 0, 0, 0)
-        const end = new Date(selectedDate)
+        const end = new Date(year, month - 1, day)
         end.setHours(23, 59, 59, 999)
         
         const [salesRes, expensesRes, settlementsRes] = await Promise.all([
