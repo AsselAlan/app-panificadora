@@ -87,6 +87,9 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
     - **Feedback Visual para el Chofer**: La app del repartidor ahora notifica en tiempo real si su entrega de caja se encuentra "Pendiente de Entrega" o fue "Rendición Recibida por Administración".
     - **Saneamiento de Cálculos y Fechas**: Se solucionó un bug crítico en el motor de fechas de Javascript (desfase por zona horaria) y se implementó un reseteo estricto del dinero acumulado (`cash_collected`) cada vez que un chofer inicia su ruta. Esto garantiza cierres de caja 100% conciliados por día.
 
+15. **Hotfixes y Estabilidad**:
+    - Se resolvieron conflictos en las interfaces de TypeScript dentro de `useStore.ts` y componentes (ej. parámetros incorrectos y variables no usadas en `DriverApp.tsx`) que estaban provocando que falle el proceso de compilación y despliegue (build) en Netlify.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git

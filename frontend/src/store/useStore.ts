@@ -196,7 +196,7 @@ interface AppState {
   
   // Acciones de Flota y Choferes
   updateDriverStatus: (id: string, status: 'En Base' | 'En Ruta' | 'Finalizado') => Promise<void>;
-  approveSettlement: (driverId: string, amountCash: number, amountTransfer: number) => Promise<void>;
+  approveSettlement: (driverId: string, amountCash: number, amountTransfer: number, dateStr?: string) => Promise<void>;
 
   // Acciones Transaccionales (Offline-First)
   addSale: (sale: Sale) => Promise<void>;
@@ -210,6 +210,8 @@ interface AppState {
   // Acciones de Stock
   applyStockUpdate: (items: { product_id: string; added_quantity: number; removed_quantity: number }[]) => Promise<void>;
   revertStockUpdate: (updateId: string) => Promise<void>;
+
+  currentDriverId: string | null;
 }
 
 // ==========================================
@@ -268,6 +270,15 @@ export const useStore = create<AppState>()(
       },
 
       setCurrentDriver: (id) => set({ currentDriverId: id }),
+
+      updateDriverStatus: async (id, status) => {
+        set(state => ({
+          drivers: state.drivers.map(d => d.id === id ? { ...d, status } : d)
+        }))
+        if (!get().isOffline) {
+          await supabase.from('drivers').update({ status }).eq('id', id)
+        }
+      },
 
       clearAllData: () => set({
         products: [],

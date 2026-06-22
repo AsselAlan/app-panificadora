@@ -47,7 +47,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
   const { 
     drivers, currentDriverId, setCurrentDriver, fetchInitialData, 
     fetchDriverData, isOffline, setOffline, syncQueue, isSyncing,
-    loads, weeklyRoutes, products, userSession, settlements
+    loads, weeklyRoutes, products, userSession
   } = useStore()
   
   const [navigationSource, setNavigationSource] = useState<'CLIENTS' | 'ROADMAP'>('CLIENTS')
