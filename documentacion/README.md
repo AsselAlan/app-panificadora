@@ -75,6 +75,12 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
     - **Ingreso Rápido de Cantidad**: Se cambió el selector estático de botones a un input numérico que permite teclear directamente la cantidad a vender, agilizando cobros grandes.
     - **Validación Estricta de Stock**: El sistema ahora bloquea la selección de productos con stock agotado (0 o negativo) y capa las cantidades ingresadas manualmente al límite real de stock existente en la fábrica.
     - **Tickets e Impresión Térmica**: Luego de cobrar, el sistema lanza un "Ticket de Compra" virtual que permite ser impreso rápidamente (`CSS @media print` especial para ocultar interfaz y redimensionar a ticket) o compartido de forma instantánea mediante la API nativa o WhatsApp Web.
+    - **Cálculo Dinámico de Precios A/B**: El catálogo y el carrito en Mostrador (y en el POS interno del Admin) ahora respetan y muestran el precio exacto (Mayorista A o Minorista B) en tiempo real según el cliente seleccionado. Consumidor final toma Precio A por defecto.
+
+13. **Mejoras en el Control de Stock y Monitoreo**:
+    - **Historial de Stock Detallado**: La sección de carga de stock de fábrica fue mejorada con un historial paginado, filtrado por fecha, y un desglose ("Ver detalles") que muestra exactamente qué productos ingresaron y mermaron en cada transacción.
+    - **Filtro de Flota Inteligente**: El usuario especial "Mostrador Central" ya no ensucia las métricas ni la vista de los choferes en el "Monitoreo de Flota", limitándose a su tarjeta especial inferior.
+    - **Sincronización en Tiempo Real**: Se corrigió un error crítico que impedía sincronizar el inventario real de la camioneta (loads) al iniciar la jornada. Además, se limpiaron listeners de eventos para evitar fugas de memoria en la app.
 
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
