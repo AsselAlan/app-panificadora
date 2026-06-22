@@ -860,7 +860,8 @@ const AdminDrivers: React.FC = () => {
   const localTransfer = localSales.reduce((acc, s) => acc + s.payment_transfer, 0)
 
   // Determinar el día de la semana para cruzar con weekly_routes (0=Sunday -> 7=Sunday en BD)
-  const dateObj = new Date(selectedDate)
+  const [selYear, selMonth, selDay] = selectedDate.split('-').map(Number)
+  const dateObj = new Date(selYear, selMonth - 1, selDay)
   const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay()
 
   return (
