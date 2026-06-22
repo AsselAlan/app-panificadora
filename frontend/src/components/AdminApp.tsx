@@ -424,8 +424,10 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
 
   const activeClient = clients.find(c => c.id === selectedClientId)
 
-  const getPrice = (product: Product) => 
-    activeClient && activeClient.price_category === 'A' ? product.price_a : product.price_b
+  const getPrice = (product: Product) => {
+    if (!activeClient) return product.price_a;
+    return activeClient.price_category === 'B' ? product.price_b : product.price_a;
+  }
 
   const subtotalSales = Object.entries(cart).reduce((acc, [id, qty]) => {
     const p = products.find(p => p.id === id)

@@ -182,7 +182,8 @@ export const POSLayout = () => {
   // Precio efectivo según categoría del cliente
   const getItemPrice = (item: Product) => {
     const activeClient = clients.find(c => c.id === selectedClientId)
-    return activeClient?.price_category === 'A' ? item.price_a : item.price_b
+    if (!activeClient) return item.price_a;
+    return activeClient.price_category === 'B' ? item.price_b : item.price_a;
   }
 
   const total = cart.reduce((sum, item) => sum + (getItemPrice(item) * item.quantity), 0)
@@ -309,7 +310,7 @@ export const POSLayout = () => {
                 <p className="text-xs font-semibold text-brand-muted mb-2">{product.unit_type}</p>
                 
                 <div className="mt-auto w-full flex justify-between items-center border-t border-brand-muted/10 pt-3">
-                  <span className={`font-black ${product.bakery_stock <= 0 ? 'text-brand-muted' : 'text-orange-600'}`}>${product.price_a}</span>
+                  <span className={`font-black ${product.bakery_stock <= 0 ? 'text-brand-muted' : 'text-orange-600'}`}>${getItemPrice(product)}</span>
                   <span className={`text-xs font-bold px-2 py-1 rounded-lg ${product.bakery_stock <= 0 ? 'bg-red-500/10 text-red-500' : 'bg-bg-app text-brand-muted'}`}>
                     Stock: {product.bakery_stock}
                   </span>
