@@ -518,11 +518,11 @@ export const useStore = create<AppState>()(
       // Iniciar recorrido del chofer
       startDriverRoute: async (driverId) => {
         set(state => ({
-          drivers: state.drivers.map(d => d.id === driverId ? { ...d, status: 'En Ruta', is_online: true, last_active: new Date().toISOString() } : d)
+          drivers: state.drivers.map(d => d.id === driverId ? { ...d, status: 'En Ruta', is_online: true, last_active: new Date().toISOString(), cash_collected: 0, transfer_collected: 0 } : d)
         }))
 
         if (!get().isOffline) {
-          await supabase.from('drivers').update({ status: 'En Ruta', is_online: true, last_active: new Date() }).eq('id', driverId)
+          await supabase.from('drivers').update({ status: 'En Ruta', is_online: true, last_active: new Date(), cash_collected: 0, transfer_collected: 0 }).eq('id', driverId)
         }
       },
 

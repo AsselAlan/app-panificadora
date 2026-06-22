@@ -82,6 +82,11 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
     - **Filtro de Flota Inteligente**: El usuario especial "Mostrador Central" ya no ensucia las métricas ni la vista de los choferes en el "Monitoreo de Flota", limitándose a su tarjeta especial inferior.
     - **Sincronización en Tiempo Real**: Se corrigió un error crítico que impedía sincronizar el inventario real de la camioneta (loads) al iniciar la jornada. Además, se limpiaron listeners de eventos para evitar fugas de memoria en la app.
 
+14. **Control de Rendiciones de Caja Central**:
+    - **Aprobación de Rendición**: Implementado un botón físico ("Recibir Dinero / Aprobar Rendición") en el panel del administrador para confirmar que el repartidor entregó el efectivo y las transferencias del día.
+    - **Feedback Visual para el Chofer**: La app del repartidor ahora notifica en tiempo real si su entrega de caja se encuentra "Pendiente de Entrega" o fue "Rendición Recibida por Administración".
+    - **Saneamiento de Cálculos y Fechas**: Se solucionó un bug crítico en el motor de fechas de Javascript (desfase por zona horaria) y se implementó un reseteo estricto del dinero acumulado (`cash_collected`) cada vez que un chofer inicia su ruta. Esto garantiza cierres de caja 100% conciliados por día.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git
