@@ -788,7 +788,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
 // ==========================================
 const AdminDrivers: React.FC = () => {
   const { drivers, weeklyRoutes, approveSettlement } = useStore()
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('sv'))
   const [daySales, setDaySales] = useState<any[]>([])
   const [dayExpenses, setDayExpenses] = useState<any[]>([])
   const [daySettlements, setDaySettlements] = useState<any[]>([])
@@ -832,7 +832,7 @@ const AdminDrivers: React.FC = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await approveSettlement(driverId, cash, transfer)
+          await approveSettlement(driverId, cash, transfer, selectedDate)
           Swal.fire({
             toast: true,
             position: 'top-end',

@@ -293,12 +293,12 @@ export const useStore = create<AppState>()(
         }
       },
 
-      approveSettlement: async (driverId: string, amountCash: number, amountTransfer: number) => {
+      approveSettlement: async (driverId: string, amountCash: number, amountTransfer: number, dateStr?: string) => {
         try {
-          const todayStr = new Date().toLocaleDateString('sv')
+          const dateToSave = dateStr || new Date().toLocaleDateString('sv')
           const newSettlement = {
             driver_id: driverId,
-            settlement_date: todayStr,
+            settlement_date: dateToSave,
             amount_cash: amountCash,
             amount_transfer: amountTransfer
           }
