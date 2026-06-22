@@ -69,6 +69,15 @@ export interface Driver {
   last_active: string;
 }
 
+export interface DriverSettlement {
+  id: string;
+  driver_id: string;
+  settlement_date: string;
+  amount_cash: number;
+  amount_transfer: number;
+  created_at: string;
+}
+
 export interface Load {
   id: string;
   driver_id: string;
@@ -157,9 +166,11 @@ interface AppState {
   expenses: Expense[];
   expenseCategories: any[];
   driverExpenseCategories: any[];
-  
-  // Estado operativo actual
-  currentDriverId: string | null;
+  stockUpdates: StockUpdate[];
+  stockLosses: StockLoss[];
+  settlements: DriverSettlement[];
+
+  // App State
   isOffline: boolean;
   isSyncing: boolean;
   syncQueue: SyncItem[];
@@ -180,6 +191,12 @@ interface AppState {
   fetchInitialData: () => Promise<void>;
   fetchDriverData: (driverId: string) => Promise<void>;
   fetchSalesByDate: (dateStr: string) => Promise<void>;
+  fetchStockLosses: () => Promise<void>;
+  fetchSettlements: () => Promise<void>;
+  
+  // Acciones de Flota y Choferes
+  updateDriverStatus: (id: string, status: 'En Base' | 'En Ruta' | 'Finalizado') => Promise<void>;
+  approveSettlement: (driverId: string, amountCash: number, amountTransfer: number) => Promise<void>;
 
   // Acciones Transaccionales (Offline-First)
   addSale: (sale: Sale) => Promise<void>;
@@ -211,6 +228,9 @@ export const useStore = create<AppState>()(
       expenses: [],
       expenseCategories: [],
       driverExpenseCategories: [],
+      stockUpdates: [],
+      stockLosses: [],
+      settlements: [],
       currentDriverId: null,
       isOffline: !navigator.onLine,
       isSyncing: false,
@@ -263,6 +283,30 @@ export const useStore = create<AppState>()(
         syncQueue: []
       }),
 
+      fetchStockLosses: async () => {
+        try {
+          const { data, error } = await supabase.from('stock_losses').select('*')
+          if (error) throw error
+          set({ stockLosses: data || [] })
+        } catch (err) {
+          console.error('Error fetching stock losses:', err)
+        }
+      },
+
+      fetchSettlements: async () => {
+        try {
+          const todayStr = new Date().toLocaleDateString('sv')
+          const { data, error } = await supabase
+            .from('driver_settlements')
+            .select('*')
+            .eq('settlement_date', todayStr)
+          if (error) throw error
+          set({ settlements: data || [] })
+        } catch (err) {
+          console.error('Error fetching driver settlements:', err)
+        }
+      },
+
       // Carga todo desde la base de datos (Usado por Dashboard / Admin)
       fetchInitialData: async () => {
         if (get().isOffline) return
@@ -296,6 +340,9 @@ export const useStore = create<AppState>()(
             weeklyRoutes: resRoutes.data || [],
             driverExpenseCategories: resDriverCat.data || []
           })
+          
+          await get().fetchStockLosses()
+          await get().fetchSettlements()
         } catch (error) {
           console.error('Error cargando datos iniciales de Supabase:', error)
         }

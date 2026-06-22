@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import { 
   TrendingUp, TrendingDown, Wallet, Store, Activity, Users, 
-  ClipboardList, Package, LogOut, Truck,
+  ClipboardList, Package, LogOut, Truck, CheckCircle,
   Plus, Minus, ShoppingCart, Printer, Banknote, CreditCard,
   X, Calendar, Clock, History, BarChart, MapPin, Map, ArrowUp, ArrowDown, Trash2,
   Pencil, Eye, Pause, Play, Shield, KeyRound, Menu
@@ -787,33 +787,68 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
 // SECCIÓN A.3: MONITOREO DE REPARTIDORES
 // ==========================================
 const AdminDrivers: React.FC = () => {
-  const { drivers, weeklyRoutes } = useStore()
+  const { drivers, weeklyRoutes, approveSettlement } = useStore()
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [daySales, setDaySales] = useState<any[]>([])
+  const [dayExpenses, setDayExpenses] = useState<any[]>([])
+  const [daySettlements, setDaySettlements] = useState<any[]>([])
 
   useEffect(() => {
-    const fetchDaySales = async () => {
+    const fetchDayData = async () => {
       try {
         const start = new Date(selectedDate)
-        // Adjust for local time
         start.setHours(0, 0, 0, 0)
         const end = new Date(selectedDate)
         end.setHours(23, 59, 59, 999)
         
-        const { data, error } = await supabase
-          .from('sales')
-          .select('*')
-          .gte('transaction_date', start.toISOString())
-          .lte('transaction_date', end.toISOString())
+        const [salesRes, expensesRes, settlementsRes] = await Promise.all([
+          supabase.from('sales').select('*').gte('transaction_date', start.toISOString()).lte('transaction_date', end.toISOString()),
+          supabase.from('expenses').select('*').gte('expense_date', start.toISOString()).lte('expense_date', end.toISOString()),
+          supabase.from('driver_settlements').select('*').eq('settlement_date', selectedDate)
+        ])
         
-        if (error) throw error
-        setDaySales(data || [])
+        if (salesRes.error) throw salesRes.error
+        if (expensesRes.error) throw expensesRes.error
+        if (settlementsRes.error) throw settlementsRes.error
+        
+        setDaySales(salesRes.data || [])
+        setDayExpenses(expensesRes.data || [])
+        setDaySettlements(settlementsRes.data || [])
       } catch (err) {
-        console.error('Error fetching historical sales:', err)
+        console.error('Error fetching historical day data:', err)
       }
     }
-    fetchDaySales()
-  }, [selectedDate])
+    fetchDayData()
+  }, [selectedDate, approveSettlement])
+
+  const handleApproveSettlement = (driverId: string, cash: number, transfer: number, driverName: string) => {
+    Swal.fire({
+      title: 'Aprobar Rendición',
+      text: `¿Confirmás que recibiste físicamente $${cash.toLocaleString()} en efectivo de ${driverName}?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, confirmar',
+      cancelButtonText: 'Cancelar'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await approveSettlement(driverId, cash, transfer)
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: '¡Rendición Aprobada!',
+            showConfirmButton: false,
+            timer: 2000
+          })
+          // Actualizamos la fecha para que re-renderice el useEffect
+          setSelectedDate(prev => prev)
+        } catch (e: any) {
+          Swal.fire('Error', 'No se pudo guardar la rendición.', 'error')
+        }
+      }
+    })
+  }
 
   // Cálculos de Ventas en Local (Sede Central)
   // Asumimos que las ventas locales se registran bajo un ID específico o donde el driver no es un repartidor válido.
@@ -907,6 +942,15 @@ const AdminDrivers: React.FC = () => {
           const dCash = dSales.reduce((acc, s) => acc + s.payment_cash, 0)
           const dTransfer = dSales.reduce((acc, s) => acc + s.payment_transfer, 0)
           
+          const dExpenses = dayExpenses.filter(e => e.origin === d.full_name)
+          const dExpensesCash = dExpenses.filter(e => e.payment_method === 'efectivo').reduce((acc, e) => acc + e.amount, 0)
+          const dExpensesTransfer = dExpenses.filter(e => e.payment_method === 'transferencia').reduce((acc, e) => acc + e.amount, 0)
+
+          const netCash = Math.max(0, dCash - dExpensesCash)
+          const netTransfer = Math.max(0, dTransfer - dExpensesTransfer)
+
+          const isSettled = daySettlements.some(s => s.driver_id === d.id)
+          
           const dRoutes = weeklyRoutes.filter(r => r.driver_id === d.id && r.day_of_week === dayOfWeek)
           const assignedClientsCount = dRoutes.length
           const visitedClientsCount = dSales.length // Asumimos 1 ticket = 1 cliente visitado
@@ -964,13 +1008,29 @@ const AdminDrivers: React.FC = () => {
                 </div>
                 <div className="flex gap-4 border-t border-brand-muted/10 pt-3">
                   <div className="flex-1">
-                    <span className="text-[9px] font-bold text-brand-muted uppercase flex items-center gap-1"><Banknote size={10}/> Efectivo</span>
-                    <p className="text-sm font-bold text-green-600 mt-0.5">${dCash.toLocaleString()}</p>
+                    <span className="text-[9px] font-bold text-brand-muted uppercase flex items-center gap-1" title={`Ventas: $${dCash} | Gastos: -$${dExpensesCash}`}><Banknote size={10}/> Efectivo Neto</span>
+                    <p className="text-sm font-bold text-green-600 mt-0.5">${netCash.toLocaleString()}</p>
                   </div>
                   <div className="flex-1">
-                    <span className="text-[9px] font-bold text-brand-muted uppercase flex items-center gap-1"><CreditCard size={10}/> Transf.</span>
-                    <p className="text-sm font-bold text-blue-600 mt-0.5">${dTransfer.toLocaleString()}</p>
+                    <span className="text-[9px] font-bold text-brand-muted uppercase flex items-center gap-1" title={`Ventas: $${dTransfer} | Gastos: -$${dExpensesTransfer}`}><CreditCard size={10}/> Transf. Neta</span>
+                    <p className="text-sm font-bold text-blue-600 mt-0.5">${netTransfer.toLocaleString()}</p>
                   </div>
+                </div>
+
+                {/* BOTON DE RENDICION */}
+                <div className="mt-4 pt-3 border-t border-brand-muted/10">
+                  {isSettled ? (
+                    <div className="w-full flex items-center justify-center gap-2 bg-green-50 text-green-600 py-2 rounded-xl text-xs font-bold border border-green-100">
+                      <CheckCircle size={16} /> Rendición Aprobada
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleApproveSettlement(d.id, netCash, netTransfer, d.full_name)}
+                      className="w-full flex items-center justify-center gap-2 bg-brand-navy hover:bg-blue-700 text-white py-2 rounded-xl text-xs font-bold transition-colors active:scale-95 shadow-sm"
+                    >
+                      <Banknote size={16} /> Recibir ${netCash.toLocaleString()}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
