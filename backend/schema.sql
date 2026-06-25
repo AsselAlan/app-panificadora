@@ -42,6 +42,7 @@ create table public.clients (
     credit_limit numeric(12,2),
     allow_credit boolean not null default false,
     fixed_order jsonb, -- Almacena { "product_uuid": cantidad }
+    cajones_prestados integer not null default 0,
     is_deleted boolean not null default false,
     updated_at timestamptz not null default now()
 );
@@ -203,6 +204,8 @@ declare
     v_payment_cash numeric(12,2);
     v_payment_transfer numeric(12,2);
     v_payment_account numeric(12,2);
+    v_cajones_left integer;
+    v_cajones_returned integer;
     v_item record;
     v_exists boolean;
 begin
@@ -218,6 +221,8 @@ begin
     v_payment_cash := (payload->>'payment_cash')::numeric;
     v_payment_transfer := (payload->>'payment_transfer')::numeric;
     v_payment_account := (payload->>'payment_account')::numeric;
+    v_cajones_left := coalesce((payload->>'cajones_left')::integer, 0);
+    v_cajones_returned := coalesce((payload->>'cajones_returned')::integer, 0);
 
     -- 2. Validación de idempotencia (Evita duplicados ante reintentos de red)
     select exists(select 1 from public.sales where id = v_sale_id) into v_exists;
@@ -266,10 +271,11 @@ begin
         end if;
     end loop;
 
-    -- 5. Actualizar la cuenta corriente en la tabla clients
+    -- 5. Actualizar la cuenta corriente en la tabla clients y cajones prestados
     -- Si es a cuenta (deuda nueva), disminuye el balance (hacia negativo).
     update public.clients
-    set current_balance = current_balance - v_payment_account
+    set current_balance = current_balance - v_payment_account,
+        cajones_prestados = cajones_prestados + v_cajones_left - v_cajones_returned
     where id = v_client_id;
 
     -- 6. Acumular las ventas y cobros en el perfil de caja del chofer si la venta es del día

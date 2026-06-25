@@ -5,7 +5,7 @@ import {
   ClipboardList, Package, LogOut, Truck, CheckCircle,
   Plus, Minus, ShoppingCart, Printer, Banknote, CreditCard,
   X, Calendar, Clock, History, BarChart, MapPin, Map, ArrowUp, ArrowDown, Trash2,
-  Pencil, Eye, Pause, Play, Shield, KeyRound, Menu
+  Pencil, Eye, Pause, Play, Shield, KeyRound, Menu, ArchiveRestore, AlertCircle
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { Product, Expense } from '../store/useStore'
@@ -165,18 +165,32 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
 const AdminDashboard: React.FC = () => {
   const { sales, expenses, drivers, products } = useStore()
 
-  // Helper para saber si es hoy
-  const isToday = (dateString: string) => {
-    if (!dateString) return false
-    const d = new Date(dateString)
-    const today = new Date()
-    return d.getDate() === today.getDate() && 
-           d.getMonth() === today.getMonth() && 
-           d.getFullYear() === today.getFullYear()
-  }
+  const [rendimientoDate, setRendimientoDate] = useState<string>(new Date().toLocaleDateString('sv'))
+  const [rendimientoSales, setRendimientoSales] = useState<any[]>([])
+  const [rendimientoExpenses, setRendimientoExpenses] = useState<any[]>([])
 
-  const todaySales = useMemo(() => sales.filter(s => isToday(s.transaction_date)), [sales])
-  const todayExpenses = useMemo(() => expenses.filter(e => isToday(e.expense_date)), [expenses])
+  useEffect(() => {
+    const fetchRendimiento = async () => {
+      try {
+        const [year, month, day] = rendimientoDate.split('-').map(Number)
+        const start = new Date(year, month - 1, day)
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(year, month - 1, day)
+        end.setHours(23, 59, 59, 999)
+        
+        const [salesRes, expensesRes] = await Promise.all([
+          supabase.from('sales').select('*').gte('transaction_date', start.toISOString()).lte('transaction_date', end.toISOString()),
+          supabase.from('expenses').select('*').gte('expense_date', start.toISOString()).lte('expense_date', end.toISOString())
+        ])
+        
+        setRendimientoSales(salesRes.data || [])
+        setRendimientoExpenses(expensesRes.data || [])
+      } catch (err) {
+        console.error('Error fetching rendimiento data:', err)
+      }
+    }
+    fetchRendimiento()
+  }, [rendimientoDate])
 
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().substring(0, 7))
   const [monthlySales, setMonthlySales] = useState<any[]>([])
@@ -225,14 +239,23 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Selector de Mes */}
-      <div className="flex justify-end">
-        <input 
-          type="month" 
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="bg-bg-surface border border-brand-muted/30 text-brand-deep rounded-xl px-4 py-2 text-sm font-bold shadow-sm outline-none"
-        />
+      {/* TÍTULO Y SELECTOR DEL PANEL FINANCIERO */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-muted/10 pb-4">
+        <div>
+          <h2 className="text-2xl font-black text-brand-deep flex items-center gap-2">
+            <Wallet size={24} className="text-brand-navy"/> Panel General Financiero
+          </h2>
+          <p className="text-xs text-brand-muted mt-1">Análisis de ingresos, egresos y mermas por período mensual.</p>
+        </div>
+        <div className="flex items-center gap-2 bg-brand-muted/5 border border-brand-muted/20 rounded-xl px-3 py-1.5">
+          <span className="text-[10px] font-bold text-brand-muted uppercase">Mes:</span>
+          <input 
+            type="month" 
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="bg-transparent text-sm font-bold text-brand-deep outline-none cursor-pointer"
+          />
+        </div>
       </div>
 
       {/* Indicadores Top */}
@@ -302,24 +325,40 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Monitoreo de Camionetas en Tiempo Real */}
+      {/* TÍTULO Y SELECTOR DE RENDIMIENTO OPERATIVO */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-muted/10 pb-4 pt-6 mt-6">
+        <div>
+          <h2 className="text-2xl font-black text-brand-deep flex items-center gap-2">
+            <Activity size={24} className="text-brand-orange"/> Rendimiento Operativo
+          </h2>
+          <p className="text-xs text-brand-muted mt-1">Desempeño diario de cajas y ventas por furgoneta.</p>
+        </div>
+        <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-xl px-3 py-1.5">
+          <span className="text-[10px] font-bold text-orange-600 uppercase">Día:</span>
+          <input 
+            type="date" 
+            value={rendimientoDate}
+            onChange={(e) => setRendimientoDate(e.target.value)}
+            className="bg-transparent text-sm font-bold text-brand-deep outline-none cursor-pointer"
+          />
+        </div>
+      </div>
+
+      {/* Monitoreo de Camionetas */}
       <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl p-6">
-        <h3 className="text-base font-bold text-brand-deep mb-6 flex items-center gap-2">
-          <Activity size={18} className="text-brand-navy animate-pulse"/> Rendimiento de Furgonetas Hoy
-        </h3>
         <div className="space-y-4">
           {drivers.filter(d => !d.full_name.toLowerCase().includes('mostrador')).map(d => {
-            const driverExpensesCash = todayExpenses
+            const driverExpensesCash = rendimientoExpenses
               .filter(e => e.origin === d.full_name && e.payment_method === 'efectivo')
               .reduce((acc, exp) => acc + exp.amount, 0);
               
-            const driverExpensesTransfer = todayExpenses
+            const driverExpensesTransfer = rendimientoExpenses
               .filter(e => e.origin === d.full_name && e.payment_method === 'transferencia')
               .reduce((acc, exp) => acc + exp.amount, 0);
               
             const driverExpenses = driverExpensesCash + driverExpensesTransfer;
             
-            const driverSales = todaySales.filter(s => s.driver_id === d.id);
+            const driverSales = rendimientoSales.filter(s => s.driver_id === d.id);
             const driverGrossCash = driverSales.reduce((acc, s) => acc + s.payment_cash, 0);
             const driverGrossTransfer = driverSales.reduce((acc, s) => acc + s.payment_transfer, 0);
             
@@ -365,7 +404,7 @@ const AdminDashboard: React.FC = () => {
           {/* Tarjeta de Mostrador (Sede Central) */}
           {(() => {
             const mostradorDriver = drivers.find(d => d.full_name.toLowerCase().includes('mostrador'))
-            const mostradorSalesToday = todaySales.filter(s => mostradorDriver && s.driver_id === mostradorDriver.id)
+            const mostradorSalesToday = rendimientoSales.filter(s => mostradorDriver && s.driver_id === mostradorDriver.id)
             return (
               <div className="bg-bg-app border border-brand-navy/20 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-6 relative overflow-hidden group">
                 <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-navy"></div>
@@ -854,10 +893,21 @@ const AdminDrivers: React.FC = () => {
   // Cálculos de Ventas en Local (Sede Central)
   // Asumimos que las ventas locales se registran bajo un ID específico o donde el driver no es un repartidor válido.
   // En este sistema, el ID '00000000-0000-0000-0000-000000000000' se usa para ventas locales.
-  const localSales = daySales.filter(s => s.driver_id === '00000000-0000-0000-0000-000000000000')
+  const localId = '00000000-0000-0000-0000-000000000000'
+  const localSales = daySales.filter(s => s.driver_id === localId)
   const localTotal = localSales.reduce((acc, s) => acc + s.final_total, 0)
   const localCash = localSales.reduce((acc, s) => acc + s.payment_cash, 0)
   const localTransfer = localSales.reduce((acc, s) => acc + s.payment_transfer, 0)
+  
+  const localSettlements = daySettlements.filter(s => s.driver_id === localId)
+  const localSettledCash = localSettlements.reduce((acc, s) => acc + (s.amount_cash || 0), 0)
+  const localSettledTransfer = localSettlements.reduce((acc, s) => acc + (s.amount_transfer || 0), 0)
+  
+  const localPendingCash = Math.max(0, localCash - localSettledCash)
+  const localPendingTransfer = Math.max(0, localTransfer - localSettledTransfer)
+  
+  const localIsSettled = localSettlements.length > 0 && localPendingCash === 0 && localPendingTransfer === 0
+  const localIsPendingSettlement = !localIsSettled && (localPendingCash > 0 || localPendingTransfer > 0)
 
   // Determinar el día de la semana para cruzar con weekly_routes (0=Sunday -> 7=Sunday en BD)
   const [selYear, selMonth, selDay] = selectedDate.split('-').map(Number)
@@ -904,9 +954,16 @@ const AdminDrivers: React.FC = () => {
                 <span className="text-xs font-semibold text-brand-navy/80">Mostrador Activo</span>
               </div>
             </div>
-            <span className="text-[10px] font-bold text-brand-muted/60 uppercase flex items-center gap-1">
-              <MapPin size={12}/> Sede Central
-            </span>
+            <div className="flex flex-col items-end gap-2">
+              <span className="text-[10px] font-bold text-brand-muted/60 uppercase flex items-center gap-1">
+                <MapPin size={12}/> Sede Central
+              </span>
+              {localIsPendingSettlement && (
+                <span className="bg-red-50 text-red-500 border border-red-100 text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1 shadow-sm animate-pulse">
+                  <AlertCircle size={12} /> Pendiente
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="mb-5">
@@ -934,6 +991,24 @@ const AdminDrivers: React.FC = () => {
                 <p className="text-sm font-bold text-brand-navy mt-0.5">${localTransfer.toLocaleString()}</p>
               </div>
             </div>
+
+            {/* BOTON DE RENDICION MOSTRADOR */}
+            <div className="mt-4 pt-3 border-t border-brand-muted/10">
+              {localIsSettled ? (
+                <div className="w-full flex items-center justify-center gap-2 bg-green-50 text-green-600 py-2 rounded-xl text-xs font-bold border border-green-100">
+                  <CheckCircle size={16} /> Rendición Aprobada
+                </div>
+              ) : (localPendingCash > 0 || localPendingTransfer > 0) ? (
+                <button
+                  onClick={() => handleApproveSettlement(localId, localPendingCash, localPendingTransfer, 'Mostrador Local')}
+                  className="w-full flex items-center justify-center gap-2 bg-brand-navy hover:bg-blue-700 text-white py-2 rounded-xl text-xs font-bold transition-colors active:scale-95 shadow-sm"
+                >
+                  <Banknote size={16} /> Recibir ${localPendingCash.toLocaleString()}
+                </button>
+              ) : (
+                <div className="w-full text-center text-xs font-bold text-brand-muted py-2">Sin actividad para rendir</div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -951,8 +1026,26 @@ const AdminDrivers: React.FC = () => {
           const netCash = Math.max(0, dCash - dExpensesCash)
           const netTransfer = Math.max(0, dTransfer - dExpensesTransfer)
 
-          const isSettled = daySettlements.some(s => s.driver_id === d.id)
+          const driverSettlements = daySettlements.filter(s => s.driver_id === d.id)
+          const settledCash = driverSettlements.reduce((acc, s) => acc + (s.amount_cash || 0), 0)
+          const settledTransfer = driverSettlements.reduce((acc, s) => acc + (s.amount_transfer || 0), 0)
           
+          const pendingCash = Math.max(0, netCash - settledCash)
+          const pendingTransfer = Math.max(0, netTransfer - settledTransfer)
+          
+          const isSettled = driverSettlements.length > 0 && pendingCash === 0 && pendingTransfer === 0
+          
+          const todayStr = new Date().toLocaleDateString('sv')
+          const isToday = selectedDate === todayStr
+          
+          const lastActiveDate = d.last_active ? new Date(d.last_active) : null;
+          const isValidDate = lastActiveDate && !isNaN(lastActiveDate.getTime());
+          const isLastActiveToday = isValidDate ? lastActiveDate.toLocaleDateString('sv') === todayStr : false;
+          
+          // Logic for pending notification
+          const hasPendingMoney = pendingCash > 0 || pendingTransfer > 0;
+          const isPendingSettlement = !isSettled && (hasPendingMoney || (isToday && isLastActiveToday && d.status === 'Finalizado'))
+
           const dRoutes = weeklyRoutes.filter(r => r.driver_id === d.id && r.day_of_week === dayOfWeek)
           const assignedClientsCount = dRoutes.length
           const visitedClientsCount = dSales.length // Asumimos 1 ticket = 1 cliente visitado
@@ -964,30 +1057,42 @@ const AdminDrivers: React.FC = () => {
           const progressColor = progressPercent === 100 ? 'bg-green-500' : 'bg-brand-orange'
 
           // Para saber hace cuánto fue su última conexión
-          let timeAgoStr = 'Hace un momento'
-          const diffMs = new Date().getTime() - new Date(d.last_active).getTime()
-          const diffMins = Math.floor(diffMs / 60000)
-          if (diffMins > 60) timeAgoStr = `Hace ${Math.floor(diffMins/60)} hora(s)`
-          else if (diffMins > 0) timeAgoStr = `Hace ${diffMins} min`
+          let timeAgoStr = 'Desconocido'
+          if (isValidDate) {
+            timeAgoStr = 'Hace un momento'
+            const diffMs = new Date().getTime() - lastActiveDate.getTime()
+            const diffMins = Math.floor(diffMs / 60000)
+            if (diffMins > 60) timeAgoStr = `Hace ${Math.floor(diffMins/60)} hora(s)`
+            else if (diffMins > 0) timeAgoStr = `Hace ${diffMins} min`
+          }
 
           return (
-            <div key={d.id} className="bg-white rounded-3xl p-6 shadow-sm border border-brand-muted/10 flex flex-col relative overflow-hidden group hover:shadow-md transition-shadow">
+            <div key={d.id} className={`bg-white rounded-3xl p-6 shadow-sm border ${isPendingSettlement ? 'border-red-200' : 'border-brand-muted/10'} flex flex-col relative overflow-hidden group hover:shadow-md transition-shadow`}>
               
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <h3 className="font-black text-brand-deep text-lg leading-tight">{d.full_name}</h3>
                   <div className="flex items-center gap-1.5 mt-1.5">
                     <span className={`w-2 h-2 rounded-full ${d.status === 'En Ruta' ? 'bg-brand-orange animate-pulse' : 'bg-brand-muted'}`}></span>
-                    <span className="text-xs font-semibold text-brand-muted/80">{d.status}</span>
+                    <span className="text-xs font-semibold text-brand-muted/80">
+                      {!isLastActiveToday ? 'En Base' : d.status}
+                    </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-bold text-brand-muted/60 uppercase flex items-center justify-end gap-1 mb-0.5">
-                    <MapPin size={10}/> Base
-                  </span>
-                  <span className="text-[9px] font-bold text-brand-muted/50 flex items-center justify-end gap-1">
-                    <Clock size={10}/> {timeAgoStr}
-                  </span>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-brand-muted/60 uppercase flex items-center justify-end gap-1 mb-0.5">
+                      <MapPin size={10}/> Base
+                    </span>
+                    <span className="text-[9px] font-bold text-brand-muted/50 flex items-center justify-end gap-1">
+                      <Clock size={10}/> {timeAgoStr}
+                    </span>
+                  </div>
+                  {isPendingSettlement && (
+                    <span className="bg-red-50 text-red-500 border border-red-100 text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1 shadow-sm animate-pulse">
+                      <AlertCircle size={12} /> Pendiente
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1021,18 +1126,58 @@ const AdminDrivers: React.FC = () => {
 
                 {/* BOTON DE RENDICION */}
                 <div className="mt-4 pt-3 border-t border-brand-muted/10">
-                  {isSettled ? (
-                    <div className="w-full flex items-center justify-center gap-2 bg-green-50 text-green-600 py-2 rounded-xl text-xs font-bold border border-green-100">
-                      <CheckCircle size={16} /> Rendición Aprobada
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleApproveSettlement(d.id, netCash, netTransfer, d.full_name)}
-                      className="w-full flex items-center justify-center gap-2 bg-brand-navy hover:bg-blue-700 text-white py-2 rounded-xl text-xs font-bold transition-colors active:scale-95 shadow-sm"
-                    >
-                      <Banknote size={16} /> Recibir ${netCash.toLocaleString()}
-                    </button>
-                  )}
+                  {(() => {
+                    const todayStr = new Date().toLocaleDateString('sv')
+                    const isTodayLocal = selectedDate === todayStr
+
+                    if (isTodayLocal) {
+                      if (!isLastActiveToday || (isLastActiveToday && d.status === 'En Base')) {
+                        return <div className="w-full text-center text-xs font-bold text-brand-muted py-2 bg-brand-muted/5 rounded-xl border border-brand-muted/10">Aún no inició recorrido hoy</div>
+                      }
+                      if (d.status === 'En Ruta') {
+                        return <div className="w-full text-center text-xs font-bold text-brand-orange py-2 flex items-center justify-center gap-1 bg-orange-50 rounded-xl border border-orange-100"><Clock size={14} /> En Recorrido...</div>
+                      }
+                      
+                      // Si llegó aquí es porque está Finalizado
+                      if (isSettled) {
+                        return (
+                          <div className="w-full flex items-center justify-center gap-2 bg-green-50 text-green-600 py-2 rounded-xl text-xs font-bold border border-green-100">
+                            <CheckCircle size={16} /> Rendición Aprobada
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <button
+                          onClick={() => handleApproveSettlement(d.id, pendingCash, pendingTransfer, d.full_name)}
+                          className="w-full flex items-center justify-center gap-2 bg-brand-navy hover:bg-blue-700 text-white py-2 rounded-xl text-xs font-bold transition-colors active:scale-95 shadow-sm"
+                        >
+                          <Banknote size={16} /> {hasPendingMoney ? `Recibir $${pendingCash.toLocaleString()}` : 'Aprobar Cierre'}
+                        </button>
+                      )
+                    } else {
+                      // Días anteriores
+                      if (isSettled) {
+                        return (
+                          <div className="w-full flex items-center justify-center gap-2 bg-green-50 text-green-600 py-2 rounded-xl text-xs font-bold border border-green-100">
+                            <CheckCircle size={16} /> Rendición Aprobada
+                          </div>
+                        )
+                      }
+                      if (!hasPendingMoney) {
+                        return <div className="w-full text-center text-xs font-bold text-brand-muted py-2 bg-brand-muted/5 rounded-xl border border-brand-muted/10">Sin actividad registrada</div>
+                      }
+
+                      return (
+                        <button
+                          onClick={() => handleApproveSettlement(d.id, pendingCash, pendingTransfer, d.full_name)}
+                          className="w-full flex items-center justify-center gap-2 bg-brand-orange hover:bg-orange-600 text-white py-2 rounded-xl text-xs font-bold transition-colors active:scale-95 shadow-sm"
+                        >
+                          <AlertCircle size={16} /> Rendición Pendiente ($${pendingCash.toLocaleString()})
+                        </button>
+                      )
+                    }
+                  })()}
                 </div>
               </div>
             </div>
@@ -1350,7 +1495,7 @@ const FixedOrderModal: React.FC<{ client: any, onClose: () => void }> = ({ clien
 }
 
 const AdminClients: React.FC = () => {
-  const { clients, fetchInitialData } = useStore()
+  const { clients, fetchInitialData, returnCajonesAdmin } = useStore()
   const [showForm, setShowForm] = useState(false)
   const [businessName, setBusinessName] = useState('')
   const [legalName, setLegalName] = useState('')
@@ -1418,6 +1563,45 @@ const AdminClients: React.FC = () => {
       fetchInitialData()
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  const handleReturnCajones = async (client: any) => {
+    if (!client.cajones_prestados || client.cajones_prestados <= 0) {
+      Swal.fire('Atención', 'Este cliente no tiene cajones prestados.', 'info')
+      return
+    }
+
+    const { value: qty } = await Swal.fire({
+      title: 'Devolución de Cajones',
+      text: `¿Cuántos cajones devuelve en el local? (Máximo ${client.cajones_prestados})`,
+      input: 'number',
+      inputAttributes: {
+        min: '1',
+        max: client.cajones_prestados.toString(),
+        step: '1'
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar Devolución',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#10b981',
+      inputValidator: (value) => {
+        if (!value) return 'Debes ingresar una cantidad'
+        const num = parseInt(value)
+        if (num <= 0) return 'La cantidad debe ser mayor a 0'
+        if (num > client.cajones_prestados) return 'No puede devolver más cajones de los que debe'
+        return null
+      }
+    })
+
+    if (qty) {
+      try {
+        await returnCajonesAdmin(client.id, parseInt(qty))
+        Swal.fire('Completado', 'Cajones descontados exitosamente.', 'success')
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Error', 'No se pudo registrar la devolución.', 'error')
+      }
     }
   }
 
@@ -1563,6 +1747,7 @@ const AdminClients: React.FC = () => {
               <th className="px-6 py-4 font-bold uppercase tracking-wider">Cliente</th>
               <th className="px-6 py-4 font-bold uppercase tracking-wider">Contacto</th>
               <th className="px-6 py-4 font-bold uppercase tracking-wider">Tarifa</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider text-center">Cajones</th>
               <th className="px-6 py-4 font-bold uppercase tracking-wider">Acciones / CC</th>
               <th className="px-6 py-4 font-bold uppercase tracking-wider text-right">Saldo Actual</th>
             </tr>
@@ -1579,6 +1764,11 @@ const AdminClients: React.FC = () => {
                   <span className="text-[10px] truncate max-w-[120px]">{c.email}</span>
                 </td>
                 <td className="px-6 py-4 font-bold text-brand-navy">Cat. {c.price_category}</td>
+                <td className="px-6 py-4 text-center">
+                  <span className={`font-black ${c.cajones_prestados > 0 ? 'text-brand-orange' : 'text-brand-muted/50'}`}>
+                    📦 {c.cajones_prestados || 0}
+                  </span>
+                </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     <button 
@@ -1594,6 +1784,13 @@ const AdminClients: React.FC = () => {
                       className="p-1.5 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20 rounded-lg transition-colors"
                     >
                       <Package size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleReturnCajones(c)}
+                      title="Devolver Cajones en Local"
+                      className="p-1.5 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-lg transition-colors"
+                    >
+                      <ArchiveRestore size={16} />
                     </button>
                     <button 
                       onClick={() => toggleCredit(c.id, c.allow_credit)}

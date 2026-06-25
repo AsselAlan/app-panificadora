@@ -4,7 +4,8 @@ import {
   Wifi, WifiOff, Truck, MapPin, Package, ClipboardCheck, 
   X, CheckCircle, AlertCircle, Banknote, CreditCard, 
   TrendingDown, ClipboardList, LogOut, ArrowLeft, Search, ChevronRight,
-  Plus, Minus, Printer, MessageCircle, Star, RefreshCw, ChevronDown, ChevronUp
+  Plus, Minus, Printer, MessageCircle, Star, RefreshCw, ChevronDown, ChevronUp,
+  History, Calendar
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { Sale, Expense, SaleItem, Driver, Product } from '../store/useStore'
@@ -47,7 +48,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
   const { 
     drivers, currentDriverId, setCurrentDriver, fetchInitialData, 
     fetchDriverData, isOffline, setOffline, syncQueue, isSyncing,
-    loads, weeklyRoutes, products, userSession
+    loads, weeklyRoutes, products, userSession, checkAndResetDriverDay
   } = useStore()
   
   const [navigationSource, setNavigationSource] = useState<'CLIENTS' | 'ROADMAP'>('CLIENTS')
@@ -79,9 +80,11 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
   // Cargar datos específicos del chofer activo al seleccionarlo
   useEffect(() => {
     if (currentDriverId) {
-      fetchDriverData(currentDriverId)
+      checkAndResetDriverDay(currentDriverId).then(() => {
+        fetchDriverData(currentDriverId)
+      })
     }
-  }, [currentDriverId, fetchDriverData])
+  }, [currentDriverId, fetchDriverData, checkAndResetDriverDay])
 
   // Autoseleccionar chofer según la sesión activa
   useEffect(() => {
@@ -300,8 +303,8 @@ const EditableLoadModal: React.FC<EditableLoadModalProps> = ({ plannedLoad, onCl
   });
 
   return (
-    <div className="absolute inset-0 bg-bg-app/80 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
-      <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
+    <div className="absolute inset-0 bg-bg-app/80 z-50 flex justify-center pt-16 pb-6 px-4 backdrop-blur-md animate-in fade-in">
+      <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh] sm:max-h-[80vh]">
         <div className="p-5 border-b border-brand-muted/20 bg-brand-navy/5 rounded-t-3xl flex justify-between items-center text-brand-deep">
           <div>
             <h3 className="text-lg font-bold text-brand-deep flex items-center gap-2">
@@ -408,57 +411,78 @@ const DriverStockModal: React.FC<DriverStockModalProps> = ({ driver, onClose }) 
   const driverLoads = loads.filter(l => l.driver_id === driver.id)
   
   return (
-    <div className="absolute inset-0 bg-bg-app/80 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
-      <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
-        <div className="p-5 border-b border-brand-muted/20 bg-brand-orange/5 rounded-t-3xl flex justify-between items-center text-brand-deep">
-          <div>
-            <h3 className="text-lg font-bold text-brand-orange flex items-center gap-2">
-              <Package size={20} className="text-brand-orange"/> Stock en Camioneta
-            </h3>
-            <p className="text-xs text-brand-muted mt-0.5">Mercadería disponible y reservas.</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 text-brand-muted hover:bg-brand-muted/10 rounded-full transition-colors">
-            <X size={18}/>
-          </button>
+    <div className="absolute inset-0 bg-bg-app z-50 flex flex-col animate-in fade-in slide-in-from-bottom-4">
+      <div className="bg-white px-5 py-4 flex items-center gap-3 border-b border-brand-muted/10 sticky top-0 z-10 shadow-sm rounded-b-3xl">
+        <button onClick={onClose} className="p-2 text-brand-navy hover:bg-brand-navy/5 rounded-xl border border-brand-muted/10 active:scale-90 transition-all">
+          <ArrowLeft size={20}/>
+        </button>
+        <div className="flex-1">
+          <h2 className="text-lg font-black text-brand-orange flex items-center gap-2">
+            <Package size={20} className="text-brand-orange"/> Stock en Camioneta
+          </h2>
+          <p className="text-[10px] text-brand-muted font-bold uppercase tracking-wider mt-0.5">Mercadería disponible y reservas</p>
         </div>
-        
-        <div className="flex-1 overflow-y-auto space-y-2 p-5 bg-slate-50/50 pr-2">
+      </div>
+      
+      <div className="flex-1 overflow-y-auto space-y-3 p-5 pb-24">
           {products.map(p => {
             const loadInfo = driverLoads.find(l => l.product_id === p.id)
             const currentQty = loadInfo?.current_quantity || 0
+            const returnedQty = loadInfo?.returned_quantity || 0
             const reserved = remainingFixedOrders[p.id] || 0
             const libre = currentQty - reserved
 
-            if (currentQty === 0 && reserved === 0) return null
+            if (currentQty === 0 && reserved === 0 && returnedQty === 0) return null
 
             return (
-              <div key={p.id} className="bg-white p-3 rounded-2xl border border-brand-muted/10 shadow-sm flex flex-col gap-2">
-                <div className="flex justify-between items-start">
-                  <span className="font-semibold text-brand-deep text-sm">{p.name}</span>
-                  <span className="font-black text-brand-navy bg-brand-navy/10 px-2 py-0.5 rounded text-[11px]">{currentQty} {p.unit_type} total</span>
+              <div key={p.id} className="bg-white p-4 rounded-3xl border border-brand-muted/10 shadow-sm flex flex-col gap-3 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-orange"></div>
+                <div className="flex justify-between items-center ml-2">
+                  <span className="font-black text-brand-deep text-sm uppercase tracking-tight">{p.name}</span>
                 </div>
                 
-                <div className="flex gap-2 mt-1">
-                  <div className="flex-1 bg-brand-muted/5 p-2 rounded-xl flex flex-col items-center border border-brand-muted/10">
-                    <span className="text-[9px] font-bold text-brand-muted uppercase text-center leading-tight">Pedidos Clientes<br/>Restantes</span>
-                    <span className="text-sm font-black text-brand-deep mt-0.5">{reserved}</span>
+                <div className="flex items-center gap-3 ml-2">
+                  <div className="flex flex-col items-center justify-center bg-brand-orange/10 p-3 rounded-2xl border border-brand-orange/20 w-24 flex-shrink-0">
+                    <span className="text-[10px] font-black text-brand-orange uppercase tracking-wider mb-0.5">En Camioneta</span>
+                    <span className="text-2xl font-black text-brand-deep leading-none my-1">{currentQty}</span>
+                    <span className="text-[9px] font-bold text-brand-orange/80 uppercase">{p.unit_type}</span>
                   </div>
-                  <div className={`flex-1 p-2 rounded-xl flex flex-col items-center border ${libre < 0 ? 'bg-red-500/10 border-red-500/20 text-red-600' : 'bg-green-500/10 border-green-500/20 text-green-600'}`}>
-                    <span className="text-[9px] font-bold uppercase text-center leading-tight">Libre<br/>(Mostrador)</span>
-                    <span className="text-sm font-black mt-0.5">{libre}</span>
+                  
+                  <div className="flex-1 flex gap-2">
+                    <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase leading-tight">Pedidos</span>
+                      <span className="text-lg font-black text-slate-700 mt-0.5">{reserved}</span>
+                    </div>
+                    <div className={`flex-1 flex flex-col items-center justify-center p-2 rounded-2xl border ${libre < 0 ? 'bg-red-50 border-red-200 text-red-600' : 'bg-green-50 border-green-200 text-green-600'}`}>
+                      <span className="text-[9px] font-bold uppercase leading-tight">Libre</span>
+                      <span className="text-lg font-black mt-0.5">{Math.max(0, libre)}</span>
+                    </div>
                   </div>
                 </div>
+
                 {libre < 0 && (
-                  <p className="text-[10px] text-red-500 font-bold text-center mt-1">¡Cuidado! Faltan {Math.abs(libre)} para cubrir los pedidos de otros clientes.</p>
+                  <div className="ml-2 bg-red-50 text-red-600 px-3 py-2 rounded-xl text-[10px] font-bold flex items-center gap-2 border border-red-100">
+                    <AlertCircle size={14}/>
+                    Faltan {Math.abs(libre)} {p.unit_type} para cubrir pedidos.
+                  </div>
+                )}
+                {returnedQty > 0 && (
+                  <div className="ml-2 bg-orange-50 text-orange-600 px-3 py-2 rounded-xl text-[10px] font-bold flex items-center gap-2 border border-orange-100">
+                    <TrendingDown size={14}/>
+                    {returnedQty} {p.unit_type} en devoluciones (merma).
+                  </div>
                 )}
               </div>
             )
           })}
           {driverLoads.length === 0 && (
-            <div className="text-center text-brand-muted/80 py-6 text-sm">No hay stock registrado en la camioneta.</div>
+            <div className="text-center text-brand-muted/80 py-10">
+              <Package size={40} className="mx-auto mb-4 text-slate-300" />
+              <p className="font-bold text-brand-muted">Sin stock registrado</p>
+              <p className="text-xs text-brand-muted/80 mt-1">No hay mercadería en la camioneta.</p>
+            </div>
           )}
         </div>
-      </div>
     </div>
   )
 }
@@ -479,6 +503,8 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [showStockModal, setShowStockModal] = useState(false)
+  const [showStockLoadModal, setShowStockLoadModal] = useState(false)
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [expAmount, setExpAmount] = useState('')
   const [expCategory, setExpCategory] = useState('')
   const [expDesc, setExpDesc] = useState('')
@@ -512,8 +538,49 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
     return suggested
   }, [initialLoadStop, weeklyRoutes, driver.id, todayISO])
 
+  const handleConfirmStockLoad = (actualLoads: Record<string, number>) => {
+    const { loads } = useStore.getState()
+    
+    // Sumar las cantidades al stock actual de la camioneta
+    const newLoadsToAdd = products.map(p => {
+      const qty = actualLoads[p.id] || 0;
+      return {
+        id: crypto.randomUUID(),
+        driver_id: driver.id,
+        product_id: p.id,
+        date_loaded: new Date().toISOString(),
+        initial_quantity: qty,
+        current_quantity: qty
+      }
+    }).filter(l => l.initial_quantity > 0)
 
+    const updatedLoads = [...loads]
+    newLoadsToAdd.forEach(newLoad => {
+      const existingIdx = updatedLoads.findIndex(l => l.product_id === newLoad.product_id)
+      if (existingIdx >= 0) {
+        updatedLoads[existingIdx] = {
+          ...updatedLoads[existingIdx],
+          current_quantity: updatedLoads[existingIdx].current_quantity + newLoad.current_quantity,
+          initial_quantity: updatedLoads[existingIdx].initial_quantity + newLoad.initial_quantity
+        }
+      } else {
+        updatedLoads.push(newLoad)
+      }
+    })
 
+    useStore.setState({ loads: updatedLoads })
+    setShowStockLoadModal(false)
+    
+    Swal.fire({
+      title: 'Carga Registrada',
+      text: 'Se ha sumado el stock a tu inventario de la camioneta.',
+      icon: 'success',
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000
+    })
+  }
 
   useEffect(() => {
     if (driverExpenseCategories && driverExpenseCategories.length > 0 && !expCategory) {
@@ -524,10 +591,6 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
   const driverRouteClientsCount = useMemo(() => {
     return weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client').length
   }, [weeklyRoutes, driver.id, todayISO])
-
-
-
-
 
   const handleStart = async (actualLoads: Record<string, number>) => {
     // Inicializar stock (loads) en el store a partir de la carga confirmada
@@ -633,7 +696,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
           <p className="text-4xl font-black text-brand-deep">{driverRouteClientsCount} <span className="text-sm font-semibold text-brand-muted/80">Clientes</span></p>
         </div>
 
-        <div className="w-full">
+        <div className="w-full space-y-3">
           <button 
             onClick={() => setShowLoadChecklist(true)} 
             disabled={driverRouteClientsCount === 0} 
@@ -641,7 +704,19 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
           >
             <MapPin size={20} /> Iniciar Recorrido
           </button>
+
+          <button 
+            onClick={() => setShowHistoryModal(true)} 
+            className="bg-white hover:bg-brand-navy/5 text-brand-navy border border-brand-navy/20 w-full py-3.5 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          >
+            <History size={18} /> Historial de Cajas
+          </button>
         </div>
+
+        {/* Modal de Historial */}
+        {showHistoryModal && (
+          <DriverHistoryModal driver={driver} onClose={() => setShowHistoryModal(false)} />
+        )}
 
         {/* Modal Checklist Carga Editabe */}
         {showLoadChecklist && (
@@ -707,6 +782,17 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
             <RefreshCw size={14} /> Reabrir Ruta
           </button>
         </div>
+        <button 
+          onClick={() => setShowHistoryModal(true)} 
+          className="mt-4 text-brand-navy text-sm font-bold flex items-center justify-center gap-1.5 hover:underline"
+        >
+          <History size={16} /> Ver Historial de Cajas
+        </button>
+
+        {/* Modal de Historial */}
+        {showHistoryModal && (
+          <DriverHistoryModal driver={driver} onClose={() => setShowHistoryModal(false)} />
+        )}
       </div>
     )
   }
@@ -765,32 +851,33 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
 
       {/* Contenido de Ruta / Acciones */}
       <div className="p-5 flex-1 flex flex-col justify-start gap-4 pb-24 bg-bg-app">
-        {/* Botón Ver Hoja de Ruta (Secuencia ordenada) */}
-        <button 
-          onClick={onViewRoadmap} 
-          className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-[2rem] p-5 shadow-xl shadow-blue-900/20 flex items-center justify-start gap-4 active:scale-[0.98] transition-all relative overflow-hidden group w-full"
-        >
-          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-tr from-white/0 via-white/5 to-white/10 group-hover:via-white/10 transition-colors"></div>
-          <div className="bg-white/10 p-3 rounded-xl shadow-inner relative z-10 backdrop-blur-sm border border-white/10">
-            <ClipboardList size={24} />
-          </div>
-          <div className="text-left relative z-10">
-            <span className="text-base font-black tracking-tight block">Ver Hoja de Ruta</span>
-            <span className="text-[10px] text-white/70 font-semibold block mt-0.5">Recorrido ordenado y cargas</span>
-          </div>
-        </button>
-
         {/* Botón Seleccionar Cliente (Búsqueda directa) */}
         <button 
           onClick={onNewSale} 
+          className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-[2rem] p-6 flex items-center gap-5 shadow-xl shadow-brand-navy/20 active:scale-[0.98] transition-all relative overflow-hidden group w-full"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-white/20 transition-colors"></div>
+          <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm">
+            <Search size={28} className="text-white"/>
+          </div>
+          <div className="text-left flex-1">
+            <span className="block font-black text-xl mb-1">Seleccionar Cliente</span>
+            <span className="text-xs font-semibold text-white/70">Listado completo de clientes</span>
+          </div>
+          <ChevronRight size={24} className="text-white/50" />
+        </button>
+
+        {/* Botón Carga de Stock */}
+        <button 
+          onClick={() => setShowStockLoadModal(true)} 
           className="bg-white hover:bg-brand-navy/5 text-brand-navy border border-brand-navy/20 rounded-[2rem] p-5 shadow-sm flex items-center justify-start gap-4 active:scale-[0.98] transition-all w-full"
         >
           <div className="bg-brand-navy/5 p-3 rounded-xl border border-brand-navy/10 text-brand-navy">
-            <Search size={24} />
+            <Package size={24} />
           </div>
           <div className="text-left">
-            <span className="text-base font-black tracking-tight block">Seleccionar Cliente</span>
-            <span className="text-[10px] text-brand-muted/80 font-semibold block mt-0.5">Listado completo de clientes</span>
+            <span className="text-base font-black tracking-tight block">Carga de Stock</span>
+            <span className="text-[10px] text-brand-muted/80 font-semibold block mt-0.5">Sumar mercadería a la camioneta</span>
           </div>
         </button>
         
@@ -927,10 +1014,332 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
         </div>
       )}
 
-      {/* Modal Stock a Bordo */}
-      {showStockModal && (
-        <DriverStockModal driver={driver} onClose={() => setShowStockModal(false)} />
+        {/* Modal de Stock */}
+        {showStockModal && (
+          <DriverStockModal driver={driver} onClose={() => setShowStockModal(false)} />
+        )}
+        
+        {/* Modal Carga de Stock Editable */}
+        {showStockLoadModal && (
+          <DriverScheduledLoadsModal 
+            driver={driver}
+            onClose={() => setShowStockLoadModal(false)} 
+          />
+        )}
+
+      {/* Modal Historial */}
+      {showHistoryModal && (
+        <DriverHistoryModal driver={driver} onClose={() => setShowHistoryModal(false)} />
       )}
+    </div>
+  )
+}
+
+// ==========================================
+// COMPONENTE: CARGAS PROGRAMADAS (DRIVER)
+// ==========================================
+interface DriverScheduledLoadsModalProps {
+  driver: Driver;
+  onClose: () => void;
+}
+
+const DriverScheduledLoadsModal: React.FC<DriverScheduledLoadsModalProps> = ({ driver, onClose }) => {
+  const { weeklyRoutes, products } = useStore()
+  const [activeLoadModal, setActiveLoadModal] = useState<any>(null)
+  const [completedLoads, setCompletedLoads] = useState<string[]>([])
+
+  const todayJS = new Date().getDay()
+  const todayISO = todayJS === 0 ? 7 : todayJS
+
+  const dayLoads = useMemo(() => {
+    return weeklyRoutes
+      .filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'load')
+      .sort((a, b) => a.route_order - b.route_order)
+  }, [weeklyRoutes, driver.id, todayISO])
+
+  const todayRoutes = useMemo(() => {
+    return weeklyRoutes
+      .filter(r => r.driver_id === driver.id && r.day_of_week === todayISO)
+      .sort((a, b) => a.route_order - b.route_order)
+  }, [weeklyRoutes, driver.id, todayISO])
+
+  const getSuggestedLoadForStop = (stopId: string) => {
+    const suggested: Record<string, number> = {}
+    const { clients: allClients } = useStore.getState()
+
+    let startCounting = false;
+    for (let i = 0; i < todayRoutes.length; i++) {
+      const s = todayRoutes[i];
+      if (s.id === stopId) {
+        startCounting = true;
+        continue;
+      }
+      
+      if (startCounting) {
+        if (s.stop_type === 'load') break;
+        
+        if (s.stop_type === 'client') {
+          const clientObj = allClients.find(c => c.id === s.client_id)
+          if (clientObj && clientObj.fixed_order) {
+            Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
+              suggested[prodId] = (suggested[prodId] || 0) + (qty as number)
+            })
+          }
+        }
+      }
+    }
+    return suggested
+  }
+
+
+  const handleConfirmIntermediateLoad = (stop: any, actualLoads: Record<string, number>) => {
+    const { loads } = useStore.getState()
+    const newLoadsToAdd = products.map(p => {
+      const qty = actualLoads[p.id] || 0;
+      return {
+        id: crypto.randomUUID(),
+        driver_id: driver.id,
+        product_id: p.id,
+        date_loaded: new Date().toISOString(),
+        initial_quantity: qty,
+        current_quantity: qty
+      }
+    }).filter(l => l.initial_quantity > 0)
+
+    const updatedLoads = [...loads]
+    newLoadsToAdd.forEach(newLoad => {
+      const existingIdx = updatedLoads.findIndex(l => l.product_id === newLoad.product_id)
+      if (existingIdx >= 0) {
+        updatedLoads[existingIdx] = {
+          ...updatedLoads[existingIdx],
+          current_quantity: updatedLoads[existingIdx].current_quantity + newLoad.current_quantity,
+          initial_quantity: updatedLoads[existingIdx].initial_quantity + newLoad.initial_quantity
+        }
+      } else {
+        updatedLoads.push(newLoad)
+      }
+    })
+
+    useStore.setState({ loads: updatedLoads })
+    setCompletedLoads(prev => [...prev, stop ? stop.id : 'initial'])
+    setActiveLoadModal(null)
+    
+    Swal.fire({
+      title: 'Carga Registrada',
+      text: 'Se ha sumado el stock a tu inventario de la camioneta.',
+      icon: 'success',
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000
+    })
+  }
+
+  return (
+    <div className="absolute inset-0 bg-bg-app z-50 flex flex-col animate-in fade-in slide-in-from-bottom-4">
+      <div className="bg-white px-5 py-4 flex items-center gap-3 border-b border-brand-muted/10 shadow-sm rounded-b-3xl">
+        <button onClick={onClose} className="p-2 text-brand-navy hover:bg-brand-navy/5 rounded-xl border border-brand-muted/10 active:scale-90 transition-all">
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="text-xl font-black text-brand-deep flex-1 tracking-tight">Cargas Programadas</h2>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 pb-24 pr-2">
+        <div className="relative border-l-2 border-dashed border-brand-muted/20 ml-4 pl-6 space-y-6">
+          
+          {dayLoads.length === 0 && (
+            <div className="text-center text-brand-muted/80 py-10">
+              <Package size={40} className="mx-auto mb-4 text-slate-700" />
+              <p className="font-bold text-brand-muted">Sin recargas programadas</p>
+              <p className="text-xs text-brand-muted/80 mt-1">No hay cargas intermedias adicionales para hoy.</p>
+            </div>
+          )}
+
+          {dayLoads.map((stop, index) => {
+            let stopLoad = stop.planned_load || {}
+            let stopHasLoad = Object.keys(stopLoad).length > 0
+            let isSuggested = false
+
+            if (!stopHasLoad) {
+              stopLoad = getSuggestedLoadForStop(stop.id)
+              stopHasLoad = Object.keys(stopLoad).length > 0
+              isSuggested = true
+            }
+            const isCompleted = completedLoads.includes(stop.id)
+
+            return (
+              <div key={stop.id} className="relative">
+                <span className="absolute -left-[35px] top-1 bg-brand-orange text-white w-6 h-6 rounded-full flex items-center justify-center shadow-sm border border-white text-xs font-black">
+                  <Package size={12} />
+                </span>
+
+                <div className="bg-white border rounded-2xl p-4 shadow-sm transition-all border-brand-muted/10">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-[9px] font-black text-brand-orange uppercase tracking-wider block mb-1">Carga en Ruta</span>
+                      <h4 className="font-bold text-brand-deep text-sm mb-1 flex items-center gap-2">
+                        Carga Intermedia
+                        {isCompleted && <CheckCircle size={14} className="text-green-500" />}
+                      </h4>
+                      {isSuggested && !isCompleted && stopHasLoad && (
+                        <span className="text-[10px] font-semibold text-brand-orange bg-brand-orange/10 px-2 py-0.5 rounded-md">
+                          Cantidades Sugeridas
+                        </span>
+                      )}
+                    </div>
+                    {!isCompleted && (
+                      <button 
+                        onClick={() => setActiveLoadModal({ stop, plannedLoad: stopLoad })}
+                        className="bg-brand-navy hover:bg-brand-navy/90 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors active:scale-95"
+                      >
+                        Registrar Carga
+                      </button>
+                    )}
+                  </div>
+                  
+                  {stopHasLoad ? (
+                    <div className={`grid grid-cols-1 gap-2 mt-2 p-3 rounded-xl border transition-all ${isCompleted ? 'bg-green-50/50 border-green-500/20' : 'bg-brand-muted/5 border-brand-muted/10'}`}>
+                      {products.map(p => {
+                        const qtyInfo = getPlannedLoadQty(stopLoad, p.id)
+                        if (qtyInfo.total === 0) return null
+                        return (
+                          <div key={p.id} className="flex justify-between items-center text-xs border-b border-brand-muted/5 pb-1.5 last:border-b-0 last:pb-0">
+                            <div className="flex flex-col">
+                              <span className="text-brand-deep font-semibold">{p.name}</span>
+                              <span className="text-[9px] text-brand-muted font-bold">Pedidos: {qtyInfo.fixed} {p.unit_type} | Mostrador: {qtyInfo.extra} {p.unit_type}</span>
+                            </div>
+                            <span className={`font-black px-2.5 py-0.5 rounded text-[11px] ${isCompleted ? 'bg-green-500/10 text-green-600' : 'bg-brand-orange/10 text-brand-orange'}`}>
+                              {qtyInfo.total} {p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bols' : p.unit_type}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-brand-muted/80 italic mt-1">Sin mercadería planificada.</p>
+                  )}
+                  {isCompleted && (
+                    <p className="text-[10px] text-green-600 font-bold mt-2 text-right w-full flex items-center justify-end gap-1">
+                      Carga sumada al inventario
+                    </p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          
+          <div className="pt-2 relative">
+            <span className="absolute -left-[35px] top-6 bg-brand-navy/10 text-brand-navy w-6 h-6 rounded-full flex items-center justify-center shadow-sm border border-white text-xs font-black">
+              <Plus size={12} />
+            </span>
+            <button 
+              onClick={() => setActiveLoadModal({ stop: null, plannedLoad: {} })}
+              className="w-full bg-white hover:bg-slate-50 border-2 border-dashed border-brand-navy/30 text-brand-navy font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+            >
+              <Package size={18} />
+              Carga Libre (No Programada)
+            </button>
+            <p className="text-[10px] text-center text-brand-muted mt-2 px-4">
+              Usa esta opción si necesitas cargar mercadería adicional que no estaba planificada en tu ruta.
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      {activeLoadModal && (
+        <EditableLoadModal 
+          plannedLoad={activeLoadModal.plannedLoad}
+          onClose={() => setActiveLoadModal(null)}
+          onConfirm={(actualLoads) => handleConfirmIntermediateLoad(activeLoadModal.stop, actualLoads)}
+          title={activeLoadModal.stop ? "Carga Intermedia" : "Primera Carga"}
+        />
+      )}
+    </div>
+  )
+}
+
+// ==========================================
+// COMPONENTE: HISTORIAL DE CAJAS (DRIVER)
+// ==========================================
+interface DriverHistoryModalProps {
+  driver: Driver;
+  onClose: () => void;
+}
+
+const DriverHistoryModal: React.FC<DriverHistoryModalProps> = ({ driver, onClose }) => {
+  const { fetchDriverSalesHistory } = useStore()
+  const [history, setHistory] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [visibleCount, setVisibleCount] = useState(5)
+
+  useEffect(() => {
+    fetchDriverSalesHistory(driver.id).then(data => {
+      setHistory(data)
+      setLoading(false)
+    })
+  }, [driver.id, fetchDriverSalesHistory])
+
+  const visibleHistory = history.slice(0, visibleCount)
+
+  return (
+    <div className="absolute inset-0 bg-bg-app/80 z-50 flex justify-center pt-16 pb-6 px-4 backdrop-blur-md animate-in fade-in">
+      <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh] sm:max-h-[80vh]">
+        <div className="p-5 border-b border-brand-muted/20 bg-brand-navy/5 rounded-t-3xl flex justify-between items-center text-brand-deep">
+          <div>
+            <h3 className="text-lg font-bold text-brand-deep flex items-center gap-2">
+              <History size={20} className="text-brand-navy"/> Historial de Cajas
+            </h3>
+            <p className="text-xs text-brand-muted mt-0.5">Últimos 30 días de recaudación.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-brand-muted hover:bg-brand-muted/10 rounded-full transition-colors">
+            <X size={18}/>
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto space-y-3 p-5 bg-slate-50/50">
+          {loading ? (
+            <div className="text-center py-8">
+              <RefreshCw className="animate-spin text-brand-navy mx-auto mb-2" size={24} />
+              <p className="text-sm text-brand-muted font-semibold">Cargando historial...</p>
+            </div>
+          ) : history.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-brand-muted font-semibold">No hay historial reciente.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 pb-4">
+              {visibleHistory.map((day, idx) => (
+                <div key={idx} className="bg-white p-4 rounded-2xl border border-brand-muted/10 shadow-sm flex flex-col gap-3">
+                  <div className="font-bold text-brand-deep border-b border-brand-muted/10 pb-2 flex items-center gap-2">
+                    <Calendar size={14} className="text-brand-navy" /> {day.dateStr}
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <span className="text-[10px] text-brand-muted/80 uppercase font-bold tracking-wider flex items-center gap-1"><Banknote size={12} className="text-green-500" /> Efectivo</span>
+                      <span className="font-black text-green-500 text-lg">${day.cash.toLocaleString()}</span>
+                    </div>
+                    <div className="w-px bg-brand-muted/10"></div>
+                    <div className="flex-1">
+                      <span className="text-[10px] text-brand-muted/80 uppercase font-bold tracking-wider flex items-center gap-1"><CreditCard size={12} className="text-brand-navy" /> Transfer.</span>
+                      <span className="font-black text-brand-navy text-lg">${day.transfer.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {visibleCount < history.length && (
+                <button
+                  onClick={() => setVisibleCount(prev => prev + 5)}
+                  className="w-full py-3 mt-4 text-brand-navy font-bold text-sm bg-brand-navy/5 hover:bg-brand-navy/10 rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                  <ChevronDown size={16} /> Ver cajas anteriores
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1083,6 +1492,8 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
   // Pagos mixtos
   const [payCash, setPayCash] = useState('')
   const [payTransfer, setPayTransfer] = useState('')
+  const [cajonesLeft, setCajonesLeft] = useState('')
+  const [cajonesReturned, setCajonesReturned] = useState('')
   const [includeDebt, setIncludeDebt] = useState(false)
   const [generatedTicket, setGeneratedTicket] = useState<Sale | null>(null)
 
@@ -1220,6 +1631,8 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
       payment_cash: cashAmt,
       payment_transfer: transferAmt,
       payment_account: willAddToDebt,
+      cajones_left: parseInt(cajonesLeft) || 0,
+      cajones_returned: parseInt(cajonesReturned) || 0,
       items: items,
       client_name: client.business_name,
       driver_name: driver.full_name
@@ -1246,6 +1659,11 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     if (generatedTicket.payment_account !== 0) {
       const isPayingDebt = generatedTicket.payment_account < 0 && generatedTicket.applied_debt >= Math.abs(generatedTicket.payment_account)
       text += `📝 ${generatedTicket.payment_account > 0 ? 'A Cuenta Corriente:' : (isPayingDebt ? 'Pago de Deuda:' : 'Saldo a Favor / Vuelto:')} $${Math.abs(generatedTicket.payment_account)}\n`
+    }
+    if (generatedTicket.cajones_left || generatedTicket.cajones_returned) {
+      text += `\n*CAJONES:*\n`
+      if (generatedTicket.cajones_left) text += `📦 Dejados: ${generatedTicket.cajones_left}\n`
+      if (generatedTicket.cajones_returned) text += `📦 Devueltos: ${generatedTicket.cajones_returned}\n`
     }
     text += `\n¡Gracias por elegirnos!`
 
@@ -1632,6 +2050,33 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                   <span className="text-lg font-black">${Math.abs(remainingToPay)}</span>
                 </div>
               )}
+            </div>
+
+            {/* Sección Cajones */}
+            <div className="space-y-3 pt-3 border-t border-brand-muted/10">
+              <h3 className="text-xs font-bold text-brand-muted uppercase tracking-wider mb-2">Cajones</h3>
+              <div className="flex gap-4">
+                <div className="flex-1 bg-brand-orange/5 border border-brand-orange/20 rounded-2xl p-4 flex flex-col justify-between items-center">
+                  <span className="font-bold text-brand-orange text-xs text-center mb-2">Cajones Dejados</span>
+                  <input 
+                    type="number"
+                    value={cajonesLeft}
+                    onChange={e => setCajonesLeft(e.target.value)}
+                    className="w-full h-9 px-3 bg-white border border-brand-muted/30 rounded-lg text-center text-sm font-bold text-brand-deep outline-none"
+                    placeholder="0"
+                  />
+                </div>
+                <div className="flex-1 bg-green-500/5 border border-green-500/20 rounded-2xl p-4 flex flex-col justify-between items-center">
+                  <span className="font-bold text-green-500 text-xs text-center mb-2">Cajones Devueltos</span>
+                  <input 
+                    type="number"
+                    value={cajonesReturned}
+                    onChange={e => setCajonesReturned(e.target.value)}
+                    className="w-full h-9 px-3 bg-white border border-brand-muted/30 rounded-lg text-center text-sm font-bold text-brand-deep outline-none"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}

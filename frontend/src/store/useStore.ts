@@ -53,6 +53,7 @@ export interface Client {
   credit_limit: number | null;
   allow_credit: boolean;
   fixed_order: Record<string, number> | null; // product_id -> qty
+  cajones_prestados: number;
   is_deleted?: boolean;
   updated_at?: string;
 }
@@ -85,6 +86,7 @@ export interface Load {
   date_loaded: string;
   initial_quantity: number;
   current_quantity: number;
+  returned_quantity?: number;
 }
 
 export interface SaleItem {
@@ -108,6 +110,8 @@ export interface Sale {
   payment_transfer: number;
   payment_account: number;
   items: SaleItem[];
+  cajones_left?: number;
+  cajones_returned?: number;
   // Auxiliares para ticket de UI
   client_name?: string;
   driver_name?: string;
@@ -203,6 +207,8 @@ interface AppState {
   addExpense: (expense: Expense) => Promise<void>;
   startDriverRoute: (driverId: string) => Promise<void>;
   endDriverRoute: (driverId: string) => Promise<void>;
+  checkAndResetDriverDay: (driverId: string) => Promise<void>;
+  fetchDriverSalesHistory: (driverId: string) => Promise<any[]>;
   
   // Sincronización
   processSyncQueue: () => Promise<void>;
@@ -210,6 +216,9 @@ interface AppState {
   // Acciones de Stock
   applyStockUpdate: (items: { product_id: string; added_quantity: number; removed_quantity: number }[]) => Promise<void>;
   revertStockUpdate: (updateId: string) => Promise<void>;
+  
+  // Cajones
+  returnCajonesAdmin: (clientId: string, quantity: number) => Promise<void>;
 
   currentDriverId: string | null;
 }
@@ -451,6 +460,92 @@ export const useStore = create<AppState>()(
         }
       },
 
+      // Verificación de cambio de día para reset automático del conductor
+      checkAndResetDriverDay: async (driverId) => {
+        const driver = get().drivers.find(d => d.id === driverId);
+        if (!driver) return;
+
+        if (driver.last_active) {
+          const lastActiveDate = new Date(driver.last_active);
+          const today = new Date();
+          
+          const isDifferentDay = 
+            lastActiveDate.getDate() !== today.getDate() ||
+            lastActiveDate.getMonth() !== today.getMonth() ||
+            lastActiveDate.getFullYear() !== today.getFullYear();
+
+          if (isDifferentDay && (driver.status === 'Finalizado' || driver.status === 'En Ruta')) {
+            console.log(`Detectado cambio de día para chofer ${driver.full_name}. Reseteando a 'En Base'.`);
+            
+            set(state => ({
+              drivers: state.drivers.map(d => d.id === driverId ? { 
+                ...d, 
+                status: 'En Base', 
+                is_online: false, 
+                cash_collected: 0, 
+                transfer_collected: 0,
+                last_active: new Date().toISOString()
+              } : d)
+            }));
+
+            if (!get().isOffline) {
+              await supabase.from('drivers').update({ 
+                status: 'En Base', 
+                is_online: false, 
+                cash_collected: 0, 
+                transfer_collected: 0,
+                last_active: new Date().toISOString()
+              }).eq('id', driverId);
+            }
+          }
+        }
+      },
+
+      // Obtener el historial de ventas pasadas (agrupadas por día) para la app de repartidor
+      fetchDriverSalesHistory: async (driverId) => {
+        if (get().isOffline) return [];
+
+        try {
+          // Calculamos hace 30 días
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          
+          const { data, error } = await supabase
+            .from('sales')
+            .select('transaction_date, payment_cash, payment_transfer')
+            .eq('driver_id', driverId)
+            .gte('transaction_date', thirtyDaysAgo.toISOString())
+            .order('transaction_date', { ascending: false });
+
+          if (error) throw error;
+
+          // Agrupar por día
+          const historyMap: Record<string, { dateStr: string, cash: number, transfer: number }> = {};
+          
+          if (data) {
+            data.forEach((s: any) => {
+              const d = new Date(s.transaction_date);
+              // Ignorar ventas de hoy para el historial histórico
+              if (d.getDate() === new Date().getDate() && d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear()) {
+                return;
+              }
+              const dateKey = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'short' });
+              
+              if (!historyMap[dateKey]) {
+                historyMap[dateKey] = { dateStr: dateKey, cash: 0, transfer: 0 };
+              }
+              historyMap[dateKey].cash += Number(s.payment_cash) || 0;
+              historyMap[dateKey].transfer += Number(s.payment_transfer) || 0;
+            });
+          }
+
+          return Object.values(historyMap);
+        } catch (error) {
+          console.error('Error al cargar historial de ventas del chofer:', error);
+          return [];
+        }
+      },
+
       // Registrar Venta (Offline-First)
       addSale: async (sale) => {
         // 1. Guardar localmente en el estado de Zustand (IndexedDB) de forma inmediata
@@ -462,15 +557,19 @@ export const useStore = create<AppState>()(
               if (itemMatch.operation_type === 'sale') {
                 return { ...load, current_quantity: Math.max(0, load.current_quantity - itemMatch.quantity) }
               } else if (itemMatch.operation_type === 'return') {
-                return { ...load, current_quantity: load.current_quantity + itemMatch.quantity }
+                return { ...load, returned_quantity: (load.returned_quantity || 0) + itemMatch.quantity }
               }
             }
             return load
           })
 
-          // Actualizar deuda local del cliente
+          // Actualizar deuda local del cliente y cajones prestados
           const updatedClients = state.clients.map(c => 
-            c.id === sale.client_id ? { ...c, current_balance: c.current_balance - sale.payment_account } : c
+            c.id === sale.client_id ? { 
+              ...c, 
+              current_balance: c.current_balance - sale.payment_account,
+              cajones_prestados: (c.cajones_prestados || 0) + (sale.cajones_left || 0) - (sale.cajones_returned || 0)
+            } : c
           )
 
           // Actualizar caja local del conductor
@@ -572,6 +671,35 @@ export const useStore = create<AppState>()(
         await get().fetchInitialData();
       },
 
+      // Devolución de cajones desde Admin
+      returnCajonesAdmin: async (clientId: string, quantity: number) => {
+        if (get().isOffline) {
+          alert('Debes estar conectado a internet para realizar esta acción.');
+          return;
+        }
+        
+        // Obtener cliente actual para calcular nuevo saldo
+        const client = get().clients.find(c => c.id === clientId);
+        if (!client) return;
+        
+        const newCajones = Math.max(0, client.cajones_prestados - quantity);
+        
+        // Actualizar en base de datos
+        const { error } = await supabase
+          .from('clients')
+          .update({ cajones_prestados: newCajones })
+          .eq('id', clientId);
+          
+        if (error) throw error;
+        
+        // Actualizar localmente
+        set(state => ({
+          clients: state.clients.map(c => 
+            c.id === clientId ? { ...c, cajones_prestados: newCajones } : c
+          )
+        }));
+      },
+
       // ==========================================
       // MOTOR DE SINCRONIZACIÓN AUTOMÁTICO (SYNC ENGINE)
       // ==========================================
@@ -600,6 +728,8 @@ export const useStore = create<AppState>()(
                 payment_cash: item.payload.payment_cash,
                 payment_transfer: item.payload.payment_transfer,
                 payment_account: item.payload.payment_account,
+                cajones_left: item.payload.cajones_left,
+                cajones_returned: item.payload.cajones_returned,
                 items: item.payload.items.map((i: any) => ({
                   product_id: i.product_id,
                   operation_type: i.operation_type,

@@ -105,3 +105,8 @@ ForceChangePassword al primer login	âœ… Implementado
 - **Sistema de Stock y Mermas**: Se implementÃ³ una nueva tabla `stock_losses` para registrar mermas de producciÃ³n y devoluciones.
 - **Fin de DÃ­a Repartidor**: Al finalizar la ruta, el repartidor ejecuta un proceso atÃ³mico (`process_driver_end_of_day`) que devuelve su stock sobrante a la fÃ¡brica y pasa las devoluciones a pÃ©rdida.
 - **Control de Mostrador**: Se reemplazÃ³ la simple carga de producciÃ³n por un panel completo de "ActualizaciÃ³n de Stock" que agrupa ingresos y mermas en la tabla `stock_updates`, permitiendo ademÃ¡s **revertir** cualquier actualizaciÃ³n equivocada.
+
+## Actualizaciones Recientes
+- **Gestión de Envases (Cajones)**: Se corrigió la lógica en base de datos (process_offline_sale) para sumar/restar cajones a cada cliente correctamente, solucionando problemas por valores NULL. Frontend ahora previene NaN al actualizar estado local.
+- **Devoluciones de Mercadería (Mermas)**: Se arregló el error donde las devoluciones se volvían a sumar al stock disponible en la camioneta. Ahora se separan y se procesan al finalizar el día como pérdida de stock.
+- **Monitoreo de Flota (Admin)**: Se solucionó el error que bloqueaba la pantalla si existía un conductor sin fecha de última actividad. También se arregló la detección de diferencias de efectivo (Cierre Parcial vs Rendición Aprobada) cuando un conductor realiza múltiples entregas en el mismo día después de haber cerrado su primera rendición.
