@@ -95,6 +95,12 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
     - **Edición y Paginación de Gastos:** Ahora el administrador puede editar gastos históricos, eliminarlos y visualizar la tabla principal con botón de paginación ("Ver más") que optimiza el rendimiento.
     - **Detalle Financiero en Monitoreo:** Las tarjetas de rendimiento operativo por chofer y mostrador ahora visualizan los totales exactos de "Devoluciones", dinero "Fiado a Cta. Cte." y dinero entrante de "Cobro de Cta. Cte." para cruces de caja ultra precisos.
 
+17. **Estabilidad del Rol Mostrador, Límites de Venta y Zona Horaria (v0.9)**:
+    - **Cajero Mostrador Robusto**: Se migró la identificación del "Cajero del Mostrador" desde una búsqueda insegura por nombre (string matching) hacia un booleano real en la base de datos (`is_mostrador = true`), haciéndolo 100% robusto a cambios de nombres o alias por parte del administrador.
+    - **Stock Atómico en Mostrador**: La venta presencial (mostrador) ahora descuenta el stock directamente en el backend (vía `process_offline_sale`) en la misma transacción que guarda la venta, eliminando la posibilidad de ventas fantasmas y descuadres de stock por cortes de red.
+    - **Historial Completo (60 días)**: Se reemplazó el límite duro de 500 registros de ventas en la carga inicial (`fetchInitialData`) por un rango dinámico de 60 días, previniendo el truncado de reportes en meses de gran volumen sin perjudicar la memoria.
+    - **Corrección de Zona Horaria (Desfase Nocturno)**: Sustitución global de `.toISOString()` por `.toLocaleDateString('sv')` para el agrupamiento de fechas en el frontend. Esto soluciona un bug silencioso que causaba saltos de días y cierres de mes prematuros a partir de las 21:00 hs (UTC-3) en Argentina.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git
