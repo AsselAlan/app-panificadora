@@ -838,7 +838,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
                 />
               </div>
             )}
-            {(paymentMethod === 'ctacte' || (paymentMethod === 'ambos' && remainingToPay > 0)) && (
+            {(paymentMethod === 'ctacte' || paymentMethod === 'ambos') && (
               <div className="flex items-center justify-between bg-bg-surface shadow-sm border border-brand-muted/20 p-2.5 rounded-xl text-xs opacity-75">
                 <span className="font-bold text-brand-deep/80 flex items-center gap-1.5"><Users size={14} className="text-orange-500"/> Cta. Cte. (Falta)</span>
                 <input 
