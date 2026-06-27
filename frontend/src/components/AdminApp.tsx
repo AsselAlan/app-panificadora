@@ -800,7 +800,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
             <button 
               onClick={() => setPaymentMethod('ambos')}
               className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'ambos' ? 'bg-white shadow-sm text-brand-deep' : 'text-brand-muted/80'}`}
-            >Ambos</button>
+            >Mixto</button>
             <button 
               onClick={() => setPaymentMethod('ctacte')}
               className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'ctacte' ? 'bg-white shadow-sm text-orange-500' : 'text-brand-muted/80'}`}
@@ -835,6 +835,17 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
                   }} 
                   className="w-20 h-7 px-2 bg-brand-muted/5 border border-brand-muted/30 text-brand-deep rounded-lg text-right font-bold text-xs" 
                   placeholder="0" 
+                />
+              </div>
+            )}
+            {(paymentMethod === 'ctacte' || (paymentMethod === 'ambos' && remainingToPay > 0)) && (
+              <div className="flex items-center justify-between bg-bg-surface shadow-sm border border-brand-muted/20 p-2.5 rounded-xl text-xs opacity-75">
+                <span className="font-bold text-brand-deep/80 flex items-center gap-1.5"><Users size={14} className="text-orange-500"/> Cta. Cte. (Falta)</span>
+                <input 
+                  type="number" 
+                  value={Math.max(0, remainingToPay)} 
+                  readOnly 
+                  className="w-20 h-7 px-2 bg-transparent text-brand-deep rounded-lg text-right font-bold text-xs outline-none cursor-default" 
                 />
               </div>
             )}
