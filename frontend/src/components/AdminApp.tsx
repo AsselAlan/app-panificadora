@@ -1573,8 +1573,13 @@ const DebtPaymentModal: React.FC<{ client: any, onClose: () => void, onSuccess: 
     setLoading(true)
     try {
       // Buscar usuario Mostrador
-      const mostrador = drivers.find(d => d.full_name === 'Mostrador (Sede Central)')
-      const driverId = mostrador ? mostrador.id : '00000000-0000-0000-0000-000000000000'
+      const mostrador = drivers.find(d => d.full_name.toLowerCase().includes('mostrador'))
+      if (!mostrador) {
+        Swal.fire('Error', 'No se encontró un usuario "Mostrador" en el sistema. Debe crearlo en Gestión de Usuarios.', 'error')
+        setLoading(false)
+        return
+      }
+      const driverId = mostrador.id
 
       const saleId = crypto.randomUUID()
       const payload = {
