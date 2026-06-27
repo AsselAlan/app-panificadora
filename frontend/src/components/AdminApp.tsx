@@ -480,6 +480,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
   const [vueltoACuenta, setVueltoACuenta] = useState(false)
   const [includeDebt, setIncludeDebt] = useState(false)
   const [showMobileCatalog, setShowMobileCatalog] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'transferencia' | 'ambos'>('efectivo')
 
   const activeClient = clients.find(c => c.id === selectedClientId)
 
@@ -492,6 +493,18 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
     const p = products.find(p => p.id === id)
     return acc + (p ? getPrice(p) * qty : 0)
   }, 0)
+
+  const expectedTotal = subtotalSales + (includeDebt && activeClient && activeClient.current_balance < 0 ? Math.abs(activeClient.current_balance) : 0);
+
+  useEffect(() => {
+    if (paymentMethod === 'efectivo') {
+      setPayCash(expectedTotal > 0 ? expectedTotal.toString() : '')
+      setPayTransfer('')
+    } else if (paymentMethod === 'transferencia') {
+      setPayTransfer(expectedTotal > 0 ? expectedTotal.toString() : '')
+      setPayCash('')
+    }
+  }, [expectedTotal, paymentMethod])
 
   const cashAmt = parseFloat(payCash) || 0
   const transferAmt = parseFloat(payTransfer) || 0
@@ -772,27 +785,52 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
             )}
           </div>
 
+          <div className="flex bg-brand-muted/10 p-1 rounded-xl mt-3 mb-2">
+            <button 
+              onClick={() => setPaymentMethod('efectivo')}
+              className={`flex-1 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'efectivo' ? 'bg-white shadow-sm text-green-600' : 'text-brand-muted/80'}`}
+            >Efectivo</button>
+            <button 
+              onClick={() => setPaymentMethod('transferencia')}
+              className={`flex-1 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'transferencia' ? 'bg-white shadow-sm text-brand-navy' : 'text-brand-muted/80'}`}
+            >Transf.</button>
+            <button 
+              onClick={() => setPaymentMethod('ambos')}
+              className={`flex-1 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'ambos' ? 'bg-white shadow-sm text-brand-deep' : 'text-brand-muted/80'}`}
+            >Ambos</button>
+          </div>
+
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between bg-bg-surface shadow-sm border border-brand-muted/20 p-2.5 rounded-xl text-xs">
-              <span className="font-bold text-brand-deep/80 flex items-center gap-1.5"><Banknote size={14} className="text-green-500"/> Efectivo</span>
-              <input 
-                type="number" 
-                value={payCash} 
-                onChange={e => setPayCash(e.target.value)} 
-                className="w-20 h-7 px-2 bg-brand-muted/5 border border-brand-muted/30 text-brand-deep rounded-lg text-right font-bold text-xs" 
-                placeholder="0" 
-              />
-            </div>
-            <div className="flex items-center justify-between bg-bg-surface shadow-sm border border-brand-muted/20 p-2.5 rounded-xl text-xs">
-              <span className="font-bold text-brand-deep/80 flex items-center gap-1.5"><CreditCard size={14} className="text-brand-navy"/> Transf.</span>
-              <input 
-                type="number" 
-                value={payTransfer} 
-                onChange={e => setPayTransfer(e.target.value)} 
-                className="w-20 h-7 px-2 bg-brand-muted/5 border border-brand-muted/30 text-brand-deep rounded-lg text-right font-bold text-xs" 
-                placeholder="0" 
-              />
-            </div>
+            {(paymentMethod === 'efectivo' || paymentMethod === 'ambos') && (
+              <div className="flex items-center justify-between bg-bg-surface shadow-sm border border-brand-muted/20 p-2.5 rounded-xl text-xs">
+                <span className="font-bold text-brand-deep/80 flex items-center gap-1.5"><Banknote size={14} className="text-green-500"/> Efectivo</span>
+                <input 
+                  type="number" 
+                  value={payCash} 
+                  onChange={e => {
+                    setPayCash(e.target.value)
+                    if (paymentMethod !== 'ambos') setPaymentMethod('ambos')
+                  }} 
+                  className="w-20 h-7 px-2 bg-brand-muted/5 border border-brand-muted/30 text-brand-deep rounded-lg text-right font-bold text-xs" 
+                  placeholder="0" 
+                />
+              </div>
+            )}
+            {(paymentMethod === 'transferencia' || paymentMethod === 'ambos') && (
+              <div className="flex items-center justify-between bg-bg-surface shadow-sm border border-brand-muted/20 p-2.5 rounded-xl text-xs">
+                <span className="font-bold text-brand-deep/80 flex items-center gap-1.5"><CreditCard size={14} className="text-brand-navy"/> Transf.</span>
+                <input 
+                  type="number" 
+                  value={payTransfer} 
+                  onChange={e => {
+                    setPayTransfer(e.target.value)
+                    if (paymentMethod !== 'ambos') setPaymentMethod('ambos')
+                  }} 
+                  className="w-20 h-7 px-2 bg-brand-muted/5 border border-brand-muted/30 text-brand-deep rounded-lg text-right font-bold text-xs" 
+                  placeholder="0" 
+                />
+              </div>
+            )}
           </div>
 
           {remainingToPay !== 0 && (
