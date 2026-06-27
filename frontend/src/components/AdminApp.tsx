@@ -638,14 +638,6 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
       const { error } = await supabase.rpc('process_offline_sale', { payload })
       if (error) throw error
 
-      // Descontar del stock local de panadería
-      for (const [id, qty] of Object.entries(cart)) {
-        const p = products.find(prod => prod.id === id)
-        if (p) {
-          await supabase.from('products').update({ bakery_stock: Math.max(0, p.bakery_stock - qty) }).eq('id', id)
-        }
-      }
-
       setCart({})
       setPayCash('')
       setPayTransfer('')
