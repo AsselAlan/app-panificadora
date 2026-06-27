@@ -287,14 +287,19 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
           <h4 className="text-brand-muted text-xs font-bold uppercase mb-2 flex items-center gap-2"><Banknote size={16} className="text-green-500"/> Efectivo Recaudado</h4>
           <p className="text-2xl font-black text-brand-deep">${cashInHand.toLocaleString()}</p>
+          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Incluye ventas en efectivo y cobro de deudas en efectivo durante el mes.</p>
         </div>
         <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
           <h4 className="text-brand-muted text-xs font-bold uppercase mb-2 flex items-center gap-2"><CreditCard size={16} className="text-brand-navy"/> Transferencias</h4>
           <p className="text-2xl font-black text-brand-deep">${transferCollected.toLocaleString()}</p>
+          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Incluye ventas por transferencia y cobro de deudas por transferencia.</p>
         </div>
-        <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
-          <h4 className="text-brand-muted text-xs font-bold uppercase mb-2 flex items-center gap-2"><Users size={16} className="text-orange-500"/> A Cuenta Corriente</h4>
-          <p className="text-2xl font-black text-brand-deep">${accountAdded.toLocaleString()}</p>
+        <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl flex flex-col justify-between">
+          <div>
+            <h4 className="text-brand-muted text-xs font-bold uppercase mb-2 flex items-center gap-2"><Users size={16} className="text-orange-500"/> A Cuenta Corriente</h4>
+            <p className="text-2xl font-black text-brand-deep">${accountAdded.toLocaleString()}</p>
+          </div>
+          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Flujo neto del mes. Un número negativo indica que se cobraron más deudas de las que se fiaron.</p>
         </div>
       </div>
 
