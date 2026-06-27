@@ -575,10 +575,8 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
     if ((subtotalSales === 0 && totalPaid === 0) || !selectedClientId) return
 
     try {
-      // Buscar el conductor designado como "Mostrador" (el nombre debe contener esa palabra)
-      const mostradorDriver = useStore.getState().drivers.find(d => 
-        d.full_name.toLowerCase().includes('mostrador')
-      )
+      // Buscar el conductor designado como "Mostrador" a través de su flag booleano
+      const mostradorDriver = useStore.getState().drivers.find(d => d.is_mostrador)
 
       if (!mostradorDriver) {
         Swal.fire({
@@ -1669,7 +1667,7 @@ const DebtPaymentModal: React.FC<{ client: any, onClose: () => void, onSuccess: 
     setLoading(true)
     try {
       // Buscar usuario Mostrador
-      const mostrador = drivers.find(d => d.full_name.toLowerCase().includes('mostrador'))
+      const mostrador = drivers.find(d => d.is_mostrador)
       if (!mostrador) {
         Swal.fire('Error', 'No se encontró un usuario "Mostrador" en el sistema. Debe crearlo en Gestión de Usuarios.', 'error')
         setLoading(false)

@@ -65,6 +65,7 @@ export interface Driver {
   full_name: string;
   status: 'En Base' | 'En Ruta' | 'Finalizado';
   is_online: boolean;
+  is_mostrador: boolean;
   cash_collected: number;
   transfer_collected: number;
   location_data: any;
