@@ -90,6 +90,11 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
 15. **Hotfixes y Estabilidad**:
     - Se resolvieron conflictos en las interfaces de TypeScript dentro de `useStore.ts` y componentes (ej. parámetros incorrectos y variables no usadas en `DriverApp.tsx`) que estaban provocando que falle el proceso de compilación y despliegue (build) en Netlify.
 
+16. **Mejoras Adicionales de Monitoreo y UI**:
+    - **Orden Estricto de Productos:** Los productos ahora respetan de forma estricta el orden numérico asignado en el catálogo sin importar las cargas, unificando la vista en todas las pantallas.
+    - **Edición y Paginación de Gastos:** Ahora el administrador puede editar gastos históricos, eliminarlos y visualizar la tabla principal con botón de paginación ("Ver más") que optimiza el rendimiento.
+    - **Detalle Financiero en Monitoreo:** Las tarjetas de rendimiento operativo por chofer y mostrador ahora visualizan los totales exactos de "Devoluciones", dinero "Fiado a Cta. Cte." y dinero entrante de "Cobro de Cta. Cte." para cruces de caja ultra precisos.
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git
