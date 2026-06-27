@@ -293,14 +293,8 @@ const EditableLoadModal: React.FC<EditableLoadModalProps> = ({ plannedLoad, onCl
 
 
 
-  // Ordenar productos: primero los que tienen carga, luego el resto
-  const sortedProducts = [...products].sort((a, b) => {
-    const aVal = actualLoads[a.id] || 0;
-    const bVal = actualLoads[b.id] || 0;
-    if (aVal > 0 && bVal === 0) return -1;
-    if (bVal > 0 && aVal === 0) return 1;
-    return a.name.localeCompare(b.name);
-  });
+  // Usamos el orden predeterminado (por display_order y nombre) que viene del store
+  const sortedProducts = products;
 
   return (
     <div className="absolute inset-0 bg-bg-app/80 z-50 flex justify-center pt-16 pb-6 px-4 backdrop-blur-md animate-in fade-in">
@@ -2066,16 +2060,18 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                     placeholder="0"
                   />
                 </div>
-                <div className="flex-1 bg-green-500/5 border border-green-500/20 rounded-2xl p-4 flex flex-col justify-between items-center">
-                  <span className="font-bold text-green-500 text-xs text-center mb-2">Cajones Devueltos</span>
-                  <input 
-                    type="number"
-                    value={cajonesReturned}
-                    onChange={e => setCajonesReturned(e.target.value)}
-                    className="w-full h-9 px-3 bg-white border border-brand-muted/30 rounded-lg text-center text-sm font-bold text-brand-deep outline-none"
-                    placeholder="0"
-                  />
-                </div>
+                {(client.cajones_prestados || 0) > 0 && (
+                  <div className="flex-1 bg-green-500/5 border border-green-500/20 rounded-2xl p-4 flex flex-col justify-between items-center">
+                    <span className="font-bold text-green-500 text-xs text-center mb-2">Cajones Devueltos</span>
+                    <input 
+                      type="number"
+                      value={cajonesReturned}
+                      onChange={e => setCajonesReturned(e.target.value)}
+                      className="w-full h-9 px-3 bg-white border border-brand-muted/30 rounded-lg text-center text-sm font-bold text-brand-deep outline-none"
+                      placeholder="0"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -34,6 +34,7 @@ export interface Product {
   price_a: number;
   price_b: number;
   bakery_stock: number;
+  display_order?: number;
   is_deleted?: boolean;
   is_paused?: boolean;
   updated_at?: string;
@@ -355,7 +356,7 @@ export const useStore = create<AppState>()(
 
         try {
           const [resProd, resCli, resDriv, resExp, resSal, resCat, resRoutes, resDriverCat] = await Promise.all([
-            supabase.from('products').select('*').eq('is_deleted', false).order('name'),
+            supabase.from('products').select('*').eq('is_deleted', false).order('display_order', { ascending: true }).order('name'),
             supabase.from('clients').select('*').eq('is_deleted', false).order('business_name'),
             supabase.from('drivers').select('*').eq('is_deleted', false).order('full_name'),
             supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(50),

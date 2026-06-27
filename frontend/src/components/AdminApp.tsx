@@ -361,6 +361,7 @@ const AdminDashboard: React.FC = () => {
             const driverSales = rendimientoSales.filter(s => s.driver_id === d.id);
             const driverGrossCash = driverSales.reduce((acc, s) => acc + s.payment_cash, 0);
             const driverGrossTransfer = driverSales.reduce((acc, s) => acc + s.payment_transfer, 0);
+            const driverReturns = driverSales.reduce((acc, s) => acc + (s.total_returns || 0), 0);
             
             const driverCash = Math.max(0, driverGrossCash - driverExpensesCash);
             const driverTransfer = Math.max(0, driverGrossTransfer - driverExpensesTransfer);
@@ -389,6 +390,10 @@ const AdminDashboard: React.FC = () => {
                 <div className="text-right">
                   <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Gastos Totales</span>
                   <span className="font-bold text-red-400">${driverExpenses.toLocaleString()}</span>
+                </div>
+                <div className="text-right hidden md:block">
+                  <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Devoluciones</span>
+                  <span className="font-bold text-orange-500">${driverReturns.toLocaleString()}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Ventas Totales</span>
@@ -433,6 +438,10 @@ const AdminDashboard: React.FC = () => {
                   <div className="text-right">
                     <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Transf.</span>
                     <span className="font-bold text-brand-deep/80">${mostradorSalesToday.reduce((acc, s) => acc + s.payment_transfer, 0).toLocaleString()}</span>
+                  </div>
+                  <div className="text-right hidden md:block">
+                    <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Devoluciones</span>
+                    <span className="font-bold text-orange-500">${mostradorSalesToday.reduce((acc, s) => acc + (s.total_returns || 0), 0).toLocaleString()}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Ventas Totales</span>
@@ -863,11 +872,25 @@ const AdminDrivers: React.FC = () => {
 
   const handleApproveSettlement = (driverId: string, cash: number, transfer: number, driverName: string) => {
     Swal.fire({
-      title: 'Aprobar Rendición',
-      text: `¿Confirmás que recibiste físicamente $${cash.toLocaleString()} en efectivo de ${driverName}?`,
+      title: 'Cerrar Caja',
+      html: `
+        <p class="mb-4 text-sm text-brand-deep">Estás por cerrar la caja de <b>${driverName}</b>.</p>
+        <div class="bg-brand-muted/10 p-4 rounded-xl text-left space-y-2">
+          <div class="flex justify-between items-center">
+            <span class="text-sm font-bold text-brand-muted">A recibir en Efectivo:</span>
+            <span class="text-lg font-black text-green-600">$${cash.toLocaleString()}</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm font-bold text-brand-muted">A verificar en Transf.:</span>
+            <span class="text-lg font-black text-blue-600">$${transfer.toLocaleString()}</span>
+          </div>
+        </div>
+        <p class="mt-4 text-sm font-bold text-brand-deep">¿Confirmas que recibiste el efectivo y verificaste las transferencias?</p>
+      `,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Sí, confirmar',
+      confirmButtonColor: '#1e3a8a',
+      confirmButtonText: 'Sí, cerrar caja',
       cancelButtonText: 'Cancelar'
     }).then(async (result) => {
       if (result.isConfirmed) {
@@ -877,14 +900,14 @@ const AdminDrivers: React.FC = () => {
             toast: true,
             position: 'top-end',
             icon: 'success',
-            title: '¡Rendición Aprobada!',
+            title: '¡Caja Cerrada!',
             showConfirmButton: false,
             timer: 2000
           })
           // Agregamos localmente para que la UI se actualice al instante
           setDaySettlements(prev => [...prev, { driver_id: driverId, amount_cash: cash, amount_transfer: transfer, settlement_date: selectedDate }])
         } catch (e: any) {
-          Swal.fire('Error', 'No se pudo guardar la rendición.', 'error')
+          Swal.fire('Error', 'No se pudo cerrar la caja.', 'error')
         }
       }
     })
@@ -896,8 +919,11 @@ const AdminDrivers: React.FC = () => {
   const localId = '00000000-0000-0000-0000-000000000000'
   const localSales = daySales.filter(s => s.driver_id === localId)
   const localTotal = localSales.reduce((acc, s) => acc + s.final_total, 0)
+  const localReturns = localSales.reduce((acc, s) => acc + (s.total_returns || 0), 0)
   const localCash = localSales.reduce((acc, s) => acc + s.payment_cash, 0)
   const localTransfer = localSales.reduce((acc, s) => acc + s.payment_transfer, 0)
+  const localAddedCta = localSales.reduce((acc, s) => acc + (s.payment_account > 0 ? s.payment_account : 0), 0)
+  const localPaidCta = localSales.reduce((acc, s) => acc + (s.payment_account < 0 ? Math.abs(s.payment_account) : 0), 0)
   
   const localSettlements = daySettlements.filter(s => s.driver_id === localId)
   const localSettledCash = localSettlements.reduce((acc, s) => acc + (s.amount_cash || 0), 0)
@@ -977,9 +1003,23 @@ const AdminDrivers: React.FC = () => {
           </div>
 
           <div className="bg-brand-muted/5 rounded-2xl p-4 mt-auto">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-[10px] font-bold text-brand-muted/80 uppercase">Total Generado</span>
-              <span className="text-xl font-black text-brand-deep">${localTotal.toLocaleString()}</span>
+            <div className="flex flex-col gap-2 mb-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-brand-orange uppercase">Devoluciones</span>
+                <span className="text-sm font-bold text-brand-orange">-${localReturns.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-brand-muted/80 uppercase">Fiado a Cta.</span>
+                <span className="text-sm font-bold text-brand-deep">${localAddedCta.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-brand-muted/80 uppercase">Cobro de Cta.</span>
+                <span className="text-sm font-bold text-brand-deep">${localPaidCta.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center border-t border-brand-muted/10 pt-2 mt-1">
+                <span className="text-[10px] font-bold text-brand-muted/80 uppercase">Total Generado</span>
+                <span className="text-xl font-black text-brand-deep">${localTotal.toLocaleString()}</span>
+              </div>
             </div>
             <div className="flex gap-4 border-t border-brand-muted/10 pt-3">
               <div className="flex-1">
@@ -1003,7 +1043,7 @@ const AdminDrivers: React.FC = () => {
                   onClick={() => handleApproveSettlement(localId, localPendingCash, localPendingTransfer, 'Mostrador Local')}
                   className="w-full flex items-center justify-center gap-2 bg-brand-navy hover:bg-blue-700 text-white py-2 rounded-xl text-xs font-bold transition-colors active:scale-95 shadow-sm"
                 >
-                  <Banknote size={16} /> Recibir ${localPendingCash.toLocaleString()}
+                  <Banknote size={16} /> Cerrar Caja
                 </button>
               ) : (
                 <div className="w-full text-center text-xs font-bold text-brand-muted py-2">Sin actividad para rendir</div>
@@ -1016,12 +1056,16 @@ const AdminDrivers: React.FC = () => {
         {drivers.filter(d => !d.full_name.toLowerCase().includes('mostrador')).map(d => {
           const dSales = daySales.filter(s => s.driver_id === d.id)
           const dTotal = dSales.reduce((acc, s) => acc + s.final_total, 0)
+          const dReturns = dSales.reduce((acc, s) => acc + (s.total_returns || 0), 0)
           const dCash = dSales.reduce((acc, s) => acc + s.payment_cash, 0)
           const dTransfer = dSales.reduce((acc, s) => acc + s.payment_transfer, 0)
+          const dAddedCta = dSales.reduce((acc, s) => acc + (s.payment_account > 0 ? s.payment_account : 0), 0)
+          const dPaidCta = dSales.reduce((acc, s) => acc + (s.payment_account < 0 ? Math.abs(s.payment_account) : 0), 0)
           
           const dExpenses = dayExpenses.filter(e => e.origin === d.full_name)
           const dExpensesCash = dExpenses.filter(e => e.payment_method === 'efectivo').reduce((acc, e) => acc + e.amount, 0)
           const dExpensesTransfer = dExpenses.filter(e => e.payment_method === 'transferencia').reduce((acc, e) => acc + e.amount, 0)
+          const dExpensesTotal = dExpensesCash + dExpensesTransfer
 
           const netCash = Math.max(0, dCash - dExpensesCash)
           const netTransfer = Math.max(0, dTransfer - dExpensesTransfer)
@@ -1109,9 +1153,27 @@ const AdminDrivers: React.FC = () => {
               </div>
 
               <div className="bg-brand-muted/5 rounded-2xl p-4 mt-auto">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-[10px] font-bold text-brand-muted/80 uppercase">Total Generado</span>
-                  <span className="text-xl font-black text-brand-deep">${dTotal.toLocaleString()}</span>
+                <div className="flex flex-col gap-2 mb-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-brand-orange uppercase">Devoluciones</span>
+                    <span className="text-sm font-bold text-brand-orange">-${dReturns.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-brand-muted/80 uppercase">Fiado a Cta.</span>
+                    <span className="text-sm font-bold text-brand-deep">${dAddedCta.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-brand-muted/80 uppercase">Cobro de Cta.</span>
+                    <span className="text-sm font-bold text-brand-deep">${dPaidCta.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-red-500 uppercase">Gastos en Ruta</span>
+                    <span className="text-sm font-bold text-red-500">-${dExpensesTotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-t border-brand-muted/10 pt-2 mt-1">
+                    <span className="text-[10px] font-bold text-brand-muted/80 uppercase">Total Generado</span>
+                    <span className="text-xl font-black text-brand-deep">${dTotal.toLocaleString()}</span>
+                  </div>
                 </div>
                 <div className="flex gap-4 border-t border-brand-muted/10 pt-3">
                   <div className="flex-1">
@@ -1152,7 +1214,7 @@ const AdminDrivers: React.FC = () => {
                           onClick={() => handleApproveSettlement(d.id, pendingCash, pendingTransfer, d.full_name)}
                           className="w-full flex items-center justify-center gap-2 bg-brand-navy hover:bg-blue-700 text-white py-2 rounded-xl text-xs font-bold transition-colors active:scale-95 shadow-sm"
                         >
-                          <Banknote size={16} /> {hasPendingMoney ? `Recibir $${pendingCash.toLocaleString()}` : 'Aprobar Cierre'}
+                          <Banknote size={16} /> Cerrar Caja
                         </button>
                       )
                     } else {
@@ -1173,7 +1235,7 @@ const AdminDrivers: React.FC = () => {
                           onClick={() => handleApproveSettlement(d.id, pendingCash, pendingTransfer, d.full_name)}
                           className="w-full flex items-center justify-center gap-2 bg-brand-orange hover:bg-orange-600 text-white py-2 rounded-xl text-xs font-bold transition-colors active:scale-95 shadow-sm"
                         >
-                          <AlertCircle size={16} /> Rendición Pendiente ($${pendingCash.toLocaleString()})
+                          <AlertCircle size={16} /> Cerrar Caja Pendiente
                         </button>
                       )
                     }
@@ -1510,6 +1572,24 @@ const AdminClients: React.FC = () => {
   const [selectedClientForHistory, setSelectedClientForHistory] = useState<any>(null)
   const [selectedClientForFixedOrder, setSelectedClientForFixedOrder] = useState<any>(null)
 
+  const [searchTerm, setSearchTerm] = useState('')
+  const [editingClient, setEditingClient] = useState<any>(null)
+  const [editBusinessName, setEditBusinessName] = useState('')
+  const [editLegalName, setEditLegalName] = useState('')
+  const [editClientType, setEditClientType] = useState<'Comercio' | 'Institución' | 'Empresa'>('Comercio')
+  const [editPhone, setEditPhone] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editCuit, setEditCuit] = useState('')
+  const [editAddress, setEditAddress] = useState('')
+  const [editCategory, setEditCategory] = useState<'A' | 'B'>('B')
+  const [editAllowCredit, setEditAllowCredit] = useState(false)
+  const [editCreditLimit, setEditCreditLimit] = useState(0)
+
+  const filteredClients = clients.filter(c => 
+    c.business_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (c.legal_name && c.legal_name.toLowerCase().includes(searchTerm.toLowerCase()))
+  )
+
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!businessName.trim() || !address.trim()) return
@@ -1605,6 +1685,60 @@ const AdminClients: React.FC = () => {
     }
   }
 
+  const handleEditClientSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingClient || !editBusinessName.trim() || !editAddress.trim()) return
+
+    try {
+      const { error } = await supabase.from('clients').update({
+        business_name: editBusinessName, 
+        legal_name: editLegalName || null,
+        client_type: editClientType,
+        phone: editPhone || null,
+        email: editEmail || null,
+        cuit: editCuit || null,
+        address: editAddress, 
+        price_category: editCategory, 
+        allow_credit: editAllowCredit, 
+        credit_limit: editCreditLimit > 0 ? editCreditLimit : null
+      }).eq('id', editingClient.id)
+
+      if (error) throw error
+
+      setEditingClient(null)
+      fetchInitialData()
+      Swal.fire('Cliente Actualizado', 'Los cambios han sido guardados.', 'success')
+    } catch (err) {
+      console.error(err)
+      Swal.fire('Error', 'No se pudo actualizar el cliente.', 'error')
+    }
+  }
+
+  const handleDeleteClient = async (id: string, name: string) => {
+    const result = await Swal.fire({
+      title: '¿Eliminar cliente?',
+      text: `Se eliminará "${name}" permanentemente.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    })
+
+    if (result.isConfirmed) {
+      try {
+        const { error } = await supabase.from('clients').update({ is_deleted: true }).eq('id', id)
+        if (error) throw error
+        fetchInitialData()
+        Swal.fire('Eliminado', 'El cliente ha sido eliminado.', 'success')
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Error', 'No se pudo eliminar el cliente.', 'error')
+      }
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex justify-between items-center bg-bg-surface shadow-sm border border-brand-muted/20 p-5 rounded-2xl">
@@ -1612,12 +1746,21 @@ const AdminClients: React.FC = () => {
           <h3 className="font-bold text-brand-deep text-base">Cartera de Clientes</h3>
           <p className="text-xs text-brand-muted/80 mt-0.5">Administre clientes, precios y cuentas corrientes</p>
         </div>
-        <button 
-          onClick={() => setShowForm(!showForm)} 
-          className="bg-brand-navy hover:bg-brand-navy text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2"
-        >
-          <Plus size={14} /> Nuevo Cliente
-        </button>
+        <div className="flex items-center gap-4">
+          <input 
+            type="text"
+            placeholder="Buscar cliente..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="hidden sm:block px-4 py-2 rounded-xl text-sm bg-brand-muted/5 border border-brand-muted/20 outline-none text-brand-deep focus:border-brand-navy w-64"
+          />
+          <button 
+            onClick={() => setShowForm(!showForm)} 
+            className="bg-brand-navy hover:bg-brand-navy text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0"
+          >
+            <Plus size={14} /> Nuevo Cliente
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -1753,7 +1896,7 @@ const AdminClients: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-850">
-            {clients.map(c => (
+            {filteredClients.map(c => (
               <tr key={c.id} className="hover:bg-brand-muted/5/20 transition-colors">
                 <td className="px-6 py-4">
                   <span className="font-bold text-brand-deep block">{c.business_name}</span>
@@ -1770,13 +1913,32 @@ const AdminClients: React.FC = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button 
                       onClick={() => setSelectedClientForHistory(c)}
                       title="Ver Historial y Estadísticas"
                       className="p-1.5 bg-brand-navy/10 text-brand-navy hover:bg-brand-navy/20 rounded-lg transition-colors"
                     >
                       <History size={16} />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setEditingClient(c)
+                        setEditBusinessName(c.business_name)
+                        setEditLegalName(c.legal_name || '')
+                        setEditClientType(c.client_type)
+                        setEditPhone(c.phone || '')
+                        setEditEmail(c.email || '')
+                        setEditCuit(c.cuit || '')
+                        setEditAddress(c.address)
+                        setEditCategory(c.price_category)
+                        setEditAllowCredit(c.allow_credit)
+                        setEditCreditLimit(c.credit_limit || 0)
+                      }}
+                      title="Editar Cliente"
+                      className="p-1.5 bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 rounded-lg transition-colors"
+                    >
+                      <Pencil size={16} />
                     </button>
                     <button 
                       onClick={() => setSelectedClientForFixedOrder(c)}
@@ -1791,6 +1953,13 @@ const AdminClients: React.FC = () => {
                       className="p-1.5 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-lg transition-colors"
                     >
                       <ArchiveRestore size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteClient(c.id, c.business_name)}
+                      title="Eliminar Cliente"
+                      className="p-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={16} />
                     </button>
                     <button 
                       onClick={() => toggleCredit(c.id, c.allow_credit)}
@@ -1827,6 +1996,133 @@ const AdminClients: React.FC = () => {
           onClose={() => setSelectedClientForFixedOrder(null)} 
         />
       )}
+
+      {editingClient && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-bg-surface border border-brand-muted/20 rounded-3xl p-6 w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 text-brand-deep max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 border-b border-brand-muted/10 pb-3">
+              <h3 className="font-bold text-brand-deep text-base">Editar Cliente</h3>
+              <button onClick={() => setEditingClient(null)} className="p-1.5 hover:bg-brand-muted/10 rounded-lg text-brand-muted transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleEditClientSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Nombre Comercial *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={editBusinessName}
+                    onChange={e => setEditBusinessName(e.target.value)}
+                    className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Razón Social</label>
+                  <input 
+                    type="text" 
+                    value={editLegalName}
+                    onChange={e => setEditLegalName(e.target.value)}
+                    className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Tipo de Cliente</label>
+                  <select 
+                    value={editClientType} 
+                    onChange={e => setEditClientType(e.target.value as any)}
+                    className="w-full bg-brand-muted/5 border border-brand-muted/20 text-brand-deep rounded-xl p-2.5 text-sm outline-none focus:border-brand-navy"
+                  >
+                    <option value="Comercio">Comercio</option>
+                    <option value="Institución">Institución</option>
+                    <option value="Empresa">Empresa</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Teléfono</label>
+                  <input 
+                    type="text" 
+                    value={editPhone}
+                    onChange={e => setEditPhone(e.target.value)}
+                    className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Email</label>
+                  <input 
+                    type="email" 
+                    value={editEmail}
+                    onChange={e => setEditEmail(e.target.value)}
+                    className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">CUIT</label>
+                  <input 
+                    type="text" 
+                    value={editCuit}
+                    onChange={e => setEditCuit(e.target.value)}
+                    className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Dirección de Entrega *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={editAddress}
+                    onChange={e => setEditAddress(e.target.value)}
+                    className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Categoría de Precios</label>
+                  <select 
+                    value={editCategory} 
+                    onChange={e => setEditCategory(e.target.value as any)}
+                    className="w-full bg-brand-muted/5 border border-brand-muted/20 text-brand-deep rounded-xl p-2.5 text-sm outline-none focus:border-brand-navy"
+                  >
+                    <option value="B">Categoría B</option>
+                    <option value="A">Categoría A</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-bold text-brand-muted/80 uppercase block">Límite de Crédito</label>
+                  <input 
+                    type="number" 
+                    value={editCreditLimit}
+                    onChange={e => setEditCreditLimit(parseFloat(e.target.value) || 0)}
+                    disabled={!editAllowCredit}
+                    className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy disabled:opacity-50"
+                  />
+                </div>
+                <div className="flex items-center gap-2.5 col-span-1 md:col-span-2 lg:col-span-3 pt-2">
+                  <input 
+                    type="checkbox" 
+                    id="editAllowCreditCheck" 
+                    checked={editAllowCredit}
+                    onChange={e => {
+                      setEditAllowCredit(e.target.checked)
+                      if (!e.target.checked) setEditCreditLimit(0)
+                    }}
+                    className="w-4 h-4 rounded text-blue-600 bg-brand-muted/10 border-brand-muted/20"
+                  />
+                  <label htmlFor="editAllowCreditCheck" className="text-xs text-brand-deep/80 font-semibold cursor-pointer">Habilitar Cuenta Corriente</label>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-brand-muted/10">
+                <button type="button" onClick={() => setEditingClient(null)} className="flex-1 bg-brand-muted/10 hover:bg-brand-muted/20 text-brand-deep font-bold py-2.5 rounded-xl text-xs transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" className="flex-1 bg-brand-navy hover:bg-brand-navy text-white font-bold py-2.5 rounded-xl text-xs transition-colors">
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1843,6 +2139,11 @@ const AdminExpenses: React.FC = () => {
   const [newCategoryColor, setNewCategoryColor] = useState('#3b82f6')
   const [newDriverCategoryName, setNewDriverCategoryName] = useState('')
   const [newDriverCategoryColor, setNewDriverCategoryColor] = useState('#3b82f6')
+
+  const [editingExpense, setEditingExpense] = useState<any>(null)
+  const [editExpenseAmount, setEditExpenseAmount] = useState('')
+  const [editExpenseCategory, setEditExpenseCategory] = useState('')
+  const [editExpenseDescription, setEditExpenseDescription] = useState('')
 
   // Seteamos la categoría por defecto cuando cargan las categorías
   useEffect(() => {
@@ -1884,6 +2185,55 @@ const AdminExpenses: React.FC = () => {
     } catch (err) {
       console.error(err)
       Swal.fire('Error', 'No se pudo guardar el gasto.', 'error')
+    }
+  }
+
+  const handleEditExpenseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingExpense) return
+    const val = parseFloat(editExpenseAmount)
+    if (isNaN(val) || val <= 0 || !editExpenseDescription.trim() || !editExpenseCategory) return
+
+    try {
+      const { error } = await supabase.from('expenses').update({
+        category: editExpenseCategory,
+        amount: val,
+        description: editExpenseDescription
+      }).eq('id', editingExpense.id)
+
+      if (error) throw error
+
+      setEditingExpense(null)
+      fetchMonthly()
+      Swal.fire('Gasto Actualizado', 'El egreso ha sido modificado.', 'success')
+    } catch (err) {
+      console.error(err)
+      Swal.fire('Error', 'No se pudo actualizar el gasto.', 'error')
+    }
+  }
+
+  const handleDeleteExpense = async (id: string, description: string) => {
+    const result = await Swal.fire({
+      title: '¿Eliminar gasto?',
+      text: `Se eliminará el gasto "${description}".`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    })
+
+    if (result.isConfirmed) {
+      try {
+        const { error } = await supabase.from('expenses').delete().eq('id', id)
+        if (error) throw error
+        fetchMonthly()
+        Swal.fire('Eliminado', 'El gasto ha sido eliminado.', 'success')
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Error', 'No se pudo eliminar el gasto.', 'error')
+      }
     }
   }
 
@@ -1988,6 +2338,7 @@ const AdminExpenses: React.FC = () => {
 
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().substring(0, 7))
   const [monthlyExpenses, setMonthlyExpenses] = useState<Expense[]>([])
+  const [visibleExpensesCount, setVisibleExpensesCount] = useState(10)
 
   const fetchMonthly = useCallback(async () => {
     const start = new Date(selectedMonth + '-01T00:00:00').toISOString()
@@ -2009,6 +2360,7 @@ const AdminExpenses: React.FC = () => {
 
   useEffect(() => {
     fetchMonthly()
+    setVisibleExpensesCount(10)
   }, [fetchMonthly])
 
   const totalFiltered = monthlyExpenses.reduce((acc, exp) => acc + exp.amount, 0)
@@ -2033,6 +2385,8 @@ const AdminExpenses: React.FC = () => {
     })
     return `conic-gradient(${stops.join(', ')})`
   }, [categoryTotals, totalFiltered, expenseCategories])
+
+  const visibleExpenses = monthlyExpenses.slice(0, visibleExpensesCount)
 
   return (
     <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-6 h-full">
@@ -2262,10 +2616,11 @@ const AdminExpenses: React.FC = () => {
                   <th className="px-4 py-3">Categoría</th>
                   <th className="px-4 py-3">Detalle</th>
                   <th className="px-4 py-3 text-right">Monto</th>
+                  <th className="px-4 py-3 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-850">
-                {monthlyExpenses.map(e => (
+                {visibleExpenses.map(e => (
                   <tr 
                     key={e.id} 
                     className="hover:opacity-80 text-brand-deep/80 transition-opacity"
@@ -2280,11 +2635,46 @@ const AdminExpenses: React.FC = () => {
                     <td className="px-4 py-3 font-bold">{e.category}</td>
                     <td className="px-4 py-3 text-brand-muted">{e.description}</td>
                     <td className="px-4 py-3 text-right font-bold text-red-400">-${e.amount.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex justify-center items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingExpense(e)
+                            setEditExpenseAmount(e.amount.toString())
+                            setEditExpenseCategory(e.category)
+                            setEditExpenseDescription(e.description)
+                          }}
+                          className="p-1 text-yellow-600 hover:bg-yellow-500/20 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteExpense(e.id, e.description)}
+                          className="p-1 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {monthlyExpenses.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="text-center py-8 text-brand-muted/80">No hay egresos cargados.</td>
+                    <td colSpan={6} className="text-center py-8 text-brand-muted/80">No hay egresos cargados.</td>
+                  </tr>
+                )}
+                {visibleExpensesCount < monthlyExpenses.length && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-4 bg-brand-muted/5">
+                      <button 
+                        onClick={() => setVisibleExpensesCount(prev => prev + 10)}
+                        className="bg-white border border-brand-muted/20 shadow-sm text-brand-navy hover:bg-slate-50 font-bold px-6 py-2 rounded-xl text-xs transition-colors"
+                      >
+                        Ver más (quedan {monthlyExpenses.length - visibleExpensesCount})
+                      </button>
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -2292,6 +2682,60 @@ const AdminExpenses: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {editingExpense && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-bg-surface border border-brand-muted/20 rounded-3xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 text-brand-deep">
+            <div className="flex justify-between items-center mb-4 border-b border-brand-muted/10 pb-3">
+              <h3 className="font-bold text-brand-deep text-base">Editar Gasto</h3>
+              <button onClick={() => setEditingExpense(null)} className="p-1.5 hover:bg-brand-muted/10 rounded-lg text-brand-muted transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleEditExpenseSubmit} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Monto ($)</label>
+                <input 
+                  type="number" 
+                  step="any"
+                  required
+                  value={editExpenseAmount}
+                  onChange={e => setEditExpenseAmount(e.target.value)}
+                  className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Categoría</label>
+                <select 
+                  value={editExpenseCategory} 
+                  onChange={e => setEditExpenseCategory(e.target.value)}
+                  className="w-full bg-brand-muted/5 border border-brand-muted/20 text-brand-deep rounded-xl p-2.5 text-sm outline-none focus:border-brand-navy"
+                >
+                  {expenseCategories.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Descripción</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editExpenseDescription}
+                  onChange={e => setEditExpenseDescription(e.target.value)}
+                  className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                />
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-brand-muted/10">
+                <button type="button" onClick={() => setEditingExpense(null)} className="flex-1 bg-brand-muted/10 hover:bg-brand-muted/20 text-brand-deep font-bold py-2.5 rounded-xl text-xs transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" className="flex-1 bg-brand-navy hover:bg-brand-navy text-white font-bold py-2.5 rounded-xl text-xs transition-colors">
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2577,6 +3021,7 @@ const AdminProducts: React.FC = () => {
   const [unitType, setUnitType] = useState<'kg' | 'docena' | 'bolsa' | 'unidad' | 'caja'>('kg')
   const [priceA, setPriceA] = useState('')
   const [priceB, setPriceB] = useState('')
+  const [displayOrder, setDisplayOrder] = useState('0')
 
   // Estados para edición
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -2584,6 +3029,7 @@ const AdminProducts: React.FC = () => {
   const [editUnitType, setEditUnitType] = useState<'kg' | 'docena' | 'bolsa' | 'unidad' | 'caja'>('kg')
   const [editPriceA, setEditPriceA] = useState('')
   const [editPriceB, setEditPriceB] = useState('')
+  const [editDisplayOrder, setEditDisplayOrder] = useState('0')
 
   // Estados para ver detalle
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null)
@@ -2594,17 +3040,19 @@ const AdminProducts: React.FC = () => {
     e.preventDefault()
     const pA = parseFloat(priceA)
     const pB = parseFloat(priceB)
+    const dOrder = parseInt(displayOrder) || 0
     if (!name.trim() || isNaN(pA) || isNaN(pB)) return
 
     try {
       const { error } = await supabase.from('products').insert([
-        { name, unit_type: unitType, price_a: pA, price_b: pB, bakery_stock: 0, is_paused: false }
+        { name, unit_type: unitType, price_a: pA, price_b: pB, bakery_stock: 0, display_order: dOrder, is_paused: false }
       ])
       if (error) throw error
 
       setName('')
       setPriceA('')
       setPriceB('')
+      setDisplayOrder('0')
       setShowForm(false)
       fetchInitialData()
 
@@ -2666,6 +3114,7 @@ const AdminProducts: React.FC = () => {
     if (!editingProduct) return
     const pA = parseFloat(editPriceA)
     const pB = parseFloat(editPriceB)
+    const dOrder = parseInt(editDisplayOrder) || 0
     if (!editName.trim() || isNaN(pA) || isNaN(pB)) return
 
     try {
@@ -2673,7 +3122,8 @@ const AdminProducts: React.FC = () => {
         name: editName,
         unit_type: editUnitType,
         price_a: pA,
-        price_b: pB
+        price_b: pB,
+        display_order: dOrder
       }).eq('id', editingProduct.id)
       
       if (error) throw error
@@ -2751,6 +3201,16 @@ const AdminProducts: React.FC = () => {
               />
             </div>
             <div>
+              <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Orden de Visualización</label>
+              <input 
+                type="number" 
+                value={displayOrder}
+                onChange={e => setDisplayOrder(e.target.value)}
+                placeholder="Ej: 1"
+                className="w-full bg-brand-muted/10 border border-brand-muted/30 rounded-xl p-2.5 text-sm text-brand-deep outline-none"
+              />
+            </div>
+            <div>
               <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Unidad de Medida</label>
               <select 
                 value={unitType} 
@@ -2797,6 +3257,7 @@ const AdminProducts: React.FC = () => {
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-bg-app text-brand-muted/80 border-b border-brand-muted/20/80">
+              <th className="px-6 py-4 font-bold uppercase tracking-wider text-center">Orden</th>
               <th className="px-6 py-4 font-bold uppercase tracking-wider">Producto</th>
               <th className="px-6 py-4 font-bold uppercase tracking-wider">Unidad</th>
               <th className="px-6 py-4 font-bold uppercase tracking-wider">Precio Cat. A</th>
@@ -2808,6 +3269,7 @@ const AdminProducts: React.FC = () => {
           <tbody className="divide-y divide-slate-850">
             {products.map(p => (
               <tr key={p.id} className={`hover:bg-brand-muted/5/20 transition-all ${p.is_paused ? 'opacity-50 bg-slate-900/5' : ''}`}>
+                <td className="px-6 py-4 font-bold text-brand-muted text-center">{p.display_order || 0}</td>
                 <td className="px-6 py-4 font-bold text-brand-deep">
                   <div className="flex items-center gap-2">
                     {p.name}
@@ -2838,6 +3300,7 @@ const AdminProducts: React.FC = () => {
                         setEditUnitType(p.unit_type)
                         setEditPriceA(p.price_a.toString())
                         setEditPriceB(p.price_b.toString())
+                        setEditDisplayOrder((p.display_order || 0).toString())
                       }}
                       className="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
                       title="Editar"
@@ -2889,6 +3352,15 @@ const AdminProducts: React.FC = () => {
                   required
                   value={editName}
                   onChange={e => setEditName(e.target.value)}
+                  className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Orden de Visualización</label>
+                <input 
+                  type="number" 
+                  value={editDisplayOrder}
+                  onChange={e => setEditDisplayOrder(e.target.value)}
                   className="w-full bg-brand-muted/5 border border-brand-muted/20 rounded-xl p-2.5 text-sm text-brand-deep outline-none focus:border-brand-navy"
                 />
               </div>
