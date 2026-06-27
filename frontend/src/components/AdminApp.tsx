@@ -480,7 +480,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
   const [vueltoACuenta, setVueltoACuenta] = useState(false)
   const [includeDebt, setIncludeDebt] = useState(false)
   const [showMobileCatalog, setShowMobileCatalog] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'transferencia' | 'ambos'>('efectivo')
+  const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'transferencia' | 'ambos' | 'ctacte'>('efectivo')
 
   const activeClient = clients.find(c => c.id === selectedClientId)
 
@@ -503,6 +503,9 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
     } else if (paymentMethod === 'transferencia') {
       setPayTransfer(expectedTotal > 0 ? expectedTotal.toString() : '')
       setPayCash('')
+    } else if (paymentMethod === 'ctacte') {
+      setPayCash('')
+      setPayTransfer('')
     }
   }, [expectedTotal, paymentMethod])
 
@@ -788,16 +791,20 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
           <div className="flex bg-brand-muted/10 p-1 rounded-xl mt-3 mb-2">
             <button 
               onClick={() => setPaymentMethod('efectivo')}
-              className={`flex-1 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'efectivo' ? 'bg-white shadow-sm text-green-600' : 'text-brand-muted/80'}`}
+              className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'efectivo' ? 'bg-white shadow-sm text-green-600' : 'text-brand-muted/80'}`}
             >Efectivo</button>
             <button 
               onClick={() => setPaymentMethod('transferencia')}
-              className={`flex-1 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'transferencia' ? 'bg-white shadow-sm text-brand-navy' : 'text-brand-muted/80'}`}
+              className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'transferencia' ? 'bg-white shadow-sm text-brand-navy' : 'text-brand-muted/80'}`}
             >Transf.</button>
             <button 
               onClick={() => setPaymentMethod('ambos')}
-              className={`flex-1 py-1.5 text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'ambos' ? 'bg-white shadow-sm text-brand-deep' : 'text-brand-muted/80'}`}
+              className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'ambos' ? 'bg-white shadow-sm text-brand-deep' : 'text-brand-muted/80'}`}
             >Ambos</button>
+            <button 
+              onClick={() => setPaymentMethod('ctacte')}
+              className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'ctacte' ? 'bg-white shadow-sm text-orange-500' : 'text-brand-muted/80'}`}
+            >Cta. Cte.</button>
           </div>
 
           <div className="space-y-2.5">
