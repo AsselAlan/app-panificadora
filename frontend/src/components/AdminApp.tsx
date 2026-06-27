@@ -1576,7 +1576,9 @@ const DebtPaymentModal: React.FC<{ client: any, onClose: () => void, onSuccess: 
       const mostrador = drivers.find(d => d.full_name === 'Mostrador (Sede Central)')
       const driverId = mostrador ? mostrador.id : '00000000-0000-0000-0000-000000000000'
 
+      const saleId = crypto.randomUUID()
       const payload = {
+        id: saleId,
         driver_id: driverId,
         client_id: client.id,
         transaction_date: new Date().toISOString(),
