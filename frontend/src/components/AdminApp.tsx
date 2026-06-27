@@ -1586,6 +1586,7 @@ const DebtPaymentModal: React.FC<{ client: any, onClose: () => void, onSuccess: 
         subtotal_sales: 0,
         total_returns: 0,
         applied_debt: amount,
+        final_total: 0,
         payment_cash: method === 'efectivo' ? amount : 0,
         payment_transfer: method === 'transferencia' ? amount : 0,
         payment_account: -amount,
