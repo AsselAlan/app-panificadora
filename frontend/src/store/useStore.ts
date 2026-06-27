@@ -355,16 +355,16 @@ export const useStore = create<AppState>()(
         if (get().isOffline) return
 
         try {
-          const [resProd, resCli, resDriv, resExp, resSal, resCat, resRoutes, resDriverCat] = await Promise.all([
-            supabase.from('products').select('*').eq('is_deleted', false).order('display_order', { ascending: true }).order('name'),
-            supabase.from('clients').select('*').eq('is_deleted', false).order('business_name'),
-            supabase.from('drivers').select('*').eq('is_deleted', false).order('full_name'),
-            supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(50),
-            supabase.from('sales').select('*').order('transaction_date', { ascending: false }).limit(500),
-            supabase.from('expense_categories').select('*').order('name'),
-            supabase.from('weekly_routes').select('*'),
-            supabase.from('driver_expense_categories').select('*').order('name')
-          ])
+          // Fetch por lotes para evitar ERR_HTTP2_SERVER_REFUSED_STREAM
+          const resProd = await supabase.from('products').select('*').eq('is_deleted', false).order('display_order', { ascending: true }).order('name')
+          const resCli = await supabase.from('clients').select('*').eq('is_deleted', false).order('business_name')
+          const resDriv = await supabase.from('drivers').select('*').eq('is_deleted', false).order('full_name')
+          const resExp = await supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(50)
+          
+          const resSal = await supabase.from('sales').select('*').order('transaction_date', { ascending: false }).limit(500)
+          const resCat = await supabase.from('expense_categories').select('*').order('name')
+          const resRoutes = await supabase.from('weekly_routes').select('*')
+          const resDriverCat = await supabase.from('driver_expense_categories').select('*').order('name')
 
           if (resProd.error) throw resProd.error
           if (resCli.error) throw resCli.error

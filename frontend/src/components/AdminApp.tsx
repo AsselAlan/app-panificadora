@@ -178,10 +178,9 @@ const AdminDashboard: React.FC = () => {
         const end = new Date(year, month - 1, day)
         end.setHours(23, 59, 59, 999)
         
-        const [salesRes, expensesRes] = await Promise.all([
-          supabase.from('sales').select('*').gte('transaction_date', start.toISOString()).lte('transaction_date', end.toISOString()),
-          supabase.from('expenses').select('*').gte('expense_date', start.toISOString()).lte('expense_date', end.toISOString())
-        ])
+        const salesRes = await supabase.from('sales').select('*').gte('transaction_date', start.toISOString()).lte('transaction_date', end.toISOString())
+        const expensesRes = await supabase.from('expenses').select('*').gte('expense_date', start.toISOString()).lte('expense_date', end.toISOString())
+        
         
         setRendimientoSales(salesRes.data || [])
         setRendimientoExpenses(expensesRes.data || [])
@@ -203,11 +202,9 @@ const AdminDashboard: React.FC = () => {
     endDate.setMonth(endDate.getMonth() + 1)
     const end = endDate.toISOString()
     
-    const [salesRes, expRes, lossesRes] = await Promise.all([
-      supabase.from('sales').select('*').gte('transaction_date', start).lt('transaction_date', end),
-      supabase.from('expenses').select('*').gte('expense_date', start).lt('expense_date', end),
-      supabase.from('stock_losses').select('*').gte('loss_date', start).lt('loss_date', end)
-    ])
+    const salesRes = await supabase.from('sales').select('*').gte('transaction_date', start).lt('transaction_date', end)
+    const expRes = await supabase.from('expenses').select('*').gte('expense_date', start).lt('expense_date', end)
+    const lossesRes = await supabase.from('stock_losses').select('*').gte('loss_date', start).lt('loss_date', end)
     
     if (!salesRes.error && salesRes.data) setMonthlySales(salesRes.data)
     if (!expRes.error && expRes.data) setMonthlyExpenses(expRes.data)
@@ -850,11 +847,9 @@ const AdminDrivers: React.FC = () => {
         const end = new Date(year, month - 1, day)
         end.setHours(23, 59, 59, 999)
         
-        const [salesRes, expensesRes, settlementsRes] = await Promise.all([
-          supabase.from('sales').select('*').gte('transaction_date', start.toISOString()).lte('transaction_date', end.toISOString()),
-          supabase.from('expenses').select('*').gte('expense_date', start.toISOString()).lte('expense_date', end.toISOString()),
-          supabase.from('driver_settlements').select('*').eq('settlement_date', selectedDate)
-        ])
+        const salesRes = await supabase.from('sales').select('*').gte('transaction_date', start.toISOString()).lte('transaction_date', end.toISOString())
+        const expensesRes = await supabase.from('expenses').select('*').gte('expense_date', start.toISOString()).lte('expense_date', end.toISOString())
+        const settlementsRes = await supabase.from('driver_settlements').select('*').eq('settlement_date', selectedDate)
         
         if (salesRes.error) throw salesRes.error
         if (expensesRes.error) throw expensesRes.error
