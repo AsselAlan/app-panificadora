@@ -361,7 +361,10 @@ export const useStore = create<AppState>()(
           const resDriv = await supabase.from('drivers').select('*').eq('is_deleted', false).order('full_name')
           const resExp = await supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(50)
           
-          const resSal = await supabase.from('sales').select('*').order('transaction_date', { ascending: false }).limit(500)
+          const sixtyDaysAgo = new Date()
+          sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+          
+          const resSal = await supabase.from('sales').select('*').gte('transaction_date', sixtyDaysAgo.toISOString()).order('transaction_date', { ascending: false })
           const resCat = await supabase.from('expense_categories').select('*').order('name')
           const resRoutes = await supabase.from('weekly_routes').select('*')
           const resDriverCat = await supabase.from('driver_expense_categories').select('*').order('name')
