@@ -222,7 +222,14 @@ const AdminDashboard: React.FC = () => {
 
   const cashInHand = monthlySales.reduce((acc, s) => acc + s.payment_cash, 0)
   const transferCollected = monthlySales.reduce((acc, s) => acc + s.payment_transfer, 0)
-  const accountAdded = monthlySales.reduce((acc, s) => acc + s.payment_account, 0)
+  
+  // Separar CTC: fiado generado (positivo) vs. deudas cobradas (negativo)
+  const fiadoGenerado = monthlySales.reduce((acc, s) => s.payment_account > 0 ? acc + s.payment_account : acc, 0)
+  const deudaCobrada = monthlySales.reduce((acc, s) => s.payment_account < 0 ? acc + Math.abs(s.payment_account) : acc, 0)
+  const flujoNeto = fiadoGenerado - deudaCobrada  // positivo = fiaron más de lo que cobraron
+
+  // Liquidez real: dinero físico que entró al negocio menos los gastos pagados
+  const liquidezReal = cashInHand + transferCollected - totalExpenses
 
   // Mermas y Devoluciones
   const totalDevoluciones = monthlySales.reduce((acc, s) => acc + (s.total_returns || 0), 0)
@@ -257,11 +264,12 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Indicadores Top */}
+      {/* Indicadores de Resultado */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-center">
           <h3 className="text-brand-muted text-xs font-bold uppercase tracking-wider mb-1">Ventas Brutas</h3>
           <p className="text-3xl font-black text-brand-deep">${totalSales.toLocaleString()}</p>
+          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Total facturado en el mes (ya descontadas devoluciones)</p>
           <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-100">
             <TrendingUp size={80} />
           </div>
@@ -270,6 +278,7 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-center">
           <h3 className="text-brand-muted text-xs font-bold uppercase tracking-wider mb-1">Erogaciones / Gastos</h3>
           <p className="text-3xl font-black text-red-400">-${totalExpenses.toLocaleString()}</p>
+          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Gastos operativos registrados en el mes</p>
           <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-100">
             <TrendingDown size={80} />
           </div>
@@ -278,37 +287,64 @@ const AdminDashboard: React.FC = () => {
         <div className={`p-6 rounded-3xl relative overflow-hidden flex flex-col justify-center border ${netProfit >= 0 ? 'bg-emerald-950/20 border-emerald-500/20 text-emerald-400' : 'bg-red-950/20 border-red-500/20 text-red-400'}`}>
           <h3 className="text-brand-muted text-xs font-bold uppercase tracking-wider mb-1">Resultado Neto</h3>
           <p className="text-4xl font-black">${netProfit.toLocaleString()}</p>
+          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Ventas Brutas menos todos los gastos del mes</p>
           <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-100">
             <Wallet size={80} />
           </div>
         </div>
       </div>
 
-      {/* Desglose de Caja */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
-          <h4 className="text-brand-muted text-xs font-bold uppercase mb-2 flex items-center gap-2"><Banknote size={16} className="text-green-500"/> Efectivo Recaudado</h4>
-          <p className="text-2xl font-black text-brand-deep">${cashInHand.toLocaleString()}</p>
-          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Incluye ventas en efectivo y cobro de deudas en efectivo durante el mes.</p>
-        </div>
-        <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
-          <h4 className="text-brand-muted text-xs font-bold uppercase mb-2 flex items-center gap-2"><CreditCard size={16} className="text-brand-navy"/> Transferencias</h4>
-          <p className="text-2xl font-black text-brand-deep">${transferCollected.toLocaleString()}</p>
-          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Incluye ventas por transferencia y cobro de deudas por transferencia.</p>
-        </div>
-        <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl flex flex-col justify-between">
-          <div>
-            <h4 className="text-brand-muted text-xs font-bold uppercase mb-2 flex items-center gap-2"><Users size={16} className="text-orange-500"/> A Cuenta Corriente</h4>
-            <p className="text-2xl font-black text-brand-deep">${accountAdded.toLocaleString()}</p>
+      {/* Desglose de Caja — Fila 1: Ingresos físicos */}
+      <div>
+        <p className="text-[11px] font-bold text-brand-muted/80 uppercase tracking-widest mb-3 flex items-center gap-2">
+          <Banknote size={13} className="text-green-500"/> Ingresos de Caja (Dinero Físico Cobrado)
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
+            <h4 className="text-brand-muted text-xs font-bold uppercase mb-1 flex items-center gap-2"><Banknote size={14} className="text-green-500"/> Efectivo</h4>
+            <p className="text-2xl font-black text-brand-deep">${cashInHand.toLocaleString()}</p>
+            <p className="text-[10px] text-brand-muted mt-1 leading-tight">Ventas al contado + cobros de deudas en efectivo</p>
           </div>
-          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Flujo neto del mes. Un número negativo indica que se cobraron más deudas de las que se fiaron.</p>
+          <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
+            <h4 className="text-brand-muted text-xs font-bold uppercase mb-1 flex items-center gap-2"><CreditCard size={14} className="text-brand-navy"/> Transferencias</h4>
+            <p className="text-2xl font-black text-brand-deep">${transferCollected.toLocaleString()}</p>
+            <p className="text-[10px] text-brand-muted mt-1 leading-tight">Ventas por transferencia + cobros de deudas por transferencia</p>
+          </div>
+          <div className={`p-5 rounded-2xl border ${liquidezReal >= 0 ? 'bg-emerald-500/5 border-emerald-500/15' : 'bg-red-500/5 border-red-500/15'}`}>
+            <h4 className={`text-xs font-bold uppercase mb-1 flex items-center gap-2 ${liquidezReal >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              <BarChart size={14}/> Liquidez Real
+            </h4>
+            <p className={`text-2xl font-black ${liquidezReal >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>${liquidezReal.toLocaleString()}</p>
+            <p className="text-[10px] text-brand-muted mt-1 leading-tight">Efectivo + Transferencias menos los gastos del mes. Es lo que quedó en caja.</p>
+          </div>
         </div>
-        <div className="bg-red-500/5 border border-red-500/10 p-5 rounded-2xl flex flex-col justify-between">
-          <div>
-            <h4 className="text-red-500/80 text-xs font-bold uppercase mb-2 flex items-center gap-2"><AlertCircle size={16}/> Deudas Pendientes</h4>
+      </div>
+
+      {/* Desglose de Caja — Fila 2: Cuenta Corriente */}
+      <div>
+        <p className="text-[11px] font-bold text-brand-muted/80 uppercase tracking-widest mb-3 flex items-center gap-2">
+          <Users size={13} className="text-orange-500"/> Cuenta Corriente y Deudas
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
+            <h4 className="text-brand-muted text-xs font-bold uppercase mb-1 flex items-center gap-2"><ArrowUp size={14} className="text-orange-500"/> Fiado del Mes</h4>
+            <p className="text-2xl font-black text-orange-500">${fiadoGenerado.toLocaleString()}</p>
+            <p className="text-[10px] text-brand-muted mt-1 leading-tight">Ventas que se dejaron a deber este mes (nueva deuda generada)</p>
+          </div>
+          <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
+            <h4 className="text-brand-muted text-xs font-bold uppercase mb-1 flex items-center gap-2"><ArrowDown size={14} className="text-green-600"/> Deuda Cobrada</h4>
+            <p className="text-2xl font-black text-green-600">${deudaCobrada.toLocaleString()}</p>
+            <p className="text-[10px] text-brand-muted mt-1 leading-tight">Cobros de deudas anteriores recibidos en el mes (reduce la cartera)</p>
+          </div>
+          <div className={`p-5 rounded-2xl border ${flujoNeto > 0 ? 'bg-red-500/5 border-red-500/15' : flujoNeto < 0 ? 'bg-green-500/5 border-green-500/15' : 'bg-bg-surface border-brand-muted/10'}`}>
+            <h4 className="text-brand-muted text-xs font-bold uppercase mb-1 flex items-center gap-2"><AlertCircle size={14} className="text-red-500"/> Deudas Pendientes Totales</h4>
             <p className="text-2xl font-black text-red-500">${totalDeudaReal.toLocaleString()}</p>
+            <p className="text-[10px] text-brand-muted mt-1 leading-tight">
+              Suma histórica de lo que adeudan todos los clientes hoy.
+              {flujoNeto > 0 && <span className="text-orange-500 font-bold"> Este mes se fiaron ${flujoNeto.toLocaleString()} más de lo cobrado.</span>}
+              {flujoNeto < 0 && <span className="text-green-600 font-bold"> Este mes se recuperaron ${Math.abs(flujoNeto).toLocaleString()} más de lo que se fiaron.</span>}
+            </p>
           </div>
-          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Suma total (histórica) de las deudas impagas de todos los clientes hasta hoy.</p>
         </div>
       </div>
 
