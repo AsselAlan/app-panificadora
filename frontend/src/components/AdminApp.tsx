@@ -699,11 +699,6 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
                 setAdminView('CLIENTS');
               } else {
                 setSelectedClientId(e.target.value); 
-                setCart({});
-                setPayCash('');
-                setPayTransfer('');
-                setVueltoACuenta(false);
-                setIncludeDebt(false);
               }
             }}
             className="w-full bg-brand-muted/10 border border-brand-muted/30 text-brand-deep rounded-xl p-2.5 font-semibold text-sm outline-none"
