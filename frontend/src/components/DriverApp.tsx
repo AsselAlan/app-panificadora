@@ -202,11 +202,14 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
   if (!driver) return null
 
   return (
-    <div className="min-h-screen bg-bg-app flex justify-center items-center font-sans">
+    <div className="min-h-[100dvh] bg-bg-app flex justify-center sm:items-center font-sans">
       {/* Marco de Simulador Móvil Premium */}
-      <div className="w-full max-w-md h-[100dvh] bg-bg-surface shadow-sm flex flex-col shadow-2xl overflow-hidden relative sm:h-[850px] sm:rounded-[2.5rem] sm:border-8 border-slate-950">
+      <div className="w-full max-w-md min-h-[100dvh] sm:min-h-0 sm:h-[850px] bg-bg-surface shadow-sm flex flex-col shadow-2xl overflow-hidden relative sm:rounded-[2.5rem] sm:border-8 border-slate-950">
         {/* Barra de Estado del Simulador */}
-        <div className="bg-brand-navy text-white text-[10px] pt-8 pb-2 sm:pt-1.5 sm:pb-1.5 px-6 flex justify-between items-center z-30 font-semibold tracking-wide sm:rounded-t-[2.1rem]">
+        <div 
+          className="bg-brand-navy text-white text-[10px] pb-2 sm:pt-1.5 sm:pb-1.5 px-6 flex justify-between items-center z-30 font-semibold tracking-wide sm:rounded-t-[2.1rem]"
+          style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+        >
           <span>{new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
           <div className="flex items-center gap-2.5">
             {isSyncing && <RefreshCw size={10} className="animate-spin text-white/80" />}
