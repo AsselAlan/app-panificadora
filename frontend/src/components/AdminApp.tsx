@@ -163,7 +163,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
 // SECCIÓN A.1: DASHBOARD GENERAL
 // ==========================================
 const AdminDashboard: React.FC = () => {
-  const { sales, expenses, drivers, products } = useStore()
+  const { drivers, products } = useStore()
 
   const [rendimientoDate, setRendimientoDate] = useState<string>(new Date().toLocaleDateString('sv'))
   const [rendimientoSales, setRendimientoSales] = useState<any[]>([])

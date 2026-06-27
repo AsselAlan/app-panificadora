@@ -492,7 +492,7 @@ interface DriverHomeProps {
   onSelectDifferentDriver: () => void
 }
 
-const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadmap, onViewCashSummary, onSelectDifferentDriver }) => {
+const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSummary, onSelectDifferentDriver }) => {
   const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories, settlements } = useStore()
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
@@ -531,51 +531,6 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewRoadma
     })
     return suggested
   }, [initialLoadStop, weeklyRoutes, driver.id, todayISO])
-
-  const handleConfirmStockLoad = (actualLoads: Record<string, number>) => {
-    const { loads } = useStore.getState()
-    
-    // Sumar las cantidades al stock actual de la camioneta
-    const newLoadsToAdd = products.map(p => {
-      const qty = actualLoads[p.id] || 0;
-      return {
-        id: crypto.randomUUID(),
-        driver_id: driver.id,
-        product_id: p.id,
-        date_loaded: new Date().toISOString(),
-        initial_quantity: qty,
-        current_quantity: qty
-      }
-    }).filter(l => l.initial_quantity > 0)
-
-    const updatedLoads = [...loads]
-    newLoadsToAdd.forEach(newLoad => {
-      const existingIdx = updatedLoads.findIndex(l => l.product_id === newLoad.product_id)
-      if (existingIdx >= 0) {
-        updatedLoads[existingIdx] = {
-          ...updatedLoads[existingIdx],
-          current_quantity: updatedLoads[existingIdx].current_quantity + newLoad.current_quantity,
-          initial_quantity: updatedLoads[existingIdx].initial_quantity + newLoad.initial_quantity
-        }
-      } else {
-        updatedLoads.push(newLoad)
-      }
-    })
-
-    useStore.setState({ loads: updatedLoads })
-    setShowStockLoadModal(false)
-    
-    Swal.fire({
-      title: 'Carga Registrada',
-      text: 'Se ha sumado el stock a tu inventario de la camioneta.',
-      icon: 'success',
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 3000
-    })
-  }
-
   useEffect(() => {
     if (driverExpenseCategories && driverExpenseCategories.length > 0 && !expCategory) {
       setExpCategory(driverExpenseCategories[0].name)
@@ -1149,7 +1104,7 @@ const DriverScheduledLoadsModal: React.FC<DriverScheduledLoadsModalProps> = ({ d
             </div>
           )}
 
-          {dayLoads.map((stop, index) => {
+          {dayLoads.map((stop) => {
             let stopLoad = stop.planned_load || {}
             let stopHasLoad = Object.keys(stopLoad).length > 0
             let isSuggested = false
