@@ -163,7 +163,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
 // SECCIÓN A.1: DASHBOARD GENERAL
 // ==========================================
 const AdminDashboard: React.FC = () => {
-  const { drivers, products } = useStore()
+  const { drivers, products, clients } = useStore()
 
   const [rendimientoDate, setRendimientoDate] = useState<string>(new Date().toLocaleDateString('sv'))
   const [rendimientoSales, setRendimientoSales] = useState<any[]>([])
@@ -234,6 +234,8 @@ const AdminDashboard: React.FC = () => {
     }, 0)
   const totalPerdidasGlobal = totalDevoluciones + totalMermas
 
+  const totalDeudaReal = clients.reduce((acc, c) => acc + (c.current_balance < 0 ? Math.abs(c.current_balance) : 0), 0)
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* TÍTULO Y SELECTOR DEL PANEL FINANCIERO */}
@@ -283,7 +285,7 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Desglose de Caja */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
           <h4 className="text-brand-muted text-xs font-bold uppercase mb-2 flex items-center gap-2"><Banknote size={16} className="text-green-500"/> Efectivo Recaudado</h4>
           <p className="text-2xl font-black text-brand-deep">${cashInHand.toLocaleString()}</p>
@@ -300,6 +302,13 @@ const AdminDashboard: React.FC = () => {
             <p className="text-2xl font-black text-brand-deep">${accountAdded.toLocaleString()}</p>
           </div>
           <p className="text-[10px] text-brand-muted mt-1 leading-tight">Flujo neto del mes. Un número negativo indica que se cobraron más deudas de las que se fiaron.</p>
+        </div>
+        <div className="bg-red-500/5 border border-red-500/10 p-5 rounded-2xl flex flex-col justify-between">
+          <div>
+            <h4 className="text-red-500/80 text-xs font-bold uppercase mb-2 flex items-center gap-2"><AlertCircle size={16}/> Deudas Pendientes</h4>
+            <p className="text-2xl font-black text-red-500">${totalDeudaReal.toLocaleString()}</p>
+          </div>
+          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Suma total (histórica) de las deudas impagas de todos los clientes hasta hoy.</p>
         </div>
       </div>
 
