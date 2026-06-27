@@ -426,7 +426,7 @@ export const useStore = create<AppState>()(
         if (get().isOffline) return
 
         try {
-          const today = new Date().toISOString().split('T')[0]
+          const today = new Date().toLocaleDateString('sv')
 
           // Consultar datos del chofer, productos y loads del día en paralelo
           const [driverRes, productsRes, loadsRes] = await Promise.all([

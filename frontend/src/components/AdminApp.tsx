@@ -191,7 +191,7 @@ const AdminDashboard: React.FC = () => {
     fetchRendimiento()
   }, [rendimientoDate])
 
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().substring(0, 7))
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toLocaleDateString('sv').substring(0, 7))
   const [monthlySales, setMonthlySales] = useState<any[]>([])
   const [monthlyExpenses, setMonthlyExpenses] = useState<any[]>([])
   const [monthlyLosses, setMonthlyLosses] = useState<any[]>([])
@@ -2715,7 +2715,7 @@ const AdminExpenses: React.FC = () => {
     }
   }
 
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().substring(0, 7))
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toLocaleDateString('sv').substring(0, 7))
   const [monthlyExpenses, setMonthlyExpenses] = useState<Expense[]>([])
   const [visibleExpensesCount, setVisibleExpensesCount] = useState(10)
 
