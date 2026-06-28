@@ -1008,9 +1008,9 @@ const AdminDrivers: React.FC = () => {
   }
 
   // Cálculos de Ventas en Local (Sede Central)
-  // Asumimos que las ventas locales se registran bajo un ID específico o donde el driver no es un repartidor válido.
-  // En este sistema, el ID '00000000-0000-0000-0000-000000000000' se usa para ventas locales.
-  const localId = '00000000-0000-0000-0000-000000000000'
+  // Buscamos el ID del usuario Mostrador en la base de datos
+  const mostradorDriver = drivers.find(d => d.is_mostrador)
+  const localId = mostradorDriver ? mostradorDriver.id : '00000000-0000-0000-0000-000000000000'
   const localSales = daySales.filter(s => s.driver_id === localId)
   const localTotal = localSales.reduce((acc, s) => acc + s.final_total, 0)
   const localReturns = localSales.reduce((acc, s) => acc + (s.total_returns || 0), 0)
