@@ -1693,7 +1693,7 @@ const DebtPaymentModal: React.FC<{ client: any, onClose: () => void, onSuccess: 
         cajones_returned: 0
       }
 
-      const { data, error } = await supabase.rpc('process_offline_sale', { payload })
+      const { error } = await supabase.rpc('process_offline_sale', { payload })
       if (error) throw error
 
       await fetchInitialData()
