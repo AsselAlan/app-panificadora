@@ -57,7 +57,7 @@ export const MostradorApp = () => {
       </div>
 
       {/* Contenido principal */}
-      <main className={`flex-1 bg-bg-app ${activeTab === 'stock' ? 'p-4 md:p-6' : ''}`}>
+      <main className={`flex-1 bg-bg-app ${activeTab === 'stock' ? 'p-4 md:p-6' : 'overflow-hidden'}`}>
         {activeTab === 'ventas' ? (
           <POSLayout />
         ) : (
