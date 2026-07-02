@@ -13,6 +13,8 @@ import Swal from 'sweetalert2'
 import { supabase } from '../supabaseClient'
 import { AdminUsers } from './admin/AdminUsers'
 import { AdminProfile } from './admin/AdminProfile'
+import { DebtHistorySection } from './mostrador/DebtHistorySection'
+
 
 interface AdminAppProps {
   onLogout: () => void
@@ -1736,6 +1738,9 @@ const DebtPaymentModal: React.FC<{ client: any, onClose: () => void, onSuccess: 
             <span className="font-bold text-sm uppercase tracking-wide">Deuda Total</span>
             <span className="text-xl font-black">${debt.toLocaleString()}</span>
           </div>
+
+          {/* Historial de tickets adeudados */}
+          <DebtHistorySection clientId={client.id} totalDebt={debt} />
 
           <div>
             <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Monto a Abonar</label>

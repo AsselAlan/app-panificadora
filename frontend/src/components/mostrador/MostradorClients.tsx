@@ -1,8 +1,9 @@
-﻿import React, { useState } from 'react'
+import React, { useState } from 'react'
 import { Users, Search, Banknote, CreditCard, X, MessageCircle, Printer, Activity, AlertCircle } from 'lucide-react'
 import { useStore } from '../../store/useStore'
 import { supabase } from '../../supabaseClient'
 import Swal from 'sweetalert2'
+import { DebtHistorySection } from './DebtHistorySection'
 
 // ——— Modal: Cobrar Deuda ———
 const DebtPaymentModal: React.FC<{ client: any; onClose: () => void; onSuccess: (data: any) => void }> = ({ client, onClose, onSuccess }) => {
@@ -83,6 +84,9 @@ const DebtPaymentModal: React.FC<{ client: any; onClose: () => void; onSuccess: 
             <span className="font-bold text-sm uppercase tracking-wide">Deuda Total</span>
             <span className="text-xl font-black">${debt.toLocaleString()}</span>
           </div>
+
+          {/* Historial de tickets adeudados */}
+          <DebtHistorySection clientId={client.id} totalDebt={debt} />
 
           <div>
             <label className="text-[10px] font-bold text-brand-muted/80 uppercase block mb-1">Monto a Abonar</label>
