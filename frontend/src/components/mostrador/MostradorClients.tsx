@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Users, Search, Banknote, CreditCard, X, MessageCircle, Printer, Activity, AlertCircle } from 'lucide-react'
+import React, { useState } from 'react'
+import { Users, Search, Banknote, CreditCard, X, Activity, AlertCircle } from 'lucide-react'
 import { useStore } from '../../store/useStore'
 import { supabase } from '../../supabaseClient'
 import Swal from 'sweetalert2'

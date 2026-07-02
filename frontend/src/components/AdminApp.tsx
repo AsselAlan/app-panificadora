@@ -5,7 +5,7 @@ import {
   ClipboardList, Package, LogOut, Truck, CheckCircle,
   Plus, Minus, ShoppingCart, Printer, Banknote, CreditCard,
   X, Calendar, Clock, History, BarChart, MapPin, Map, ArrowUp, ArrowDown, Trash2,
-  Pencil, Eye, Pause, Play, Shield, KeyRound, Menu, ArchiveRestore, AlertCircle, MessageCircle
+  Pencil, Eye, Pause, Play, Shield, KeyRound, Menu, ArchiveRestore, AlertCircle
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { Product, Expense } from '../store/useStore'
