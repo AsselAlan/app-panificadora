@@ -14,6 +14,8 @@ import { supabase } from '../supabaseClient'
 import { AdminUsers } from './admin/AdminUsers'
 import { AdminProfile } from './admin/AdminProfile'
 import { DebtHistorySection } from './mostrador/DebtHistorySection'
+import { DebtTicketModal } from './mostrador/DebtTicketModal'
+import { SaleTicketModal } from './mostrador/SaleTicketModal'
 
 
 interface AdminAppProps {
@@ -519,6 +521,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
   const [includeDebt, setIncludeDebt] = useState(false)
   const [showMobileCatalog, setShowMobileCatalog] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'transferencia' | 'ambos' | 'ctacte'>('efectivo')
+  const [completedSale, setCompletedSale] = useState<any>(null)
 
   const activeClient = clients.find(c => c.id === selectedClientId)
 
@@ -548,7 +551,8 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
   }, [expectedTotal, paymentMethod])
 
   useEffect(() => {
-    if (paymentMethod === 'ctacte' && (!activeClient || !activeClient.allow_credit)) {
+    const canUse = activeClient && (activeClient.allow_credit || activeClient.current_balance !== 0)
+    if (paymentMethod === 'ctacte' && !canUse) {
       setPaymentMethod('efectivo')
     }
   }, [activeClient, paymentMethod])
@@ -638,22 +642,48 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
       const { error } = await supabase.rpc('process_offline_sale', { payload })
       if (error) throw error
 
-      setCart({})
-      setPayCash('')
-      setPayTransfer('')
-      setSelectedClientId('')
       useStore.getState().fetchInitialData()
 
-      Swal.fire('Venta Registrada', 'El ticket fue procesado con éxito.', 'success')
-
+      setCompletedSale({
+        client_name: activeClient?.business_name || 'Consumidor Final',
+        date: payload.transaction_date,
+        items: cleanItems.map(item => {
+          const p = products.find(p => p.id === item.product_id)
+          return {
+            name: p?.name || 'Producto',
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.quantity * item.unit_price
+          }
+        }),
+        subtotal_sales: subtotalSales,
+        payment_cash: finalCash,
+        payment_transfer: transferAmt,
+        payment_account: finalAccount
+      })
     } catch (err) {
       console.error(err)
       Swal.fire('Error', 'No se pudo procesar la venta en mostrador.', 'error')
     }
   }
 
+  const handleResetSale = () => {
+    setCompletedSale(null)
+    setCart({})
+    setPayCash('')
+    setPayTransfer('')
+    setSelectedClientId('')
+    setIncludeDebt(false)
+    setVueltoACuenta(false)
+    setPaymentMethod('efectivo')
+  }
+
   return (
     <div className="flex h-full gap-6 max-w-6xl mx-auto relative">
+      {completedSale && (
+        <SaleTicketModal data={completedSale} onClose={handleResetSale} />
+      )}
+      
       {/* Overlay para modal en móvil */}
       {showMobileCatalog && (
         <div className="fixed inset-0 bg-slate-900/60 z-40 lg:hidden animate-in fade-in" onClick={() => setShowMobileCatalog(false)} />
@@ -835,7 +865,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
               onClick={() => setPaymentMethod('ambos')}
               className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'ambos' ? 'bg-white shadow-sm text-brand-deep' : 'text-brand-muted/80'}`}
             >Mixto</button>
-            {activeClient?.allow_credit && (
+            {activeClient && (activeClient.allow_credit || activeClient.current_balance !== 0) && (
               <button 
                 onClick={() => setPaymentMethod('ctacte')}
                 className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'ctacte' ? 'bg-white shadow-sm text-orange-500' : 'text-brand-muted/80'}`}
@@ -874,7 +904,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
                 />
               </div>
             )}
-            {activeClient?.allow_credit && (paymentMethod === 'ctacte' || paymentMethod === 'ambos') && (
+            {activeClient && (activeClient.allow_credit || activeClient.current_balance !== 0) && (paymentMethod === 'ctacte' || paymentMethod === 'ambos') && (
               <div className="flex items-center justify-between bg-bg-surface shadow-sm border border-brand-muted/20 p-2.5 rounded-xl text-xs">
                 <span className="font-bold text-brand-deep/80 flex items-center gap-1.5"><Users size={14} className="text-orange-500"/> Cta. Cte. (Falta)</span>
                 <input 
@@ -917,7 +947,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: 'DASHBOARD' | 'POS' | 'DRIVERS' | '
             disabled={
               (!selectedClientId) || 
               (subtotalSales === 0 && totalPaid === 0) || 
-              (remainingToPay > 0 && !activeClient?.allow_credit)
+              (remainingToPay > 0 && activeClient && !activeClient.allow_credit && (activeClient.current_balance - remainingToPay < 0))
             }
             className="w-full bg-brand-navy hover:bg-brand-navy text-white font-bold py-3 rounded-xl active:bg-blue-700 transition-colors disabled:opacity-30 flex justify-center items-center gap-2 text-sm"
           >
@@ -1796,120 +1826,6 @@ const DebtPaymentModal: React.FC<{ client: any, onClose: () => void, onSuccess: 
   )
 }
 
-const DebtTicketModal: React.FC<{ data: any, onClose: () => void }> = ({ data, onClose }) => {
-  const handlePrint = () => {
-    const printContent = document.getElementById('debt-ticket-print')?.innerHTML
-    if (printContent) {
-      const w = window.open('', '_blank')
-      if (w) {
-        w.document.write(`
-          <html>
-            <head>
-              <title>Recibo de Pago</title>
-              <style>
-                body { font-family: monospace; width: 300px; margin: 0 auto; color: black; padding: 10px; }
-                .center { text-align: center; }
-                .bold { font-weight: bold; }
-                .flex { display: flex; justify-content: space-between; }
-                .divider { border-bottom: 1px dashed black; margin: 10px 0; }
-                .title { font-size: 1.2em; text-align: center; margin-bottom: 5px; }
-                .small { font-size: 0.8em; }
-              </style>
-            </head>
-            <body>
-              ${printContent}
-            </body>
-          </html>
-        `)
-        w.document.close()
-        w.focus()
-        setTimeout(() => {
-          w.print()
-          w.close()
-        }, 500)
-      }
-    }
-  }
-
-  const handleWhatsApp = () => {
-    const text = `🍞 *PANIFICADORA*\n🧾 *RECIBO DE PAGO*\n🎫 Ticket #${data.id}\n👤 Cliente: ${data.client_name}\n📅 Fecha: ${new Date(data.date).toLocaleString('es-AR')}\n--------------------------------\n💰 Monto Abonado: $${data.amount.toLocaleString()}\n💳 Método: ${data.method.toUpperCase()}\n--------------------------------\n📉 Saldo Anterior: $${Math.abs(data.old_balance).toLocaleString()}\n✅ Nuevo Saldo: $${Math.abs(data.new_balance).toLocaleString()} ${data.new_balance < 0 ? '(Deuda)' : ''}\n\n¡Gracias por su pago!`
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
-      <div className="bg-bg-app rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[90vh]">
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center">
-          <div className="bg-white p-6 shadow-sm rounded-xl w-full text-brand-deep font-mono text-sm mb-4 relative" id="debt-ticket-print">
-            <div className="text-center mb-4">
-              <h1 className="font-bold text-lg title">PANIFICADORA</h1>
-              <p className="text-xs small">Comprobante de Pago a Cta. Cte.</p>
-              <p className="text-xs mt-1 small">Nº {data.id}</p>
-            </div>
-            
-            <div className="divider"></div>
-            
-            <div className="mb-2">
-              <p>Fecha: {new Date(data.date).toLocaleDateString('es-AR')}</p>
-              <p>Hora: {new Date(data.date).toLocaleTimeString('es-AR')}</p>
-              <p>Cliente: <span className="font-bold">{data.client_name}</span></p>
-            </div>
-            
-            <div className="divider"></div>
-            
-            <div className="flex justify-between font-bold text-base my-2">
-              <span>ABONO:</span>
-              <span>${data.amount.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-xs my-1">
-              <span>MÉTODO:</span>
-              <span className="uppercase">{data.method}</span>
-            </div>
-            
-            <div className="divider"></div>
-            
-            <div className="flex justify-between text-xs my-1">
-              <span>Saldo Anterior:</span>
-              <span>-${Math.abs(data.old_balance).toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-xs font-bold my-1">
-              <span>Nuevo Saldo:</span>
-              <span>${Math.abs(data.new_balance).toLocaleString()} {data.new_balance < 0 ? '(Deuda)' : ''}</span>
-            </div>
-            
-            <div className="divider"></div>
-            
-            <div className="text-center text-xs mt-4">
-              <p>*** DOCUMENTO NO VÁLIDO COMO FACTURA ***</p>
-              <p className="mt-2 font-bold">¡Gracias por su pago!</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4 bg-bg-surface border-t border-brand-muted/10 rounded-b-3xl grid grid-cols-2 gap-2">
-          <button 
-            onClick={handleWhatsApp} 
-            className="bg-[#25D366] hover:bg-green-600 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-colors text-sm"
-          >
-            <MessageCircle size={16} /> Enviar
-          </button>
-          <button 
-            onClick={handlePrint} 
-            className="bg-brand-navy hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-colors text-sm"
-          >
-            <Printer size={16} /> Imprimir
-          </button>
-          <button 
-            onClick={onClose} 
-            className="col-span-2 mt-2 bg-brand-muted/10 hover:bg-brand-muted/20 text-brand-deep font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-colors text-sm"
-          >
-            Cerrar Recibo
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 const AdminClients: React.FC = () => {
   const { clients, fetchInitialData, returnCajonesAdmin } = useStore()

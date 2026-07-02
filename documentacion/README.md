@@ -101,6 +101,12 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
     - **Historial Completo (60 días)**: Se reemplazó el límite duro de 500 registros de ventas en la carga inicial (`fetchInitialData`) por un rango dinámico de 60 días, previniendo el truncado de reportes en meses de gran volumen sin perjudicar la memoria.
     - **Corrección de Zona Horaria (Desfase Nocturno)**: Sustitución global de `.toISOString()` por `.toLocaleDateString('sv')` para el agrupamiento de fechas en el frontend. Esto soluciona un bug silencioso que causaba saltos de días y cierres de mes prematuros a partir de las 21:00 hs (UTC-3) en Argentina.
 
+18. **Unificación y Tickets Imprimibles en Cuenta Corriente (Mostrador y Admin)**:
+    - **Tickets de 80mm**: Implementación de modals de ticket de venta regulares y de pago de deudas listos para impresión en formato ticketera térmica (80mm) con integración nativa para envío vía WhatsApp Web/App.
+    - **Cta. Cte. Unificada**: Los paneles de Punto de Venta (Mostrador y Admin) ahora habilitan las opciones de Cta. Cte. no solo cuando el cliente tiene "Venta a Crédito" habilitada, sino también cuando posee un "Saldo a favor". El sistema protege inteligentemente al negocio impidiendo nuevas deudas si no tienen crédito autorizado, pero permite consumir saldos a favor con total libertad.
+    - **Resumen Histórico de Deudas**: Al cobrar una deuda desde el Mostrador o Admin, el ticket y el mensaje de WhatsApp ahora desglosan exactamente qué ventas históricas se saldaron, brindando total transparencia al cliente.
+
+
 ### Enlaces Importantes:
 - **Producción (PWA)**: https://app-panificadora.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git

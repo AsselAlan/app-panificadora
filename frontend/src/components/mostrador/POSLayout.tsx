@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient'
 import { useStore } from '../../store/useStore'
 import type { Product } from '../../store/useStore'
 import Swal from 'sweetalert2'
+import { SaleTicketModal } from './SaleTicketModal'
 
 export const POSLayout: React.FC = () => {
   const { products, clients, fetchInitialData } = useStore()
@@ -16,6 +17,7 @@ export const POSLayout: React.FC = () => {
   const [showMobileCatalog, setShowMobileCatalog] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'transferencia' | 'ambos' | 'ctacte'>('efectivo')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [completedSale, setCompletedSale] = useState<any>(null)
 
   useEffect(() => {
     fetchInitialData()
@@ -53,7 +55,8 @@ export const POSLayout: React.FC = () => {
   }, [expectedTotal, paymentMethod])
 
   useEffect(() => {
-    if (paymentMethod === 'ctacte' && (!activeClient || !activeClient.allow_credit)) {
+    const canUse = activeClient && (activeClient.allow_credit || activeClient.current_balance !== 0)
+    if (paymentMethod === 'ctacte' && !canUse) {
       setPaymentMethod('efectivo')
     }
   }, [activeClient, paymentMethod])
@@ -127,16 +130,25 @@ export const POSLayout: React.FC = () => {
       const { error } = await supabase.rpc('process_offline_sale', { payload })
       if (error) throw error
 
-      setCart({})
-      setPayCash('')
-      setPayTransfer('')
-      setSelectedClientId('')
-      setIncludeDebt(false)
-      setVueltoACuenta(false)
-      setPaymentMethod('efectivo')
       useStore.getState().fetchInitialData()
 
-      Swal.fire({ toast: true, position: 'top-end', title: '¡Venta Registrada!', icon: 'success', timer: 2000, showConfirmButton: false })
+      setCompletedSale({
+        client_name: activeClient?.business_name || 'Consumidor Final',
+        date: payload.transaction_date,
+        items: cleanItems.map(item => {
+          const p = products.find(p => p.id === item.product_id)
+          return {
+            name: p?.name || 'Producto',
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.quantity * item.unit_price
+          }
+        }),
+        subtotal_sales: subtotalSales,
+        payment_cash: finalCash,
+        payment_transfer: transferAmt,
+        payment_account: finalAccount
+      })
     } catch (err: any) {
       Swal.fire('Error', err.message || 'No se pudo procesar la venta.', 'error')
     } finally {
@@ -144,8 +156,23 @@ export const POSLayout: React.FC = () => {
     }
   }
 
+  const handleResetSale = () => {
+    setCompletedSale(null)
+    setCart({})
+    setPayCash('')
+    setPayTransfer('')
+    setSelectedClientId('')
+    setIncludeDebt(false)
+    setVueltoACuenta(false)
+    setPaymentMethod('efectivo')
+  }
+
   return (
     <div className="flex h-full gap-4 w-full relative p-3 md:p-4">
+      {completedSale && (
+        <SaleTicketModal data={completedSale} onClose={handleResetSale} />
+      )}
+      
       {showMobileCatalog && (
         <div className="fixed inset-0 bg-slate-900/60 z-40 lg:hidden animate-in fade-in" onClick={() => setShowMobileCatalog(false)} />
       )}
@@ -265,7 +292,7 @@ export const POSLayout: React.FC = () => {
             <button onClick={() => setPaymentMethod('efectivo')} className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'efectivo' ? 'bg-white shadow-sm text-green-600' : 'text-brand-muted/80'}`}>Efectivo</button>
             <button onClick={() => setPaymentMethod('transferencia')} className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'transferencia' ? 'bg-white shadow-sm text-brand-navy' : 'text-brand-muted/80'}`}>Transf.</button>
             <button onClick={() => setPaymentMethod('ambos')} className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'ambos' ? 'bg-white shadow-sm text-brand-deep' : 'text-brand-muted/80'}`}>Mixto</button>
-            {activeClient?.allow_credit && (
+            {activeClient && (activeClient.allow_credit || activeClient.current_balance !== 0) && (
               <button onClick={() => setPaymentMethod('ctacte')} className={`flex-1 py-1.5 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold rounded-lg transition-all ${paymentMethod === 'ctacte' ? 'bg-white shadow-sm text-orange-500' : 'text-brand-muted/80'}`}>Cta. Cte.</button>
             )}
           </div>
@@ -283,7 +310,7 @@ export const POSLayout: React.FC = () => {
                 <input type="number" value={payTransfer} onChange={e => { setPayTransfer(e.target.value); if (paymentMethod !== 'ambos') setPaymentMethod('ambos') }} className="w-20 h-7 px-2 bg-brand-muted/5 border border-brand-muted/30 text-brand-deep rounded-lg text-right font-bold text-xs" placeholder="0" />
               </div>
             )}
-            {activeClient?.allow_credit && (paymentMethod === 'ctacte' || paymentMethod === 'ambos') && (
+            {activeClient && (activeClient.allow_credit || activeClient.current_balance !== 0) && (paymentMethod === 'ctacte' || paymentMethod === 'ambos') && (
               <div className="flex items-center justify-between bg-bg-surface shadow-sm border border-brand-muted/20 p-2.5 rounded-xl text-xs">
                 <span className="font-bold text-brand-deep/80 flex items-center gap-1.5"><Users size={14} className="text-orange-500" /> Cta. Cte. (Falta)</span>
                 <input type="number" value={Math.max(0, remainingToPay)} readOnly className="w-20 h-7 px-2 bg-brand-muted/5 border border-brand-muted/30 text-brand-deep rounded-lg text-right font-bold text-xs outline-none cursor-default" />
@@ -310,10 +337,10 @@ export const POSLayout: React.FC = () => {
             <div className="text-[10px] font-bold text-green-500 px-1 text-center">Ingreso de dinero para saldo de deuda o a favor</div>
           )}
 
-          <button
-            onClick={handleProcess}
-            disabled={isProcessing || !selectedClientId || (subtotalSales === 0 && totalPaid === 0) || (remainingToPay > 0 && !activeClient?.allow_credit)}
-            className="w-full bg-brand-navy hover:bg-brand-navy/90 text-white font-bold py-3 rounded-xl active:bg-blue-700 transition-colors disabled:opacity-30 flex justify-center items-center gap-2 text-sm"
+          <button 
+            onClick={handleProcess} 
+            disabled={isProcessing || !selectedClientId || (subtotalSales === 0 && totalPaid === 0) || (remainingToPay > 0 && activeClient && !activeClient.allow_credit && (activeClient.current_balance - remainingToPay < 0))}
+            className="w-full bg-brand-navy hover:bg-brand-navy text-white font-bold py-3 rounded-xl active:bg-blue-700 transition-colors disabled:opacity-30 flex justify-center items-center gap-2 text-sm"
           >
             <Printer size={16} />
             {isProcessing ? 'Procesando...' : 'Procesar Cobro'}
