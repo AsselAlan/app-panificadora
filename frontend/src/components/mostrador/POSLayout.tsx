@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Store, ShoppingCart, Plus, Minus, Banknote, CreditCard, Users, X, Printer } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { useStore } from '../../store/useStore'
@@ -145,7 +145,7 @@ export const POSLayout: React.FC = () => {
   }
 
   return (
-    <div className="flex h-full gap-6 max-w-6xl mx-auto relative p-4 md:p-6">
+    <div className="flex h-full gap-4 w-full relative p-3 md:p-4">
       {showMobileCatalog && (
         <div className="fixed inset-0 bg-slate-900/60 z-40 lg:hidden animate-in fade-in" onClick={() => setShowMobileCatalog(false)} />
       )}

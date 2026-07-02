@@ -9,7 +9,7 @@ export const MostradorApp = () => {
   const [activeTab, setActiveTab] = useState<'ventas' | 'stock'>('ventas')
 
   return (
-    <div className="min-h-screen bg-bg-app flex flex-col font-sans">
+    <div className="h-screen overflow-hidden bg-bg-app flex flex-col font-sans">
       {/* Navbar Superior */}
       <nav className="bg-brand-navy text-white p-3 md:p-4 shadow-md flex justify-between items-center sticky top-0 z-50">
         <div className="flex items-center gap-2">
@@ -57,7 +57,7 @@ export const MostradorApp = () => {
       </div>
 
       {/* Contenido principal */}
-      <main className={`flex-1 bg-bg-app ${activeTab === 'stock' ? 'p-4 md:p-6' : 'overflow-hidden'}`}>
+      <main className={`flex-1 h-full overflow-hidden bg-bg-app ${activeTab === 'stock' ? 'p-4 md:p-6 overflow-y-auto' : ''}`}>
         {activeTab === 'ventas' ? (
           <POSLayout />
         ) : (
