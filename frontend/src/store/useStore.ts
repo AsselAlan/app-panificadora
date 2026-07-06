@@ -377,12 +377,22 @@ export const useStore = create<AppState>()(
           if (resRoutes.error) throw resRoutes.error
           if (resDriverCat.error) throw resDriverCat.error
 
+          const state = get()
+          const pendingSales = state.syncQueue.filter(i => i.type === 'sale').map(i => i.payload as Sale)
+          const pendingExpenses = state.syncQueue.filter(i => i.type === 'expense').map(i => i.payload as Expense)
+          
+          const remoteSales = resSal.data || []
+          const remoteExpenses = resExp.data || []
+          
+          const mergedSales = [...remoteSales.filter(rs => !pendingSales.find(ps => ps.id === rs.id)), ...pendingSales]
+          const mergedExpenses = [...remoteExpenses.filter(re => !pendingExpenses.find(pe => pe.id === re.id)), ...pendingExpenses]
+
           set({
             products: resProd.data || [],
             clients: resCli.data || [],
             drivers: resDriv.data || [],
-            expenses: resExp.data || [],
-            sales: resSal.data || [],
+            expenses: mergedExpenses,
+            sales: mergedSales,
             expenseCategories: resCat.data || [],
             weeklyRoutes: resRoutes.data || [],
             driverExpenseCategories: resDriverCat.data || []
@@ -415,7 +425,11 @@ export const useStore = create<AppState>()(
             
           if (error) throw error
           
-          set({ sales: data || [] })
+          const remoteSales = data || []
+          const pendingSales = get().syncQueue.filter(i => i.type === 'sale').map(i => i.payload as Sale)
+          const mergedSales = [...remoteSales.filter(rs => !pendingSales.find(ps => ps.id === rs.id)), ...pendingSales]
+          
+          set({ sales: mergedSales })
         } catch (err) {
           console.error('Error cargando ventas históricas:', err)
         }
@@ -796,6 +810,9 @@ export const useStore = create<AppState>()(
     {
       name: 'panificadora_state_store', // Nombre clave en IndexedDB
       storage: createJSONStorage(() => IndexedDBStorage),
+      partialize: (state) => Object.fromEntries(
+        Object.entries(state).filter(([key]) => key !== 'userSession')
+      ),
       version: 1
     }
   )

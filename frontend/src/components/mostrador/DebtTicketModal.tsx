@@ -90,6 +90,9 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
         text += '  Acumulado: $' + acum.toLocaleString() + '\n'
       })
       text += '--------------------------------\nDeuda Total: $' + Math.abs(data.old_balance).toLocaleString() + '\n'
+    } else if (data.old_balance < 0) {
+      text += '--------------------------------\nDETALLE DEUDA ACUMULADA\n'
+      text += 'Saldo cargado manualmente o inicial.\nSin detalle de productos.\n'
     }
     text += '--------------------------------\nSaldo Anterior: -$' + Math.abs(data.old_balance).toLocaleString() +
       '\nNuevo Saldo: $' + Math.abs(data.new_balance).toLocaleString() +
@@ -143,43 +146,60 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
             </div>
 
             {/* Historial de tickets que generaron la deuda */}
-            {!loadingHistory && tickets.length > 0 && (
+            {!loadingHistory && (
               <>
-                <hr className="divider" style={{ marginTop: '6px' }} />
-                <p className="section-title">Detalle Deuda Acumulada</p>
+                {tickets.length > 0 ? (
+                  <>
+                    <hr className="divider" style={{ marginTop: '6px' }} />
+                    <p className="section-title">Detalle Deuda Acumulada</p>
 
-                {tickets.map((ticket: any, idx: number) => {
-                  runningTotal += ticket.payment_account
-                  const tItems = itemsByTicket[ticket.id] || []
-                  const tDate = new Date(ticket.transaction_date)
-                  return (
-                    <div key={ticket.id} className="ticket-block">
-                      <div className="row">
-                        <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
-                          #{idx + 1} {tDate.toLocaleDateString('es-AR')}
-                        </span>
-                        <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
-                          +${ticket.payment_account.toLocaleString()}
-                        </span>
-                      </div>
-                      {tItems.map((item: any, i: number) => (
-                        <div key={i} className="item-row">
-                          <span>{item.quantity}x {getProductName(item.product_id)}</span>
-                          <span>${(item.quantity * item.unit_price).toLocaleString()}</span>
+                    {tickets.map((ticket: any, idx: number) => {
+                      runningTotal += ticket.payment_account
+                      const tItems = itemsByTicket[ticket.id] || []
+                      const tDate = new Date(ticket.transaction_date)
+                      return (
+                        <div key={ticket.id} className="ticket-block">
+                          <div className="row">
+                            <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
+                              #{idx + 1} {tDate.toLocaleDateString('es-AR')}
+                            </span>
+                            <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
+                              +${ticket.payment_account.toLocaleString()}
+                            </span>
+                          </div>
+                          {tItems.map((item: any, i: number) => (
+                            <div key={i} className="item-row">
+                              <span>{item.quantity}x {getProductName(item.product_id)}</span>
+                              <span>${(item.quantity * item.unit_price).toLocaleString()}</span>
+                            </div>
+                          ))}
+                          <div className="acum">
+                            Acum: <strong>${runningTotal.toLocaleString()}</strong>
+                          </div>
                         </div>
-                      ))}
-                      <div className="acum">
-                        Acum: <strong>${runningTotal.toLocaleString()}</strong>
-                      </div>
-                    </div>
-                  )
-                })}
+                      )
+                    })}
 
-                <hr className="divider" />
-                <div className="total-deuda">
-                  <span>DEUDA TOTAL:</span>
-                  <span>${Math.abs(data.old_balance).toLocaleString()}</span>
-                </div>
+                    <hr className="divider" />
+                    <div className="total-deuda">
+                      <span>DEUDA TOTAL:</span>
+                      <span>${Math.abs(data.old_balance).toLocaleString()}</span>
+                    </div>
+                  </>
+                ) : data.old_balance < 0 ? (
+                  <>
+                    <hr className="divider" style={{ marginTop: '6px' }} />
+                    <p className="section-title">Detalle Deuda Acumulada</p>
+                    <div className="ticket-block center" style={{ fontSize: '7.5pt', color: '#555', padding: '6px 0' }}>
+                      Saldo inicial o cargado manualmente.<br />Sin detalle de productos.
+                    </div>
+                    <hr className="divider" />
+                    <div className="total-deuda">
+                      <span>DEUDA TOTAL:</span>
+                      <span>${Math.abs(data.old_balance).toLocaleString()}</span>
+                    </div>
+                  </>
+                ) : null}
               </>
             )}
 

@@ -131,7 +131,7 @@ insert into public.driver_expense_categories (name, color) values
 on conflict (name) do nothing;
 
 -- 9. AJUSTAR RLS DE CATEGORÍAS DE GASTOS DE REPARTIDORES
-drop policy if exists "Allow public read driver_expense_categories" on public.driver_expense_categories;
-drop policy if exists "Allow public write driver_expense_categories" on public.driver_expense_categories;
-create policy "Allow public read driver_expense_categories" on public.driver_expense_categories for select using (true);
-create policy "Allow public write driver_expense_categories" on public.driver_expense_categories for all using (true);
+drop policy if exists "Allow auth read driver_expense_categories" on public.driver_expense_categories;
+drop policy if exists "Allow admin write driver_expense_categories" on public.driver_expense_categories;
+create policy "Allow auth read driver_expense_categories" on public.driver_expense_categories for select to authenticated using (true);
+create policy "Allow admin write driver_expense_categories" on public.driver_expense_categories for all using (public.get_auth_role() = 'admin');

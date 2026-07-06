@@ -9,8 +9,10 @@ import {
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { Sale, Expense, SaleItem, Driver, Product } from '../store/useStore'
+import { supabase } from '../supabaseClient'
 import Swal from 'sweetalert2'
-
+import { DriverSyncQueue } from './DriverSyncQueue'
+import { CloudOff } from 'lucide-react'
 const getPlannedLoadQty = (plannedLoad: any, productId: string): { fixed: number; extra: number; total: number } => {
   const item = plannedLoad?.[productId];
   if (typeof item === 'object' && item !== null) {
@@ -235,6 +237,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
             <Route path="/roadmap" element={<DriverRoadmap driver={driver} onBack={() => navigate('/driver/home')} onSelectClient={(id) => { setNavigationSource('ROADMAP'); navigate(`/driver/terminal/${id}`); }} />} />
             <Route path="/caja" element={<DriverCashSummary driver={driver} onBack={() => navigate('/driver/home')} />} />
             <Route path="/terminal/:clientId" element={<DriverTerminalWrapper driver={driver} onBack={() => navigate(`/driver/${navigationSource.toLowerCase()}`)} onComplete={() => navigate('/driver/home')} />} />
+            <Route path="/pendientes" element={<DriverSyncQueue onBack={() => navigate('/driver/home')} driverId={driver.id} />} />
             <Route path="*" element={<Navigate to="/driver/home" replace />} />
           </Routes>
         </div>
@@ -252,6 +255,20 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
             >
               <MapPin size={22} className="mb-1 opacity-70" />
               <span className="text-[10px]">Ruta</span>
+            </button>
+            <button 
+              onClick={() => navigate('/driver/pendientes')} 
+              className="flex flex-col items-center justify-center p-2 rounded-2xl w-20 text-brand-muted hover:text-orange-500 hover:bg-orange-50 font-semibold active:scale-95 transition-all relative"
+            >
+              <div className="relative">
+                <CloudOff size={22} className="mb-1 opacity-70" />
+                {syncQueue.length > 0 && (
+                  <span className="absolute -top-1 -right-2 bg-orange-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold shadow-sm">
+                    {syncQueue.length}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px]">Espera</span>
             </button>
             <button 
               onClick={() => {
@@ -2549,7 +2566,24 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
                 return (
                   <div 
                     key={ticket.id}
-                    onClick={() => setSelectedTicket(ticket)}
+                    onClick={async () => {
+                      if (!ticket.items) {
+                        setSelectedTicket({ ...ticket, items: [] })
+                        const { data } = await supabase.from('sale_items').select('*, products(name)').eq('sale_id', ticket.id)
+                        if (data) {
+                          const mappedItems = data.map((i: any) => ({
+                             product_id: i.product_id,
+                             quantity: i.quantity,
+                             unit_price: i.unit_price,
+                             operation_type: i.operation_type,
+                             name: i.products?.name || 'Producto'
+                          }))
+                          setSelectedTicket({ ...ticket, items: mappedItems })
+                        }
+                      } else {
+                        setSelectedTicket(ticket)
+                      }
+                    }}
                     className="bg-white hover:bg-brand-navy/5 border border-brand-muted/10 rounded-2xl p-3.5 shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-[0.99]"
                   >
                     <div className="min-w-0 flex-1 pr-2">

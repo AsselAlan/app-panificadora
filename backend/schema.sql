@@ -497,8 +497,10 @@ create table public.expense_categories (
 );
 
 alter table public.expense_categories enable row level security;
-create policy "Allow public read expense_categories" on public.expense_categories for select using (true);
-create policy "Allow public write expense_categories" on public.expense_categories for all using (true) with check (true);
+create policy "Allow auth read expense_categories" on public.expense_categories for select to authenticated using (true);
+create policy "Allow admin write expense_categories" on public.expense_categories for all
+    using (public.get_auth_role() = 'admin') 
+    with check (public.get_auth_role() = 'admin');
 
 -- Categorías de gastos de repartidores
 create table public.driver_expense_categories (
@@ -509,5 +511,16 @@ create table public.driver_expense_categories (
 );
 
 alter table public.driver_expense_categories enable row level security;
-create policy "Allow public read driver_expense_categories" on public.driver_expense_categories for select using (true);
-create policy "Allow public write driver_expense_categories" on public.driver_expense_categories for all using (true) with check (true);
+create policy "Allow auth read driver_expense_categories" on public.driver_expense_categories for select to authenticated using (true);
+create policy "Allow admin write driver_expense_categories" on public.driver_expense_categories for all
+    using (public.get_auth_role() = 'admin')
+    with check (public.get_auth_role() = 'admin');
+\ n - -   1 0 .   A g r e g a d o s   R e c i e n t e s   ( d r i v e r _ s e t t l e m e n t s ,   g e t _ a l l _ u s e r s ,   p r o d u c t s . d i s p l a y _ o r d e r ) \ n C R E A T E   T A B L E   I F   N O T   E X I S T S   p u b l i c . d r i v e r _ s e t t l e m e n t s   ( \ n     i d   u u i d   D E F A U L T   g e n _ r a n d o m _ u u i d ( )   P R I M A R Y   K E Y , \ n     d r i v e r _ i d   u u i d   R E F E R E N C E S   p u b l i c . d r i v e r s ( i d )   O N   D E L E T E   C A S C A D E , \ n     s e t t l e m e n t _ d a t e   d a t e   N O T   N U L L , \ n     a m o u n t _ c a s h   n u m e r i c ( 1 0 , 2 )   D E F A U L T   0 , \ n     a m o u n t _ t r a n s f e r   n u m e r i c ( 1 0 , 2 )   D E F A U L T   0 , \ n     c r e a t e d _ a t   t i m e s t a m p   w i t h   t i m e   z o n e   D E F A U L T   t i m e z o n e ( ' u t c ' : : t e x t ,   n o w ( ) )   N O T   N U L L \ n ) ; \ n A L T E R   T A B L E   p u b l i c . d r i v e r _ s e t t l e m e n t s   E N A B L E   R O W   L E V E L   S E C U R I T Y ; \ n C R E A T E   P O L I C Y   \  
+ A l l o w  
+ p u b l i c  
+ r e a d  
+ s e t t l e m e n t s \   O N   p u b l i c . d r i v e r _ s e t t l e m e n t s   F O R   S E L E C T   U S I N G   ( t r u e ) ; \ n C R E A T E   P O L I C Y   \ A l l o w  
+ p u b l i c  
+ i n s e r t  
+ s e t t l e m e n t s \   O N   p u b l i c . d r i v e r _ s e t t l e m e n t s   F O R   I N S E R T   W I T H   C H E C K   ( t r u e ) ; \ n \ n A L T E R   T A B L E   p u b l i c . p r o d u c t s   A D D   C O L U M N   I F   N O T   E X I S T S   d i s p l a y _ o r d e r   i n t e g e r   D E F A U L T   0 ; \ n \ n C R E A T E   O R   R E P L A C E   F U N C T I O N   p u b l i c . g e t _ a l l _ u s e r s ( ) \ n R E T U R N S   T A B L E ( i d   u u i d ,   e m a i l   v a r c h a r ,   c r e a t e d _ a t   t i m e s t a m p   w i t h   t i m e   z o n e ,   r o l e   t e x t ,   r e q u i r e s _ p a s s w o r d _ c h a n g e   b o o l e a n ) \ n S E C U R I T Y   D E F I N E R \ n A S   \ $ \ $ \ n B E G I N \ n     R E T U R N   Q U E R Y   \ n     S E L E C T   a u . i d ,   a u . e m a i l : : v a r c h a r ,   a u . c r e a t e d _ a t ,   u r . r o l e ,   u r . r e q u i r e s _ p a s s w o r d _ c h a n g e   \ n     F R O M   a u t h . u s e r s   a u \ n     L E F T   J O I N   p u b l i c . u s e r _ r o l e s   u r   O N   u r . u s e r _ i d   =   a u . i d ; \ n E N D ; \ n \ $ \ $   L A N G U A G E   p l p g s q l ; \ n  
+ 

@@ -18,11 +18,17 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
         // Consultar el rol del usuario desde la tabla user_roles
-        const { data: roleData } = await supabase.from('user_roles').select('role, requires_password_change').eq('user_id', session.user.id).single()
+        const { data: roleData, error } = await supabase.from('user_roles').select('role, requires_password_change').eq('user_id', session.user.id).single()
         
-        const role = roleData ? roleData.role : null
-        const reqPwdChange = roleData ? roleData.requires_password_change : false
-        setSession(session, role, reqPwdChange)
+        if (error || !roleData) {
+          console.error("Error obteniendo rol o sesión inválida. Cerrando sesión...");
+          await supabase.auth.signOut()
+          setSession(null, null)
+        } else {
+          const role = roleData.role
+          const reqPwdChange = roleData.requires_password_change
+          setSession(session, role, reqPwdChange)
+        }
       } else {
         setSession(null, null)
       }
@@ -84,7 +90,7 @@ function App() {
           {userRole === 'mostrador' && <Route path="/mostrador/*" element={<MostradorApp />} />}
           
           {/* Redirección por defecto según el rol */}
-          <Route path="*" element={<Navigate to={`/${userRole === 'repartidor' ? 'driver' : userRole}`} replace />} />
+          <Route path="*" element={<Navigate to={userRole === 'repartidor' ? '/driver' : `/${userRole || 'login'}`} replace />} />
         </>
       )}
     </Routes>
