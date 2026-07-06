@@ -3264,7 +3264,7 @@ export const AdminStock: React.FC = () => {
                       const prodName = products.find(p => p.id === detail.product_id)?.name || 'Producto'
                       return (
                         <div key={idx} className="flex justify-between border-b border-brand-muted/5 pb-1">
-                          <span className="truncate pr-2 font-medium">{prodName}</span>
+                          <span className="truncate pr-2 font-medium text-brand-deep">{prodName}</span>
                           <div className="flex gap-2 font-bold">
                             {detail.added_quantity > 0 && <span className="text-green-500">+{detail.added_quantity}</span>}
                             {detail.removed_quantity > 0 && <span className="text-red-400">-{detail.removed_quantity}</span>}
