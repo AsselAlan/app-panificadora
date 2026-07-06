@@ -106,7 +106,7 @@ export const AdminProfile = () => {
                 minLength={6}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-lg focus:ring-2 focus:ring-orange-500"
                 placeholder="Mínimo 6 caracteres"
               />
             </div>
@@ -119,7 +119,7 @@ export const AdminProfile = () => {
                 minLength={6}
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-lg focus:ring-2 focus:ring-orange-500"
                 placeholder="Vuelve a escribirla"
               />
             </div>
