@@ -107,8 +107,13 @@ El Producto Mínimo Viable (MVP) v0.1 ha sido desarrollado, testeado y desplegad
     - **Resumen Histórico de Deudas**: Al cobrar una deuda desde el Mostrador o Admin, el ticket y el mensaje de WhatsApp ahora desglosan exactamente qué ventas históricas se saldaron, brindando total transparencia al cliente.
 
 
+19. **Migración de Base de Datos y Telemetría Avanzada**:
+    - **Edge Functions (Serverless)**: Se desplegó la función `manage-users` al nuevo entorno de producción para permitir la creación de cuentas de administrador y choferes con permisos elevados, operando sobre Auth y el esquema público simultáneamente de manera segura sin exponer la Service Role Key al frontend.
+    - **Restauración de Esquema y RLS**: Tras la migración de base de datos se restauraron esquemas omitidos (`stock_updates`, `stock_losses`, `driver_settlements`) y se aplicaron estrictas Políticas de Seguridad de Filas (Row Level Security) para prevenir accesos no autorizados sin romper las consultas de historial desde el frontend.
+    - **Integración con Sentry (Monitorización)**: Se incorporó la telemetría de `@sentry/react` en `main.tsx` capturando todos los errores no controlados, caídas de red o fallas de Edge Functions en producción, con capacidad de Session Replay para auditorías visuales sobre los bugs experimentados por los choferes o administradores.
+
 ### Enlaces Importantes:
-- **Producción (PWA)**: https://app-panificadora.netlify.app
+- **Producción (PWA)**: https://panificadora-app.netlify.app
 - **Repositorio**: https://github.com/AsselAlan/app-panificadora.git
 
 ---
