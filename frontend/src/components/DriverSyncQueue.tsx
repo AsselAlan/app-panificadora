@@ -6,9 +6,10 @@ import Swal from 'sweetalert2'
 interface DriverSyncQueueProps {
   onBack: () => void;
   driverId: string;
+  onEditSale?: (clientId: string) => void;
 }
 
-export const DriverSyncQueue: React.FC<DriverSyncQueueProps> = ({ onBack }) => {
+export const DriverSyncQueue: React.FC<DriverSyncQueueProps> = ({ onBack, onEditSale }) => {
   const { syncQueue, isSyncing, processSyncQueue, isOffline } = useStore()
   
   const handleSync = async () => {
@@ -76,7 +77,7 @@ export const DriverSyncQueue: React.FC<DriverSyncQueueProps> = ({ onBack }) => {
                     <span className="text-xs font-bold text-orange-500 uppercase tracking-wider">Pendiente de envío</span>
                   </div>
                   {isSale && (
-                    <span className="text-xs font-bold bg-brand-primary/10 text-brand-primary px-2 py-1 rounded-full">VENTA</span>
+                    <span className="text-xs font-bold bg-brand-primary/10 text-brand-primary px-2 py-1 rounded-full">{item.payload.status === 'draft' ? 'BORRADOR' : 'VENTA'}</span>
                   )}
                   {isExpense && (
                     <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-1 rounded-full">GASTO</span>
@@ -91,12 +92,22 @@ export const DriverSyncQueue: React.FC<DriverSyncQueueProps> = ({ onBack }) => {
                     <>
                       <h4 className="font-bold text-brand-navy">{item.payload.client_name || 'Cliente Desconocido'}</h4>
                       <p className="text-xl font-black text-brand-primary">${item.payload.final_total?.toFixed(2)}</p>
-                      <button 
-                        onClick={() => handleWhatsApp(item.payload)}
-                        className="mt-3 flex items-center justify-center gap-2 w-full bg-[#25D366]/10 text-[#25D366] font-bold py-2 rounded-xl active:scale-95 transition-all text-sm"
-                      >
-                        <MessageCircle size={16} /> Enviar Comprobante (WhatsApp)
-                      </button>
+                      <div className="mt-3 flex gap-2">
+                        {item.payload.status === 'draft' && onEditSale && (
+                          <button 
+                            onClick={() => onEditSale(item.payload.client_id)}
+                            className="flex-1 flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 rounded-xl active:scale-95 transition-all text-sm"
+                          >
+                            Reabrir Ticket
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => handleWhatsApp(item.payload)}
+                          className="flex-1 flex items-center justify-center gap-2 bg-[#25D366]/10 text-[#25D366] font-bold py-2 rounded-xl active:scale-95 transition-all text-sm"
+                        >
+                          <MessageCircle size={16} /> WhatsApp
+                        </button>
+                      </div>
                     </>
                   )}
                   {isExpense && (

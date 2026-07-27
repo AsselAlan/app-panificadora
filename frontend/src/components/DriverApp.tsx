@@ -53,7 +53,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
     loads, weeklyRoutes, products, userSession, checkAndResetDriverDay
   } = useStore()
   
-  const [navigationSource, setNavigationSource] = useState<'CLIENTS' | 'ROADMAP'>('CLIENTS')
+  const [navigationSource, setNavigationSource] = useState<'CLIENTS' | 'ROADMAP' | 'PENDIENTES'>('CLIENTS')
 
   const currentPath = location.pathname.split('/')[2]?.toUpperCase() || 'HOME'
   const driverView = currentPath === '' ? 'HOME' : currentPath
@@ -237,7 +237,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
             <Route path="/roadmap" element={<DriverRoadmap driver={driver} onBack={() => navigate('/driver/home')} onSelectClient={(id) => { setNavigationSource('ROADMAP'); navigate(`/driver/terminal/${id}`); }} />} />
             <Route path="/caja" element={<DriverCashSummary driver={driver} onBack={() => navigate('/driver/home')} />} />
             <Route path="/terminal/:clientId" element={<DriverTerminalWrapper driver={driver} onBack={() => navigate(`/driver/${navigationSource.toLowerCase()}`)} onComplete={() => navigate('/driver/home')} />} />
-            <Route path="/pendientes" element={<DriverSyncQueue onBack={() => navigate('/driver/home')} driverId={driver.id} />} />
+            <Route path="/pendientes" element={<DriverSyncQueue onBack={() => navigate('/driver/home')} driverId={driver.id} onEditSale={(clientId) => { setNavigationSource('PENDIENTES'); navigate(`/driver/terminal/${clientId}`); }} />} />
             <Route path="*" element={<Navigate to="/driver/home" replace />} />
           </Routes>
         </div>
@@ -1322,13 +1322,12 @@ interface DriverClientsProps {
 }
 
 const DriverClients: React.FC<DriverClientsProps> = ({ onBack, onSelectClient }) => {
-  const { clients, weeklyRoutes, currentDriverId } = useStore()
+  const { clients, weeklyRoutes, currentDriverId, sales } = useStore()
   const [searchTerm, setSearchTerm] = useState('')
 
   const todayJS = new Date().getDay()
   const todayISO = todayJS === 0 ? 7 : todayJS
-
-
+  const todayStr = useMemo(() => new Date().toLocaleDateString('sv'), [])
 
   const filteredClients = useMemo(() => {
     const routeClientIds = weeklyRoutes
@@ -1388,7 +1387,7 @@ const DriverClients: React.FC<DriverClientsProps> = ({ onBack, onSelectClient })
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <h3 className="font-bold text-brand-deep text-sm truncate">{client.business_name}</h3>
-                  {sales.some(s => s.driver_id === driver.id && s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                  {sales.some(s => s.driver_id === currentDriverId && s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
                     <span className="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm animate-pulse">
                       🟡 Ticket Abierto
                     </span>
@@ -1497,11 +1496,11 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
   }) // product_uuid -> qty
   
   // Pagos mixtos
-  const [payCash, setPayCash] = useState('')
-  const [payTransfer, setPayTransfer] = useState('')
-  const [cajonesLeft, setCajonesLeft] = useState('')
-  const [cajonesReturned, setCajonesReturned] = useState('')
-  const [includeDebt, setIncludeDebt] = useState(false)
+  const [payCash, setPayCash] = useState(existingDraftSale && existingDraftSale.payment_cash > 0 ? existingDraftSale.payment_cash.toString() : '')
+  const [payTransfer, setPayTransfer] = useState(existingDraftSale && existingDraftSale.payment_transfer > 0 ? existingDraftSale.payment_transfer.toString() : '')
+  const [cajonesLeft, setCajonesLeft] = useState(existingDraftSale && existingDraftSale.cajones_left > 0 ? existingDraftSale.cajones_left.toString() : '')
+  const [cajonesReturned, setCajonesReturned] = useState(existingDraftSale && existingDraftSale.cajones_returned > 0 ? existingDraftSale.cajones_returned.toString() : '')
+  const [includeDebt, setIncludeDebt] = useState(existingDraftSale ? existingDraftSale.applied_debt > 0 : false)
   const [generatedTicket, setGeneratedTicket] = useState<Sale | null>(null)
 
   const todayJS = new Date().getDay()

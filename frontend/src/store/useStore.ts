@@ -611,12 +611,20 @@ export const useStore = create<AppState>()(
             } : d
           )
 
+          const existingSyncIndex = state.syncQueue.findIndex(q => q.id === sale.id)
+          let newSyncQueue = [...state.syncQueue]
+          if (existingSyncIndex >= 0) {
+            newSyncQueue[existingSyncIndex] = { id: sale.id, type: 'sale', payload: sale }
+          } else {
+            newSyncQueue.push({ id: sale.id, type: 'sale', payload: sale })
+          }
+
           return {
             sales: updatedSales,
             loads: updatedLoads,
             clients: updatedClients,
             drivers: updatedDrivers,
-            syncQueue: [...state.syncQueue, { id: sale.id, type: 'sale', payload: sale }]
+            syncQueue: newSyncQueue
           }
         })
 
