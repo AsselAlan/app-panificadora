@@ -6,7 +6,7 @@ Este proyecto es un **Software de Gestión Integral para Panificadoras**, diseñ
 **¿Cómo funciona?**
 El sistema se divide en varios módulos interconectados, protegidos por un sistema de roles (Administrador, Repartidor, Mostrador):
 - **Panel de Administración (Admin):** Permite el monitoreo en tiempo real de la flota, control de inventario de fábrica (ingresos y mermas), gestión de clientes (cuentas corrientes, saldos a favor) y aprobación de rendiciones de caja.
-- **Aplicación Móvil para Repartidores:** Una interfaz optimizada para los choferes que operan en la calle. Su característica principal es la arquitectura **Offline-First**, lo que les permite registrar ventas, gastos y devoluciones incluso sin conexión a internet. Al recuperar la señal, el sistema sincroniza automáticamente los datos con la base central.
+- **Aplicación Móvil para Repartidores:** Una interfaz optimizada para los choferes que operan en la calle. Su característica principal es la arquitectura **Offline-First**, lo que les permite registrar ventas, gastos, devoluciones y **tickets abiertos / borrador** (para clientes con visitas múltiples en el día) incluso sin conexión a internet. Al recuperar la señal, el sistema sincroniza automáticamente los datos con la base central.
 - **Punto de Venta (Mostrador):** Un módulo robusto para ventas presenciales que descuenta stock en tiempo real, emite tickets térmicos, y gestiona múltiples listas de precios (Mayorista A / Minorista B) según el cliente.
 - **Cierre de Caja y Stock:** Incluye procesos atómicos de fin de día para que los repartidores devuelvan stock sobrante, reporten mermas y rindan su caja con total trazabilidad.
 
