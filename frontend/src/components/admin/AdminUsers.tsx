@@ -62,10 +62,6 @@ export const AdminUsers = () => {
         fullName
       })
 
-      // Asegurar que si el rol es mostrador, el driver correspondiente tenga el flag is_mostrador en true
-      if (role === 'mostrador') {
-        await supabase.from('drivers').update({ is_mostrador: true }).eq('full_name', fullName)
-      }
 
       Swal.fire('Éxito', 'Usuario creado. La contraseña inicial es 123456. Se le pedirá cambiarla al ingresar.', 'success')
       setEmail('')
