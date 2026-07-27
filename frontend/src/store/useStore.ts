@@ -114,6 +114,7 @@ export interface Sale {
   items: SaleItem[];
   cajones_left?: number;
   cajones_returned?: number;
+  status?: 'draft' | 'completed';
   // Auxiliares para ticket de UI
   client_name?: string;
   driver_name?: string;
@@ -567,9 +568,20 @@ export const useStore = create<AppState>()(
 
       // Registrar Venta (Offline-First)
       addSale: async (sale) => {
+        const isDraft = sale.status === 'draft'
+
         // 1. Guardar localmente en el estado de Zustand (IndexedDB) de forma inmediata
         set(state => {
-          // Descontar inventario localmente en loads
+          // Reemplazar si ya existía una venta previa o borrador con el mismo ID
+          const existingSaleIndex = state.sales.findIndex(s => s.id === sale.id)
+          let updatedSales = [...state.sales]
+          if (existingSaleIndex >= 0) {
+            updatedSales[existingSaleIndex] = sale
+          } else {
+            updatedSales = [sale, ...state.sales]
+          }
+
+          // Descontar inventario localmente en loads (tanto si es draft como completed para reflejar la salida física)
           const updatedLoads = state.loads.map(load => {
             const itemMatch = sale.items.find(i => i.product_id === load.product_id)
             if (itemMatch) {
@@ -582,8 +594,8 @@ export const useStore = create<AppState>()(
             return load
           })
 
-          // Actualizar deuda local del cliente y cajones prestados
-          const updatedClients = state.clients.map(c => 
+          // Si es borrador, no afecta pagos de caja ni cuenta corriente aún
+          const updatedClients = isDraft ? state.clients : state.clients.map(c => 
             c.id === sale.client_id ? { 
               ...c, 
               current_balance: c.current_balance - sale.payment_account,
@@ -591,8 +603,7 @@ export const useStore = create<AppState>()(
             } : c
           )
 
-          // Actualizar caja local del conductor
-          const updatedDrivers = state.drivers.map(d => 
+          const updatedDrivers = isDraft ? state.drivers : state.drivers.map(d => 
             d.id === sale.driver_id ? { 
               ...d, 
               cash_collected: d.cash_collected + sale.payment_cash, 
@@ -601,7 +612,7 @@ export const useStore = create<AppState>()(
           )
 
           return {
-            sales: [sale, ...state.sales],
+            sales: updatedSales,
             loads: updatedLoads,
             clients: updatedClients,
             drivers: updatedDrivers,
@@ -749,6 +760,7 @@ export const useStore = create<AppState>()(
                 payment_account: item.payload.payment_account,
                 cajones_left: item.payload.cajones_left,
                 cajones_returned: item.payload.cajones_returned,
+                status: item.payload.status || 'completed',
                 items: item.payload.items.map((i: any) => ({
                   product_id: i.product_id,
                   operation_type: i.operation_type,

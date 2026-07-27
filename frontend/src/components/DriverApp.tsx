@@ -1388,6 +1388,11 @@ const DriverClients: React.FC<DriverClientsProps> = ({ onBack, onSelectClient })
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <h3 className="font-bold text-brand-deep text-sm truncate">{client.business_name}</h3>
+                  {sales.some(s => s.driver_id === driver.id && s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                    <span className="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm animate-pulse">
+                      🟡 Ticket Abierto
+                    </span>
+                  )}
                   {client.allow_credit && (
                     <span className="bg-brand-navy text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm">
                       Cta. Cte.
@@ -1440,7 +1445,29 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
   
   const client = clients.find(c => c.id === clientId)
   
+  // Buscar si existe una venta/ticket abierto previo hoy para este cliente
+  const todayStr = useMemo(() => new Date().toLocaleDateString('sv'), [])
+  const existingDraftSale = useMemo(() => {
+    return sales.find(s => 
+      s.driver_id === driver.id && 
+      s.client_id === clientId && 
+      s.status === 'draft' && 
+      new Date(s.transaction_date).toLocaleDateString('sv') === todayStr
+    )
+  }, [sales, driver.id, clientId, todayStr])
+
   const [cart, setCart] = useState<Record<string, number>>(() => {
+    // 1. Si hay borrador guardado previo en el día, cargar sus ítems
+    if (existingDraftSale) {
+      const draftCart: Record<string, number> = {}
+      existingDraftSale.items.forEach(item => {
+        if (item.operation_type === 'sale') {
+          draftCart[item.product_id] = item.quantity
+        }
+      })
+      return draftCart
+    }
+    // 2. De lo contrario, auto-completar con pedido fijo si corresponde
     if (client && client.fixed_order) {
       const clampedCart: Record<string, number> = {}
       Object.entries(client.fixed_order).forEach(([prodId, qty]) => {
@@ -1456,7 +1483,18 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     return {}
   }) // product_uuid -> qty
   
-  const [returns, setReturns] = useState<Record<string, number>>({}) // product_uuid -> qty
+  const [returns, setReturns] = useState<Record<string, number>>(() => {
+    if (existingDraftSale) {
+      const draftReturns: Record<string, number> = {}
+      existingDraftSale.items.forEach(item => {
+        if (item.operation_type === 'return') {
+          draftReturns[item.product_id] = item.quantity
+        }
+      })
+      return draftReturns
+    }
+    return {}
+  }) // product_uuid -> qty
   
   // Pagos mixtos
   const [payCash, setPayCash] = useState('')
@@ -1557,7 +1595,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     })
   }
 
-  const handleProcess = async () => {
+  const handleProcess = async (asDraft: boolean = false) => {
     const items: SaleItem[] = []
 
     // 1. Agregar items de venta
@@ -1589,7 +1627,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     })
 
     const newSale: Sale = {
-      id: crypto.randomUUID(),
+      id: existingDraftSale ? existingDraftSale.id : crypto.randomUUID(),
       client_id: client.id,
       driver_id: driver.id,
       transaction_date: new Date().toISOString(),
@@ -1597,18 +1635,30 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
       total_returns: totalReturns,
       applied_debt: includeDebt && client.current_balance < 0 ? Math.abs(client.current_balance) : 0,
       final_total: finalTotal,
-      payment_cash: cashAmt,
-      payment_transfer: transferAmt,
-      payment_account: willAddToDebt,
+      payment_cash: asDraft ? 0 : cashAmt,
+      payment_transfer: asDraft ? 0 : transferAmt,
+      payment_account: asDraft ? 0 : willAddToDebt,
       cajones_left: parseInt(cajonesLeft) || 0,
       cajones_returned: parseInt(cajonesReturned) || 0,
+      status: asDraft ? 'draft' : 'completed',
       items: items,
       client_name: client.business_name,
       driver_name: driver.full_name
     }
 
     await addSale(newSale)
-    setGeneratedTicket(newSale)
+    
+    if (asDraft) {
+      Swal.fire({
+        title: 'Ticket Guardado Abierto',
+        text: 'La mercadería entregada fue descontada del camión. Podrás cerrar el ticket en la siguiente visita.',
+        icon: 'info',
+        confirmButtonColor: '#2563eb'
+      })
+      onComplete()
+    } else {
+      setGeneratedTicket(newSale)
+    }
   }
 
   const handleWhatsApp = () => {
@@ -2063,16 +2113,25 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
             Siguiente Paso
           </button>
         ) : (
-          <button 
-            onClick={handleProcess} 
-            disabled={
-              (subtotalSales === 0 && totalReturns === 0) || 
-              (remainingToPay > 0 && !client.allow_credit)
-            }
-            className="w-full bg-brand-navy hover:bg-brand-navy text-white font-bold text-sm py-3.5 rounded-xl flex justify-center items-center gap-2 active:bg-blue-700 transition-colors disabled:opacity-30"
-          >
-            <Printer size={18} /> Confirmar Transmisión e Imprimir
-          </button>
+          <div className="flex flex-col gap-2">
+            <button 
+              onClick={() => handleProcess(false)} 
+              disabled={
+                (subtotalSales === 0 && totalReturns === 0) || 
+                (remainingToPay > 0 && !client.allow_credit)
+              }
+              className="w-full bg-brand-navy hover:bg-brand-navy text-white font-bold text-sm py-3.5 rounded-xl flex justify-center items-center gap-2 active:bg-blue-700 transition-colors disabled:opacity-30"
+            >
+              <Printer size={18} /> Confirmar Transmisión e Imprimir Ticket Final
+            </button>
+            <button 
+              onClick={() => handleProcess(true)} 
+              disabled={subtotalSales === 0 && totalReturns === 0}
+              className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 font-bold text-xs py-2.5 rounded-xl border border-amber-300/40 flex justify-center items-center gap-2 transition-colors disabled:opacity-30"
+            >
+              <History size={16} /> Dejar Ticket Abierto (1ª Visita)
+            </button>
+          </div>
         )}
       </div>
     </div>
