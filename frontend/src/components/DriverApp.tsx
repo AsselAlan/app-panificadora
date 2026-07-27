@@ -1806,18 +1806,6 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                       </button>
                     </div>
                   </div>
-                  
-                  {isConsumingReserved && (
-                    <div className="bg-red-50 text-red-500 border border-red-100 rounded-xl p-2.5 flex items-start gap-2 animate-in fade-in">
-                      <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                      <div className="text-[10px] font-bold leading-normal text-left">
-                        Alerta: Estás vendiendo mercadería reservada para clientes posteriores.
-                        <span className="block mt-0.5 text-red-400">
-                          De los {maxStock} en stock, {maxStock - (fixedQty + info.availableFree)} son para otros clientes. Máximo sugerido aquí: {fixedQty + info.availableFree}
-                        </span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )
             })}
