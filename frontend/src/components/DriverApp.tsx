@@ -561,23 +561,8 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
     return weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client').length
   }, [weeklyRoutes, driver.id, todayISO])
 
-  const handleStart = async (actualLoads: Record<string, number>) => {
-    // Inicializar stock (loads) en el store a partir de la carga confirmada
-    const initialLoads = products.map(p => {
-      const qty = actualLoads[p.id] || 0;
-      return {
-        id: crypto.randomUUID(),
-        driver_id: driver.id,
-        product_id: p.id,
-        date_loaded: new Date().toISOString(),
-        initial_quantity: qty,
-        current_quantity: qty
-      }
-    }).filter(l => l.initial_quantity > 0)
-    
-    useStore.setState({ loads: initialLoads })
-    setShowLoadChecklist(false)
-
+  const handleStart = async () => {
+    // Ya no se inicializan loads, directamente se inicia la ruta
     await startDriverRoute(driver.id)
     Swal.fire({
       title: '¡Ruta Iniciada!',
@@ -667,7 +652,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
 
         <div className="w-full space-y-3">
           <button 
-            onClick={() => setShowLoadChecklist(true)} 
+            onClick={handleStart} 
             disabled={driverRouteClientsCount === 0} 
             className="bg-brand-navy hover:bg-brand-navy/90 disabled:opacity-40 disabled:hover:bg-brand-navy text-white w-full py-4 rounded-2xl font-black text-base shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
           >
@@ -687,15 +672,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
           <DriverHistoryModal driver={driver} onClose={() => setShowHistoryModal(false)} />
         )}
 
-        {/* Modal Checklist Carga Editabe */}
-        {showLoadChecklist && (
-          <EditableLoadModal 
-            plannedLoad={plannedLoad} 
-            onClose={() => setShowLoadChecklist(false)} 
-            onConfirm={handleStart} 
-            title="Primera Carga (Fábrica)" 
-          />
-        )}
+        {/* Modal Checklist Carga Editabe Eliminado por migración a stock global */}
       </div>
     )
   }
@@ -836,31 +813,9 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
           <ChevronRight size={24} className="text-white/50" />
         </button>
 
-        {/* Botón Carga de Stock */}
-        <button 
-          onClick={() => setShowStockLoadModal(true)} 
-          className="bg-white hover:bg-brand-navy/5 text-brand-navy border border-brand-navy/20 rounded-[2rem] p-5 shadow-sm flex items-center justify-start gap-4 active:scale-[0.98] transition-all w-full"
-        >
-          <div className="bg-brand-navy/5 p-3 rounded-xl border border-brand-navy/10 text-brand-navy">
-            <Package size={24} />
-          </div>
-          <div className="text-left">
-            <span className="text-base font-black tracking-tight block">Carga de Stock</span>
-            <span className="text-[10px] text-brand-muted/80 font-semibold block mt-0.5">Sumar mercadería a la camioneta</span>
-          </div>
-        </button>
-        
+        {/* Botón Carga de Stock Ocultado por migración a Stock Global */}
         {/* Gastos y Resumen */}
-        <div className="grid grid-cols-3 gap-3">
-          <button 
-            onClick={() => setShowStockModal(true)} 
-            className="bg-white hover:bg-orange-50 text-orange-600 border border-orange-100 rounded-3xl p-4 flex flex-col items-center justify-center gap-2 font-bold active:scale-95 transition-all text-xs shadow-sm"
-          >
-            <div className="bg-orange-50 p-2 rounded-xl text-orange-600 mb-1">
-              <Package size={20} />
-            </div>
-            Ver Stock
-          </button>
+        <div className="grid grid-cols-2 gap-3">
           <button 
             onClick={() => setShowExpenseModal(true)} 
             className="bg-white hover:bg-red-50 text-red-500 border border-red-100 rounded-3xl p-4 flex flex-col items-center justify-center gap-2 font-bold active:scale-95 transition-all text-xs shadow-sm"
@@ -1470,9 +1425,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     if (client && client.fixed_order) {
       const clampedCart: Record<string, number> = {}
       Object.entries(client.fixed_order).forEach(([prodId, qty]) => {
-        const l = loads.find(load => load.product_id === prodId)
-        const maxStock = l ? l.current_quantity : 0
-        const finalQty = Math.min(qty as number, maxStock)
+        const finalQty = qty as number
         if (finalQty > 0) {
           clampedCart[prodId] = finalQty
         }
@@ -1514,34 +1467,6 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     })
   }, [sales, driver.id])
 
-  const getMostradorInfo = (productId: string) => {
-    const loadItem = loads.find(l => l.product_id === productId)
-    if (!loadItem) return { reservedOthers: 0, availableFree: 0, currentStock: 0 }
-
-    // Pedidos fijos de otros clientes restantes
-    const visitedClientIds = todaySales.map(s => s.client_id)
-    const remainingOthers = weeklyRoutes.filter(r => 
-      r.driver_id === driver.id && 
-      r.day_of_week === todayISO && 
-      r.stop_type === 'client' && 
-      r.client_id !== clientId && 
-      !visitedClientIds.includes(r.client_id)
-    )
-
-    let reservedOthers = 0
-    remainingOthers.forEach(stop => {
-      const clientObj = clients.find(c => c.id === stop.client_id)
-      if (clientObj && clientObj.fixed_order && clientObj.fixed_order[productId]) {
-        reservedOthers += clientObj.fixed_order[productId]
-      }
-    })
-
-    const availableFree = Math.max(0, loadItem.current_quantity - reservedOthers)
-    return { reservedOthers, availableFree, currentStock: loadItem.current_quantity }
-  }
-
-  // El carrito ya se precarga y se limita al stock máximo de la camioneta (loads) en su estado inicial.
-
   if (!client) return null
 
   const getPrice = (product: Product) => {
@@ -1581,7 +1506,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     const step = unitType === 'kg' ? 0.5 : 1
     let next = current + (delta * step)
     if (next < 0) next = 0
-    if (next > maxStock) next = maxStock
+
 
     setObj(prev => {
       const nextObj = { ...prev }
@@ -1836,13 +1761,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
             {products.map(p => {
               const qty = cart[p.id] || 0
               
-              // Buscar stock de la camioneta
-              const l = loads.find(load => load.product_id === p.id)
-              const maxStock = l ? l.current_quantity : 0
-
-              const info = getMostradorInfo(p.id)
               const fixedQty = client.fixed_order?.[p.id] || 0
-              const isConsumingReserved = qty > (fixedQty + info.availableFree)
 
               return (
                 <div key={p.id} className="bg-white border border-brand-muted/10 rounded-3xl p-4 flex flex-col gap-3 shadow-sm">
@@ -1853,14 +1772,13 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                         ${getPrice(p)} <span className="text-[10px] text-brand-muted font-semibold">x {p.unit_type}</span>
                       </p>
                       <div className="flex items-center gap-1.5 mt-2">
-                        <span className="text-[9px] text-brand-orange font-bold uppercase tracking-wider bg-brand-orange/10 px-2 py-0.5 rounded-md">Stock: {maxStock}</span>
                         <span className="text-[9px] text-brand-navy font-bold uppercase tracking-wider bg-brand-navy/10 px-2 py-0.5 rounded-md">Pedido Cliente: {fixedQty}</span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <button 
-                        onClick={() => handleUpdateQty(cart, setCart, p.id, -1, p.unit_type, maxStock)}
+                        onClick={() => handleUpdateQty(cart, setCart, p.id, -1, p.unit_type, 99999)}
                         className="w-10 h-10 bg-brand-muted/5 border border-brand-muted/10 text-brand-deep rounded-xl flex items-center justify-center active:scale-90 transition-transform"
                       >
                         <Minus size={18} />
@@ -1870,7 +1788,6 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                         value={qty || ''}
                         onChange={(e) => {
                           let val = parseFloat(e.target.value) || 0
-                          if (val > maxStock) val = maxStock
                           setCart(prev => {
                             const n = { ...prev }
                             if (val <= 0) delete n[p.id]
@@ -1882,8 +1799,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                         placeholder="0"
                       />
                       <button 
-                        onClick={() => handleUpdateQty(cart, setCart, p.id, 1, p.unit_type, maxStock)}
-                        disabled={qty >= maxStock}
+                        onClick={() => handleUpdateQty(cart, setCart, p.id, 1, p.unit_type, 99999)}
                         className="w-10 h-10 bg-brand-navy/10 border border-brand-navy/20 text-brand-navy rounded-xl flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30 disabled:bg-brand-muted/5 disabled:border-brand-muted/10 disabled:text-brand-muted"
                       >
                         <Plus size={18} />

@@ -21,7 +21,7 @@ async function executeSql(query) {
 }
 
 async function run() {
-  const sql = fs.readFileSync('../backend/update_v0.10_open_tickets.sql', 'utf-8');
+  const sql = fs.readFileSync('../backend/update_v0.11_global_stock.sql', 'utf-8');
   await executeSql(sql);
 }
 
