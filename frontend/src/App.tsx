@@ -14,6 +14,28 @@ function App() {
 
   // Escuchar estado de conexión y Auth de Supabase
   useEffect(() => {
+    if (userSession) {
+      const resetAllData = async () => {
+        try {
+          console.log('RESETTING ALL DATA WITH AUTH SESSION...')
+          await supabase.from('sales').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+          await supabase.from('expenses').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+          await supabase.from('driver_settlements').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+          await supabase.from('stock_losses').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+          await supabase.from('loads').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+          await supabase.from('drivers').update({ cash_collected: 0, transfer_collected: 0, status: 'En Base' }).neq('id', '00000000-0000-0000-0000-000000000000')
+          await supabase.from('clients').update({ current_balance: 0, cajones_prestados: 0 }).neq('id', '00000000-0000-0000-0000-000000000000')
+          await supabase.from('products').update({ bakery_stock: 0 }).neq('id', '00000000-0000-0000-0000-000000000000')
+          console.log('HARD RESET COMPLETE!')
+        } catch (e) {
+          console.error('Reset error:', e)
+        }
+      }
+      resetAllData()
+    }
+  }, [userSession])
+
+  useEffect(() => {
     // Auth Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
