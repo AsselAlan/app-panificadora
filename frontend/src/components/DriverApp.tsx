@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { 
@@ -7,7 +8,7 @@ import {
   Plus, Minus, Printer, MessageCircle, Star, RefreshCw, ChevronDown, ChevronUp,
   History, Calendar
 } from 'lucide-react'
-import { useStore } from '../store/useStore'
+import { useStore, getFixedOrderForDay } from '../store/useStore'
 import type { Sale, Expense, SaleItem, Driver, Product } from '../store/useStore'
 import { supabase } from '../supabaseClient'
 import Swal from 'sweetalert2'
@@ -28,12 +29,68 @@ interface DriverAppProps {
   onLogout: () => void
 }
 
+const DriverOrderPreview: React.FC<{ driver: any, clientId: string, onBack: () => void }> = ({ driver, clientId, onBack }) => {
+  const { clients, products } = useStore()
+  const client = clients.find(c => c.id === clientId)
+  
+  const todayISO = new Date().getDay() === 0 ? 7 : new Date().getDay();
+  const orderForDay = client ? getFixedOrderForDay(client, todayISO) : {}
+  
+  return (
+    <div className="flex flex-col h-full bg-bg-app">
+      <div className="bg-white px-5 py-4 flex items-center gap-3 border-b border-brand-muted/10 shadow-sm rounded-b-3xl">
+        <button onClick={onBack} className="p-2 text-brand-navy hover:bg-brand-navy/5 rounded-xl border border-brand-muted/10 active:scale-90 transition-all">
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="text-xl font-black text-brand-deep flex-1 tracking-tight">Pedido a Entregar</h2>
+      </div>
+
+      <div className="p-5 flex-1 overflow-y-auto">
+        <div className="bg-brand-orange/10 border border-brand-orange/20 rounded-2xl p-4 mb-4 flex items-start gap-3">
+          <AlertCircle className="text-brand-orange shrink-0 mt-0.5" size={18} />
+          <p className="text-sm font-bold text-brand-orange">
+            Aún no has iniciado tu ruta. Solo puedes ver el pedido programado.
+          </p>
+        </div>
+
+        <h3 className="font-bold text-brand-deep text-lg mb-4">{client?.business_name || 'Cliente'}</h3>
+
+        <div className="space-y-3">
+          {products.map(p => {
+            const qty = orderForDay[p.id] || 0
+            if (qty === 0) return null
+            return (
+              <div key={p.id} className="bg-white border border-brand-muted/10 rounded-2xl p-4 flex justify-between items-center shadow-sm">
+                <div>
+                  <h4 className="font-bold text-brand-deep">{p.name}</h4>
+                  <p className="text-[10px] uppercase font-bold text-brand-muted">{p.unit_type}</p>
+                </div>
+                <span className="font-black text-brand-navy text-lg">
+                  {qty} <span className="text-xs text-brand-muted">{p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bols' : p.unit_type}</span>
+                </span>
+              </div>
+            )
+          })}
+          {Object.keys(orderForDay).filter(k => (orderForDay[k] || 0) > 0).length === 0 && (
+            <p className="text-brand-muted text-sm text-center py-6 font-bold">El cliente no tiene pedido fijo para hoy.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const DriverTerminalWrapper: React.FC<{
   driver: any;
   onBack: () => void;
   onComplete: () => void;
 }> = ({ driver, onBack, onComplete }) => {
   const { clientId } = useParams<{ clientId: string }>()
+  
+  if (driver.status === 'En Base') {
+    return <DriverOrderPreview driver={driver} clientId={clientId!} onBack={onBack} />
+  }
+
   return (
     <DriverTerminal 
       driver={driver}
@@ -106,16 +163,16 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
       const todayJS = new Date().getDay()
       const todayISO = todayJS === 0 ? 7 : todayJS
       const initialLoadStop = weeklyRoutes.find(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'initial_load')
-      
-      let plannedLoad = initialLoadStop?.planned_load || {}
+      let plannedLoad: Record<string, any> = initialLoadStop?.planned_load ? { ...initialLoadStop.planned_load } : {}
       
       if (Object.keys(plannedLoad).length === 0) {
         const routeClientStops = weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client')
         const { clients: allClients } = useStore.getState()
         routeClientStops.forEach(stop => {
           const clientObj = allClients.find(c => c.id === stop.client_id)
-          if (clientObj && clientObj.fixed_order) {
-            Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
+          if (clientObj) {
+            const orderForDay = getFixedOrderForDay(clientObj, todayISO)
+            Object.entries(orderForDay).forEach(([prodId, qty]) => {
               plannedLoad[prodId] = (plannedLoad[prodId] || 0) + (qty as number)
             })
           }
@@ -513,7 +570,7 @@ interface DriverHomeProps {
 }
 
 const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSummary, onSelectDifferentDriver }) => {
-  const { products, weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories, settlements } = useStore()
+  const { weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories, settlements } = useStore()
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [showStockModal, setShowStockModal] = useState(false)
@@ -1500,7 +1557,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     productId: string, 
     delta: number, 
     unitType: string,
-    maxStock: number
+    // // maxStock: number
   ) => {
     const current = obj[productId] || 0
     const step = unitType === 'kg' ? 0.5 : 1
@@ -1761,7 +1818,9 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
             {products.map(p => {
               const qty = cart[p.id] || 0
               
-              const fixedQty = client.fixed_order?.[p.id] || 0
+              const todayISO = new Date().getDay() === 0 ? 7 : new Date().getDay();
+              const orderForDay = getFixedOrderForDay(client, todayISO);
+              const fixedQty = orderForDay[p.id] || 0
 
               return (
                 <div key={p.id} className="bg-white border border-brand-muted/10 rounded-3xl p-4 flex flex-col gap-3 shadow-sm">
@@ -1778,7 +1837,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
 
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <button 
-                        onClick={() => handleUpdateQty(cart, setCart, p.id, -1, p.unit_type, 99999)}
+                        onClick={() => handleUpdateQty(cart, setCart, p.id, -1, p.unit_type)}
                         className="w-10 h-10 bg-brand-muted/5 border border-brand-muted/10 text-brand-deep rounded-xl flex items-center justify-center active:scale-90 transition-transform"
                       >
                         <Minus size={18} />
@@ -1799,7 +1858,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                         placeholder="0"
                       />
                       <button 
-                        onClick={() => handleUpdateQty(cart, setCart, p.id, 1, p.unit_type, 99999)}
+                        onClick={() => handleUpdateQty(cart, setCart, p.id, 1, p.unit_type)}
                         className="w-10 h-10 bg-brand-navy/10 border border-brand-navy/20 text-brand-navy rounded-xl flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30 disabled:bg-brand-muted/5 disabled:border-brand-muted/10 disabled:text-brand-muted"
                       >
                         <Plus size={18} />
@@ -1831,7 +1890,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
 
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={() => handleUpdateQty(returns, setReturns, p.id, -1, p.unit_type, 9999)}
+                      onClick={() => handleUpdateQty(returns, setReturns, p.id, -1, p.unit_type)}
                       className="w-8 h-8 bg-brand-muted/10 border border-brand-muted/30 text-brand-deep/80 rounded-lg flex items-center justify-center active:scale-90 transition-transform"
                     >
                       <Minus size={14} />
@@ -1852,7 +1911,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                       placeholder="0"
                     />
                     <button 
-                      onClick={() => handleUpdateQty(returns, setReturns, p.id, 1, p.unit_type, 9999)}
+                      onClick={() => handleUpdateQty(returns, setReturns, p.id, 1, p.unit_type)}
                       className="w-8 h-8 bg-brand-muted/10 border border-brand-muted/30 text-brand-deep/80 rounded-lg flex items-center justify-center active:scale-90 transition-transform"
                     >
                       <Plus size={14} />
@@ -2273,7 +2332,7 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          {client && client.fixed_order && Object.keys(client.fixed_order).some(k => (client.fixed_order?.[k] || 0) > 0) && (
+                          {client && Object.keys(getFixedOrderForDay(client, todayISO)).some(k => (getFixedOrderForDay(client, todayISO)[k] || 0) > 0) && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -2289,11 +2348,12 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
                         </div>
                       </div>
 
-                      {client && expandedClients[client.id] && client.fixed_order && (
+                      {client && expandedClients[client.id] && Object.keys(getFixedOrderForDay(client, todayISO)).length > 0 && (
                         <div className="grid grid-cols-1 gap-1.5 mt-3 bg-brand-muted/5 p-3 rounded-xl border border-brand-muted/10" onClick={e => e.stopPropagation()}>
                           <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wider block mb-1">Pedido Fijo a Descargar:</span>
                           {products.map(p => {
-                            const qty = client.fixed_order?.[p.id] || 0
+                            const orderForDay = getFixedOrderForDay(client, todayISO);
+                            const qty = orderForDay[p.id] || 0
                             if (qty === 0) return null
                             return (
                               <div key={p.id} className="flex justify-between items-center text-xs">

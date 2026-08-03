@@ -53,11 +53,27 @@ export interface Client {
   current_balance: number;
   credit_limit: number | null;
   allow_credit: boolean;
-  fixed_order: Record<string, number> | null; // product_id -> qty
+  fixed_order: any | null; // Puede ser Record<string, number> (viejo) o Record<string, Record<string, number>> (nuevo)
   cajones_prestados: number;
   is_deleted?: boolean;
   updated_at?: string;
 }
+
+export function getFixedOrderForDay(client: Client | undefined | null, dayOfWeek: number): Record<string, number> {
+  if (!client || !client.fixed_order) return {};
+  
+  const order = client.fixed_order;
+  // Verificar si es el nuevo formato (tiene claves '1' a '7' y son objetos)
+  const isNewFormat = Object.keys(order).some(k => ['1','2','3','4','5','6','7'].includes(k) && typeof order[k] === 'object' && order[k] !== null);
+  
+  if (isNewFormat) {
+    return order[String(dayOfWeek)] || {};
+  } else {
+    // Formato viejo: aplica a todos los días
+    return order;
+  }
+}
+
 
 export interface Driver {
   id: string;
