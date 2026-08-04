@@ -14,7 +14,6 @@ export const POSLayout: React.FC = () => {
   const [returnsCart, setReturnsCart] = useState<Record<string, number>>({})
   const [payCash, setPayCash] = useState('')
   const [payTransfer, setPayTransfer] = useState('')
-  const [refundMethod, setRefundMethod] = useState<'efectivo' | 'transferencia' | 'ctacte'>('ctacte')
   const [vueltoACuenta, setVueltoACuenta] = useState(false)
   const [includeDebt, setIncludeDebt] = useState(false)
   const [showMobileCatalog, setShowMobileCatalog] = useState(false)
@@ -143,19 +142,9 @@ export const POSLayout: React.FC = () => {
           finalAccount = remaining
         }
       } else {
-        if (refundMethod === 'efectivo') {
-          finalCash = expectedTotal
-          finalTransfer = 0
-          finalAccount = 0
-        } else if (refundMethod === 'transferencia') {
-          finalCash = 0
-          finalTransfer = expectedTotal
-          finalAccount = 0
-        } else {
-          finalCash = 0
-          finalTransfer = 0
-          finalAccount = expectedTotal
-        }
+        finalCash = 0
+        finalTransfer = 0
+        finalAccount = expectedTotal
       }
 
       const cleanItems = [
@@ -394,15 +383,13 @@ export const POSLayout: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded-xl mt-3 mb-2">
-              <p className="text-[10px] font-bold text-orange-600 mb-2 uppercase text-center">Método de Reintegro</p>
-              <div className="flex gap-2">
-                <button onClick={() => setRefundMethod('efectivo')} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${refundMethod === 'efectivo' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>Efectivo</button>
-                <button onClick={() => setRefundMethod('transferencia')} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${refundMethod === 'transferencia' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>Transf.</button>
-                {activeClient && (
-                  <button onClick={() => setRefundMethod('ctacte')} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${refundMethod === 'ctacte' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>Cta. Cte.</button>
-                )}
-              </div>
+            <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded-xl mt-3 mb-2 text-center">
+              <p className="text-[11px] font-bold text-orange-600 uppercase flex items-center justify-center gap-1.5">
+                <Users size={14} /> Devolución a Cuenta Corriente
+              </p>
+              <p className="text-[11px] font-semibold text-brand-deep mt-1 leading-tight">
+                El monto (-${Math.abs(expectedTotal).toLocaleString()}) se acreditará a la Cuenta Corriente del cliente.
+              </p>
             </div>
           )}
 
