@@ -57,6 +57,18 @@ export const handler = async (event, context) => {
   const { action, payload } = body
 
   try {
+    if (action === 'resetDatabase') {
+      await supabaseAdmin.from('sales').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabaseAdmin.from('expenses').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabaseAdmin.from('driver_settlements').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabaseAdmin.from('stock_losses').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabaseAdmin.from('loads').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabaseAdmin.from('drivers').update({ cash_collected: 0, transfer_collected: 0, status: 'En Base' }).neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabaseAdmin.from('clients').update({ current_balance: 0, cajones_prestados: 0 }).neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabaseAdmin.from('products').update({ bakery_stock: 0 }).neq('id', '00000000-0000-0000-0000-000000000000')
+      return { statusCode: 200, body: JSON.stringify({ message: 'Database reset successfully' }) }
+    }
+
     if (action === 'createUser') {
       const { email, password, role, fullName } = payload
       
