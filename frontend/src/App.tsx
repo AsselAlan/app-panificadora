@@ -13,28 +13,6 @@ function App() {
   const [loadingAuth, setLoadingAuth] = useState(true)
 
   // Escuchar estado de conexión y Auth de Supabase
-  useEffect(() => {
-    if (userSession) {
-      const resetAllData = async () => {
-        try {
-          console.log('CALLING NETLIFY FUNCTION TO RESET DATABASE WITH SERVICE ROLE...')
-          const res = await fetch('/.netlify/functions/manage-users', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${userSession.access_token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ action: 'resetDatabase' })
-          })
-          const resData = await res.json()
-          console.log('NETLIFY HARD RESET RESULT:', resData)
-        } catch (e) {
-          console.error('Reset error:', e)
-        }
-      }
-      resetAllData()
-    }
-  }, [userSession])
 
   useEffect(() => {
     // Auth Listener
