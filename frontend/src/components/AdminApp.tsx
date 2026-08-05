@@ -2230,110 +2230,110 @@ const AdminClients: React.FC = () => {
       <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl overflow-hidden shadow-lg">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-bg-app text-brand-muted/80 border-b border-brand-muted/20/80">
-                <th className="px-6 py-4 font-bold uppercase tracking-wider">Cliente</th>
-                <th className="px-6 py-4 font-bold uppercase tracking-wider">Contacto</th>
-                <th className="px-6 py-4 font-bold uppercase tracking-wider">Tarifa</th>
-                <th className="px-6 py-4 font-bold uppercase tracking-wider text-center">Cajones</th>
-                <th className="px-6 py-4 font-bold uppercase tracking-wider">Acciones / CC</th>
-                <th className="px-6 py-4 font-bold uppercase tracking-wider text-right">Saldo Actual</th>
+          <thead>
+            <tr className="bg-bg-app text-brand-muted/80 border-b border-brand-muted/20/80">
+              <th className="px-6 py-4 font-bold uppercase tracking-wider">Cliente</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider">Contacto</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider">Tarifa</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider text-center">Cajones</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider">Acciones / CC</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider text-right">Saldo Actual</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-850">
+            {filteredClients.map(c => (
+              <tr key={c.id} className="hover:bg-brand-muted/5/20 transition-colors">
+                <td className="px-6 py-4">
+                  <span className="font-bold text-brand-deep block">{c.business_name}</span>
+                  <span className="text-[10px] text-brand-muted/80">{c.client_type}</span>
+                </td>
+                <td className="px-6 py-4 text-brand-muted">
+                  <span className="block">{c.phone || '-'}</span>
+                  <span className="text-[10px] truncate max-w-[120px]">{c.email}</span>
+                </td>
+                <td className="px-6 py-4 font-bold text-brand-navy">Cat. {c.price_category}</td>
+                <td className="px-6 py-4 text-center">
+                  <span className={`font-black ${c.cajones_prestados > 0 ? 'text-brand-orange' : 'text-brand-muted/50'}`}>
+                    📦 {c.cajones_prestados || 0}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button 
+                      onClick={() => setSelectedClientForHistory(c)}
+                      title="Ver Historial y Estadísticas"
+                      className="p-1.5 bg-brand-navy/10 text-brand-navy hover:bg-brand-navy/20 rounded-lg transition-colors"
+                    >
+                      <History size={16} />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setEditingClient(c)
+                        setEditBusinessName(c.business_name)
+                        setEditLegalName(c.legal_name || '')
+                        setEditClientType(c.client_type)
+                        setEditPhone(c.phone || '')
+                        setEditEmail(c.email || '')
+                        setEditCuit(c.cuit || '')
+                        setEditAddress(c.address)
+                        setEditCategory(c.price_category)
+                        setEditAllowCredit(c.allow_credit)
+                        setEditCreditLimit(c.credit_limit || 0)
+                      }}
+                      title="Editar Cliente"
+                      className="p-1.5 bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 rounded-lg transition-colors"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button 
+                      onClick={() => setSelectedClientForFixedOrder(c)}
+                      title="Configurar Pedido Fijo"
+                      className="p-1.5 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20 rounded-lg transition-colors"
+                    >
+                      <Package size={16} />
+                    </button>
+                    {c.current_balance < 0 && (
+                      <button 
+                        onClick={() => setSelectedClientForDebt(c)}
+                        title="Cobrar Deuda en Local"
+                        className="p-1.5 bg-green-500 text-white hover:bg-green-600 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-1 font-bold text-[10px] px-2"
+                      >
+                        <Banknote size={14} /> Cobrar
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => handleReturnCajones(c)}
+                      title="Devolver Cajones en Local"
+                      className="p-1.5 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-lg transition-colors"
+                    >
+                      <ArchiveRestore size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteClient(c.id, c.business_name)}
+                      title="Eliminar Cliente"
+                      className="p-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => toggleCredit(c.id, c.allow_credit)}
+                      className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors ${c.allow_credit ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-brand-muted/5 text-brand-muted/80 border-brand-muted/20'}`}
+                    >
+                      {c.allow_credit ? 'Habilitado' : 'Inactivo'}
+                    </button>
+                  </div>
+                </td>
+                <td className={`px-6 py-4 text-right font-black ${c.current_balance < 0 ? 'text-red-400' : c.current_balance > 0 ? 'text-green-400' : 'text-brand-muted/80'}`}>
+                  ${Math.abs(c.current_balance).toLocaleString()} {c.current_balance < 0 ? '(Deuda)' : c.current_balance > 0 ? '(A favor)' : ''}
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-850">
-              {filteredClients.map(c => (
-                <tr key={c.id} className="hover:bg-brand-muted/5/20 transition-colors">
-                  <td className="px-6 py-4">
-                    <span className="font-bold text-brand-deep block">{c.business_name}</span>
-                    <span className="text-[10px] text-brand-muted/80">{c.client_type}</span>
-                  </td>
-                  <td className="px-6 py-4 text-brand-muted">
-                    <span className="block">{c.phone || '-'}</span>
-                    <span className="text-[10px] truncate max-w-[120px]">{c.email}</span>
-                  </td>
-                  <td className="px-6 py-4 font-bold text-brand-navy">Cat. {c.price_category}</td>
-                  <td className="px-6 py-4 text-center">
-                    <span className={`font-black ${c.cajones_prestados > 0 ? 'text-brand-orange' : 'text-brand-muted/50'}`}>
-                      📦 {c.cajones_prestados || 0}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button 
-                        onClick={() => setSelectedClientForHistory(c)}
-                        title="Ver Historial y Estadísticas"
-                        className="p-1.5 bg-brand-navy/10 text-brand-navy hover:bg-brand-navy/20 rounded-lg transition-colors"
-                      >
-                        <History size={16} />
-                      </button>
-                      <button 
-                        onClick={() => {
-                          setEditingClient(c)
-                          setEditBusinessName(c.business_name)
-                          setEditLegalName(c.legal_name || '')
-                          setEditClientType(c.client_type)
-                          setEditPhone(c.phone || '')
-                          setEditEmail(c.email || '')
-                          setEditCuit(c.cuit || '')
-                          setEditAddress(c.address)
-                          setEditCategory(c.price_category)
-                          setEditAllowCredit(c.allow_credit)
-                          setEditCreditLimit(c.credit_limit || 0)
-                        }}
-                        title="Editar Cliente"
-                        className="p-1.5 bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 rounded-lg transition-colors"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button 
-                        onClick={() => setSelectedClientForFixedOrder(c)}
-                        title="Configurar Pedido Fijo"
-                        className="p-1.5 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20 rounded-lg transition-colors"
-                      >
-                        <Package size={16} />
-                      </button>
-                      {c.current_balance < 0 && (
-                        <button 
-                          onClick={() => setSelectedClientForDebt(c)}
-                          title="Cobrar Deuda en Local"
-                          className="p-1.5 bg-green-500 text-white hover:bg-green-600 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-1 font-bold text-[10px] px-2"
-                        >
-                          <Banknote size={14} /> Cobrar
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => handleReturnCajones(c)}
-                        title="Devolver Cajones en Local"
-                        className="p-1.5 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-lg transition-colors"
-                      >
-                        <ArchiveRestore size={16} />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteClient(c.id, c.business_name)}
-                        title="Eliminar Cliente"
-                        className="p-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                      <button 
-                        onClick={() => toggleCredit(c.id, c.allow_credit)}
-                        className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors ${c.allow_credit ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-brand-muted/5 text-brand-muted/80 border-brand-muted/20'}`}
-                      >
-                        {c.allow_credit ? 'Habilitado' : 'Inactivo'}
-                      </button>
-                    </div>
-                  </td>
-                  <td className={`px-6 py-4 text-right font-black ${c.current_balance < 0 ? 'text-red-400' : c.current_balance > 0 ? 'text-green-400' : 'text-brand-muted/80'}`}>
-                    ${Math.abs(c.current_balance).toLocaleString()} {c.current_balance < 0 ? '(Deuda)' : c.current_balance > 0 ? '(A favor)' : ''}
-                  </td>
-                </tr>
-              ))}
-              {clients.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="text-center py-10 text-brand-muted/80">No hay clientes creados.</td>
-                </tr>
-              )}
-            </tbody>
+            ))}
+            {clients.length === 0 && (
+              <tr>
+                <td colSpan={5} className="text-center py-10 text-brand-muted/80">No hay clientes creados.</td>
+              </tr>
+            )}
+          </tbody>
           </table>
         </div>
       </div>
@@ -2477,7 +2477,7 @@ const AdminClients: React.FC = () => {
                     checked={editAllowCredit}
                     onChange={e => {
                       setEditAllowCredit(e.target.checked)
-                      if (!e.target.checked) setCreditLimit(0)
+                      if (!e.target.checked) setEditCreditLimit(0)
                     }}
                     className="w-4 h-4 rounded text-blue-600 bg-brand-muted/10 border-brand-muted/20"
                   />
@@ -3627,7 +3627,86 @@ const AdminProducts: React.FC = () => {
       )}
 
       <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl overflow-hidden shadow-lg">
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[800px] text-left border-collapse text-xs">
+          <thead>
+            <tr className="bg-bg-app text-brand-muted/80 border-b border-brand-muted/20/80">
+              <th className="px-6 py-4 font-bold uppercase tracking-wider text-center">Orden</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider">Producto</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider">Unidad</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider">Precio Cat. A</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider">Precio Cat. B</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider text-right">Stock Fábrica</th>
+              <th className="px-6 py-4 font-bold uppercase tracking-wider text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-850">
+            {products.map(p => (
+              <tr key={p.id} className={`hover:bg-brand-muted/5/20 transition-all ${p.is_paused ? 'opacity-50 bg-slate-900/5' : ''}`}>
+                <td className="px-6 py-4 font-bold text-brand-muted text-center">{p.display_order || 0}</td>
+                <td className="px-6 py-4 font-bold text-brand-deep">
+                  <div className="flex items-center gap-2">
+                    {p.name}
+                    {p.is_paused && (
+                      <span className="text-[9px] font-bold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded border border-orange-200">Pausado</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <span className="px-2 py-0.5 bg-brand-muted/10 text-brand-muted rounded-md border border-brand-muted/20 font-semibold">{p.unit_type}</span>
+                </td>
+                <td className="px-6 py-4 font-bold text-brand-navy">${p.price_a}</td>
+                <td className="px-6 py-4 font-bold text-indigo-400">${p.price_b}</td>
+                <td className="px-6 py-4 text-right text-brand-muted font-semibold">{p.bakery_stock} {p.unit_type}</td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => handleViewProduct(p)}
+                      className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Ver Detalles"
+                    >
+                      <Eye size={15} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingProduct(p)
+                        setEditName(p.name)
+                        setEditUnitType(p.unit_type)
+                        setEditPriceA(p.price_a.toString())
+                        setEditPriceB(p.price_b.toString())
+                        setEditDisplayOrder((p.display_order || 0).toString())
+                      }}
+                      className="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                      title="Editar"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleTogglePauseProduct(p)}
+                      className={`p-1.5 rounded-lg transition-colors ${p.is_paused ? 'text-green-600 hover:bg-green-50' : 'text-orange-500 hover:bg-orange-50'}`}
+                      title={p.is_paused ? 'Activar' : 'Pausar'}
+                    >
+                      {p.is_paused ? <Play size={15} /> : <Pause size={15} />}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteProduct(p.id, p.name)}
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Borrar"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {products.length === 0 && (
+              <tr>
+                <td colSpan={6} className="text-center py-10 text-brand-muted/80">No hay productos cargados en catálogo.</td>
+              </tr>
+            )}
+          </tbody>
+          </table>
+        </div>
       </div>
 
       {/* MODAL DE EDICIÓN */}
