@@ -58,10 +58,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ isOffline }) => {
         </div>
 
         <h1 className="text-3xl font-black text-brand-deep mb-2 tracking-tight">
-          Panificadora <span className="text-orange-500">System</span>
+          Panificadora FENIX
         </h1>
         <p className="text-brand-muted mb-8 text-sm font-medium">
-          Ingresa tus credenciales para acceder
+          Sistema de Gestión
         </p>
 
         {errorMsg && (
@@ -86,7 +86,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ isOffline }) => {
                 required
                 disabled={loading || isOffline}
                 className="w-full bg-bg-app border border-brand-muted/30 text-brand-deep rounded-xl pl-11 pr-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-brand-navy/30 focus:border-brand-navy transition-all placeholder:text-brand-muted/50"
-                placeholder="usuario@panificadora.com"
+                placeholder="usuario@panificadorafenix.com"
               />
             </div>
           </div>
@@ -119,7 +119,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ isOffline }) => {
         </form>
 
         <div className="mt-8 pt-6 border-t border-brand-muted/10 text-xs text-brand-muted/80 font-medium">
-          Software de Gestión Panificadora v0.2
+          Software de Gestión Panificadora FENIX v0.2
         </div>
       </div>
     </div>

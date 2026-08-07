@@ -1644,7 +1644,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
 
   const handleWhatsApp = () => {
     if (!generatedTicket) return
-    let text = `🍞 *PANIFICADORA*\n🎫 Ticket #${generatedTicket.id.substring(0, 8).toUpperCase()}\n👤 Cliente: ${generatedTicket.client_name}\n📅 Fecha: ${new Date(generatedTicket.transaction_date).toLocaleString('es-AR')}\n--------------------------------\n`
+    let text = `🍞 *PANIFICADORA FENIX*\n🎫 Ticket #${generatedTicket.id.substring(0, 8).toUpperCase()}\n👤 Cliente: ${generatedTicket.client_name}\n📅 Fecha: ${new Date(generatedTicket.transaction_date).toLocaleString('es-AR')}\n--------------------------------\n`
     if (subtotalSales > 0) {
       text += `*DESPACHO:*\n`
       generatedTicket.items.filter(i => i.operation_type === 'sale').forEach(item => text += `• ${item.quantity}x ${item.name} - $${item.quantity * item.unit_price}\n`)
@@ -1683,7 +1683,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
         <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start">
           <div className="bg-amber-50/5 text-brand-deep/80 w-full max-w-[280px] p-5 shadow-2xl rounded-2xl border border-brand-muted/20 text-xs font-mono relative leading-relaxed">
             <div className="text-center mb-4 border-b border-brand-muted/20/80 pb-3">
-              <h1 className="font-black text-sm text-brand-deep tracking-wide">PANIFICADORA</h1>
+              <h1 className="font-black text-sm text-brand-deep tracking-wide">PANIFICADORA FENIX</h1>
               <p className="text-[10px] text-brand-muted/80 mt-0.5">Comprobante de Venta</p>
               <p className="text-[9px] text-slate-600 mt-1">Ticket: {generatedTicket.id.substring(0, 8).toUpperCase()}</p>
               <p className="text-[9px] text-slate-600">{new Date(generatedTicket.transaction_date).toLocaleString('es-AR')}</p>
@@ -2451,7 +2451,7 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
   // WhatsApp helper
   const handleWhatsApp = (ticket: Sale) => {
     const clientObj = clients.find(c => c.id === ticket.client_id)
-    let text = `🍞 *PANIFICADORA*\n🎫 Ticket #${ticket.id.substring(0, 8).toUpperCase()}\n👤 Cliente: ${ticket.client_name || clientObj?.business_name || 'Cliente'}\n📅 Fecha: ${new Date(ticket.transaction_date).toLocaleString('es-AR')}\n--------------------------------\n`
+    let text = `🍞 *PANIFICADORA FENIX*\n🎫 Ticket #${ticket.id.substring(0, 8).toUpperCase()}\n👤 Cliente: ${ticket.client_name || clientObj?.business_name || 'Cliente'}\n📅 Fecha: ${new Date(ticket.transaction_date).toLocaleString('es-AR')}\n--------------------------------\n`
     
     const salesItems = ticket.items.filter(i => i.operation_type === 'sale')
     if (salesItems.length > 0) {
@@ -2666,7 +2666,7 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
             <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start">
               <div className="bg-amber-50/5 text-brand-deep/80 w-full max-w-[280px] p-5 shadow-inner rounded-2xl border border-brand-muted/20 text-xs font-mono relative leading-relaxed">
                 <div className="text-center mb-4 border-b border-brand-muted/20 pb-3">
-                  <h1 className="font-black text-sm text-brand-deep tracking-wide">PANIFICADORA</h1>
+                  <h1 className="font-black text-sm text-brand-deep tracking-wide">PANIFICADORA FENIX</h1>
                   <p className="text-[10px] text-brand-muted/80 mt-0.5">Comprobante de Venta</p>
                   <p className="text-[9px] text-slate-600 mt-1">Ticket: {selectedTicket.id.substring(0, 8).toUpperCase()}</p>
                   <p className="text-[9px] text-slate-600">{new Date(selectedTicket.transaction_date).toLocaleString('es-AR')}</p>

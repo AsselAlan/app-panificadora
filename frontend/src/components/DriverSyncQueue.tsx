@@ -24,7 +24,7 @@ export const DriverSyncQueue: React.FC<DriverSyncQueueProps> = ({ onBack, onEdit
   const buildWhatsAppText = (sale: any) => {
     const total = sale.final_total?.toFixed(2) || '0.00'
     const date = new Date(sale.transaction_date).toLocaleString('es-AR')
-    return `*Panificadora - Comprobante de Venta*\nFecha: ${date}\nTotal: $${total}\n\n*Muchas gracias por su compra!*`
+    return `*Panificadora FENIX - Comprobante de Venta*\nFecha: ${date}\nTotal: $${total}\n\n*Muchas gracias por su compra!*`
   }
 
   const handleWhatsApp = (sale: any) => {

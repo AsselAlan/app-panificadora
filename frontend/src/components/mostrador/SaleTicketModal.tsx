@@ -37,17 +37,17 @@ export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => vo
   `
 
   const buildWhatsAppText = () => {
-    let text = `🍞 *PANIFICADORA*\n🧾 *TICKET DE COMPRA*\n👤 Cliente: ${data.client_name}\n📅 Fecha: ${new Date(data.date).toLocaleString('es-AR')}\n--------------------------------\n`
+    let text = `🍞 *PANADERIA *\n🧾 *TICKET DE COMPRA*\n👤 Cliente: ${data.client_name}\n📅 Fecha: ${new Date(data.date).toLocaleString('es-AR')}\n--------------------------------\n`
     data.items.forEach(item => {
       text += `• ${item.quantity}x ${item.name} ($${item.unit_price}) = $${item.subtotal.toLocaleString()}\n`
     })
     text += `--------------------------------\n💰 *TOTAL:* $${data.subtotal_sales.toLocaleString()}\n`
-    
+
     if (data.payment_cash > 0) text += `💵 Efectivo: $${data.payment_cash.toLocaleString()}\n`
     if (data.payment_transfer > 0) text += `📱 Transf.: $${data.payment_transfer.toLocaleString()}\n`
     if (data.payment_account > 0) text += `📒 A Cta. Cte.: $${data.payment_account.toLocaleString()}\n`
     if (data.payment_account < 0) text += `💳 Vuelto / A favor: $${Math.abs(data.payment_account).toLocaleString()}\n`
-    
+
     text += `\n¡Gracias por su compra!`
     return text
   }
@@ -72,11 +72,11 @@ export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => vo
           <div className="bg-white p-4 shadow-sm rounded-xl w-full font-mono text-xs text-black mb-4" id="sale-ticket-print">
             {/* Cabecera */}
             <div className="center mb-3">
-              <p className="title">PANIFICADORA</p>
+              <p className="title">PANIFICADORA FENIX</p>
               <p className="subtitle">Ticket de Venta</p>
             </div>
             <hr className="divider" />
-            
+
             {/* Datos */}
             <div style={{ marginBottom: '4px' }}>
               <div className="row-sm"><span>Fecha:</span><span>{new Date(data.date).toLocaleDateString('es-AR')}</span></div>
@@ -84,7 +84,7 @@ export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => vo
               <div className="row-sm"><span>Cliente:</span><span className="bold">{data.client_name}</span></div>
             </div>
             <hr className="divider" />
-            
+
             {/* Items */}
             <p className="section-title">Detalle</p>
             {data.items.map((item, idx) => (
@@ -96,15 +96,15 @@ export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => vo
                 </div>
               </div>
             ))}
-            
+
             <hr className="divider" />
-            
+
             {/* Totales */}
             <div className="total-row">
               <span>TOTAL:</span>
               <span>${data.subtotal_sales.toLocaleString()}</span>
             </div>
-            
+
             <div style={{ marginTop: '6px' }}>
               {data.payment_cash > 0 && (
                 <div className="row-sm"><span>Efectivo:</span><span>${data.payment_cash.toLocaleString()}</span></div>
@@ -119,7 +119,7 @@ export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => vo
                 <div className="row-sm"><span>Vuelto / A favor:</span><span>${Math.abs(data.payment_account).toLocaleString()}</span></div>
               )}
             </div>
-            
+
             <hr className="divider" />
             <div className="footer">
               <p>*** DOC. NO VALIDO COMO FACTURA ***</p>

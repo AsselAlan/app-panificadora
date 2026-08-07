@@ -70,7 +70,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
   ].join('\n')
 
   const buildWhatsAppText = () => {
-    let text = 'PANIFICADORA\nRECIBO DE PAGO\nTicket #' + data.id +
+    let text = 'PANIFICADORA FENIX\nRECIBO DE PAGO\nTicket #' + data.id +
       '\nCliente: ' + data.client_name +
       '\nFecha: ' + new Date(data.date).toLocaleString('es-AR') + '\n'
     text += '--------------------------------\nMonto Abonado: $' + data.amount.toLocaleString() +
@@ -124,7 +124,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
 
             {/* Cabecera */}
             <div className="center mb-3">
-              <p className="title">PANIFICADORA</p>
+              <p className="title">PANIFICADORA FENIX</p>
               <p className="subtitle">Comprobante de Pago a Cta. Cte.</p>
               <p className="subtitle" style={{ marginTop: '2px' }}>N {data.id}</p>
             </div>

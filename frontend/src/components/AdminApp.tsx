@@ -67,7 +67,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
           <div className="w-8 h-8 bg-brand-orange/10 text-orange-500 rounded-lg flex items-center justify-center">
             <Truck size={18} />
           </div>
-          Panificadora <span className="text-orange-500 text-xs font-bold bg-brand-orange/10 px-2 py-0.5 rounded-full border border-orange-500/20">Admin</span>
+          Panificadora FENIX <span className="text-orange-500 text-xs font-bold bg-brand-orange/10 px-2 py-0.5 rounded-full border border-orange-500/20">Admin</span>
         </div>
         <nav className="flex-1 py-6 space-y-1 overflow-y-auto px-4">
           {[
