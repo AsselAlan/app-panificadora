@@ -571,6 +571,125 @@ const DriverStockModal: React.FC<DriverStockModalProps> = ({ driver, onClose }) 
 // ==========================================
 // COMPONENTE: DRIVER HOME
 // ==========================================
+// ==========================================
+// COMPONENTE: DRIVER LOAD STOPS MODAL
+// ==========================================
+interface DriverLoadStopsModalProps {
+  driver: any;
+  onClose: () => void;
+}
+
+const DriverLoadStopsModal: React.FC<DriverLoadStopsModalProps> = ({ driver, onClose }) => {
+  const { weeklyRoutes, products, clients } = useStore()
+  
+  const todayJS = new Date().getDay()
+  const todayISO = todayJS === 0 ? 7 : todayJS
+
+  const initialLoadStop = useMemo(() => {
+    return weeklyRoutes.find(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'initial_load')
+  }, [weeklyRoutes, driver.id, todayISO])
+
+  const plannedLoad = useMemo(() => {
+    if (initialLoadStop && initialLoadStop.planned_load && Object.keys(initialLoadStop.planned_load).length > 0) {
+      return initialLoadStop.planned_load
+    }
+    const suggested: Record<string, number> = {}
+    const routeClientStops = weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client')
+    routeClientStops.forEach(stop => {
+      const clientObj = clients.find(c => c.id === stop.client_id)
+      if (clientObj) {
+        const orderForDay = getFixedOrderForDay(clientObj, todayISO)
+        Object.entries(orderForDay).forEach(([prodId, qty]) => {
+          suggested[prodId] = (suggested[prodId] || 0) + (qty as number)
+        })
+      }
+    })
+    return suggested
+  }, [initialLoadStop, weeklyRoutes, driver.id, todayISO, clients])
+
+  const intermediateLoadStops = useMemo(() => {
+    return weeklyRoutes
+      .filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'load')
+      .sort((a, b) => a.route_order - b.route_order)
+  }, [weeklyRoutes, driver.id, todayISO])
+
+  const hasInitialLoad = Object.keys(plannedLoad).length > 0
+
+  return (
+    <div className="absolute inset-0 bg-bg-app/80 z-50 flex justify-center pt-16 pb-6 px-4 backdrop-blur-md animate-in fade-in">
+      <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
+        <div className="p-5 border-b border-brand-muted/20 bg-brand-navy/5 rounded-t-3xl flex justify-between items-center text-brand-deep">
+          <div>
+            <h3 className="text-lg font-bold text-brand-deep flex items-center gap-2">
+              <Package size={20} className="text-brand-navy"/> Paradas de Carga
+            </h3>
+            <p className="text-xs text-brand-muted mt-0.5">Mercadería a cargar durante el recorrido.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-brand-muted hover:bg-brand-muted/10 rounded-full transition-colors">
+            <X size={18}/>
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="bg-white border border-brand-muted/10 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-brand-orange"></div>
+            <h4 className="font-bold text-brand-deep text-sm mb-3">Primera Carga (Base)</h4>
+            {hasInitialLoad ? (
+              <div className="space-y-2">
+                {products.map(p => {
+                  const qtyInfo = getPlannedLoadQty(plannedLoad, p.id)
+                  if (qtyInfo.total === 0) return null
+                  return (
+                    <div key={p.id} className="flex justify-between items-center text-xs border-b border-brand-muted/5 pb-2 last:border-b-0 last:pb-0">
+                      <div className="flex flex-col">
+                        <span className="text-brand-deep font-semibold">{p.name}</span>
+                        <span className="text-[9px] text-brand-muted font-bold">Pedidos: {qtyInfo.fixed} {p.unit_type} | Mostrador: {qtyInfo.extra} {p.unit_type}</span>
+                      </div>
+                      <span className="font-black text-brand-navy bg-brand-navy/10 px-2.5 py-0.5 rounded text-[11px]">{qtyInfo.total} {p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bols' : p.unit_type}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-brand-muted/80 italic">Sin mercadería planificada.</p>
+            )}
+          </div>
+
+          {intermediateLoadStops.map((stop, index) => {
+            const stopLoad = stop.planned_load || {}
+            const stopHasLoad = Object.keys(stopLoad).length > 0
+            return (
+              <div key={stop.id} className="bg-white border border-brand-muted/10 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1 h-full bg-brand-navy"></div>
+                <h4 className="font-bold text-brand-deep text-sm mb-3">Recarga en Ruta #{index + 1}</h4>
+                {stopHasLoad ? (
+                  <div className="space-y-2">
+                    {products.map(p => {
+                      const qtyInfo = getPlannedLoadQty(stopLoad, p.id)
+                      if (qtyInfo.total === 0) return null
+                      return (
+                        <div key={p.id} className="flex justify-between items-center text-xs border-b border-brand-muted/5 pb-2 last:border-b-0 last:pb-0">
+                          <div className="flex flex-col">
+                            <span className="text-brand-deep font-semibold">{p.name}</span>
+                            <span className="text-[9px] text-brand-muted font-bold">Pedidos: {qtyInfo.fixed} {p.unit_type} | Mostrador: {qtyInfo.extra} {p.unit_type}</span>
+                          </div>
+                          <span className="font-black text-brand-orange bg-brand-orange/10 px-2.5 py-0.5 rounded text-[11px]">{qtyInfo.total} {p.unit_type === 'unidad' ? 'u' : p.unit_type === 'docena' ? 'doc' : p.unit_type === 'bolsa' ? 'bols' : p.unit_type}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-brand-muted/80 italic">Sin mercadería planificada.</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface DriverHomeProps {
   driver: Driver
   onNewSale: () => void
@@ -586,6 +705,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
   const [showStockModal, setShowStockModal] = useState(false)
   const [showStockLoadModal, setShowStockLoadModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [showLoadStopsModal, setShowLoadStopsModal] = useState(false)
   const [expAmount, setExpAmount] = useState('')
   const [expCategory, setExpCategory] = useState('')
   const [expDesc, setExpDesc] = useState('')
@@ -726,6 +846,13 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
           >
             <MapPin size={20} /> Iniciar Recorrido
           </button>
+          
+          <button 
+            onClick={() => setShowLoadStopsModal(true)} 
+            className="bg-white hover:bg-brand-navy/5 text-brand-orange border border-brand-orange/30 w-full py-3.5 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          >
+            <Package size={18} /> Paradas de Carga
+          </button>
 
           <button 
             onClick={() => setShowHistoryModal(true)} 
@@ -738,6 +865,11 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
         {/* Modal de Historial */}
         {showHistoryModal && (
           <DriverHistoryModal driver={driver} onClose={() => setShowHistoryModal(false)} />
+        )}
+
+        {/* Modal Paradas de Carga */}
+        {showLoadStopsModal && (
+          <DriverLoadStopsModal driver={driver} onClose={() => setShowLoadStopsModal(false)} />
         )}
 
         {/* Modal Checklist Carga Editabe Eliminado por migración a stock global */}
@@ -881,7 +1013,21 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
           <ChevronRight size={24} className="text-white/50" />
         </button>
 
-        {/* Botón Carga de Stock Ocultado por migración a Stock Global */}
+        {/* Paradas de Carga */}
+        <button 
+          onClick={() => setShowLoadStopsModal(true)} 
+          className="bg-white hover:bg-brand-orange/5 text-brand-orange border border-brand-orange/20 rounded-3xl p-5 flex items-center gap-4 shadow-sm active:scale-[0.98] transition-all w-full"
+        >
+          <div className="bg-brand-orange/10 p-3 rounded-2xl text-brand-orange">
+            <Package size={24} />
+          </div>
+          <div className="text-left flex-1">
+            <span className="block font-bold text-sm mb-0.5 text-brand-orange">Paradas de Carga</span>
+            <span className="text-[10px] font-semibold text-brand-muted">Ver mercadería a cargar hoy</span>
+          </div>
+          <ChevronRight size={20} className="text-brand-orange/40" />
+        </button>
+
         {/* Gastos y Resumen */}
         <div className="grid grid-cols-2 gap-3">
           <button 
