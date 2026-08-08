@@ -86,7 +86,16 @@ const DriverTerminalWrapper: React.FC<{
   onComplete: () => void;
 }> = ({ driver, onBack, onComplete }) => {
   const { clientId } = useParams<{ clientId: string }>()
+  const client = useStore(state => state.clients.find(c => c.id === clientId))
   
+  if (!client) {
+    return (
+      <div className="flex h-full items-center justify-center bg-bg-app">
+        <div className="text-brand-navy animate-pulse font-bold text-sm">Cargando...</div>
+      </div>
+    )
+  }
+
   if (driver.status === 'En Base') {
     return <DriverOrderPreview driver={driver} clientId={clientId!} onBack={onBack} />
   }
