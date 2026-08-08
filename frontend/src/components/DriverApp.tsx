@@ -16,13 +16,46 @@ import { DriverSyncQueue } from './DriverSyncQueue'
 import { CloudOff } from 'lucide-react'
 const getPlannedLoadQty = (plannedLoad: any, productId: string): { fixed: number; extra: number; total: number } => {
   const item = plannedLoad?.[productId];
-  if (typeof item === 'object' && item !== null) {
-    const fixed = Number(item.fixed) || 0;
-    const extra = Number(item.extra) || 0;
-    return { fixed, extra, total: fixed + extra };
+  if (!item) return { fixed: 0, extra: 0, total: 0 };
+  
+  // Compatibilidad con el formato antiguo (solo un número)
+  if (typeof item === 'number') {
+    return { fixed: item, extra: 0, total: item };
   }
-  const val = Number(item) || 0;
-  return { fixed: val, extra: 0, total: val };
+  
+  // Nuevo formato: { fixed: number, extra: number }
+  const fixed = Number(item.fixed) || 0;
+  const extra = Number(item.extra) || 0;
+  return { fixed, extra, total: fixed + extra };
+}
+
+const getSuggestedLoadForDriver = (
+  weeklyRoutes: any[],
+  clients: any[],
+  driverId: string,
+  todayISO: number,
+  stopOrder: number // -1 for initial load, or route_order for intermediate
+) => {
+  const suggested: Record<string, number> = {}
+  const currentRoute = weeklyRoutes
+    .filter(r => r.driver_id === driverId && r.day_of_week === todayISO && r.stop_type !== 'initial_load')
+    .sort((a, b) => a.route_order - b.route_order)
+
+  const stopIndex = stopOrder === -1 ? -1 : currentRoute.findIndex(r => r.route_order === stopOrder)
+  
+  for (let i = stopIndex + 1; i < currentRoute.length; i++) {
+    const stop = currentRoute[i]
+    if (stop.stop_type === 'load') break
+    
+    const client = clients.find(c => c.id === stop.client_id)
+    if (client) {
+      const orderForDay = getFixedOrderForDay(client, todayISO)
+      Object.entries(orderForDay).forEach(([prodId, qty]) => {
+        suggested[prodId] = (suggested[prodId] || 0) + (qty as number)
+      })
+    }
+  }
+  return suggested
 }
 
 interface DriverAppProps {
@@ -175,17 +208,8 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
       let plannedLoad: Record<string, any> = initialLoadStop?.planned_load ? { ...initialLoadStop.planned_load } : {}
       
       if (Object.keys(plannedLoad).length === 0) {
-        const routeClientStops = weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client')
         const { clients: allClients } = useStore.getState()
-        routeClientStops.forEach(stop => {
-          const clientObj = allClients.find(c => c.id === stop.client_id)
-          if (clientObj) {
-            const orderForDay = getFixedOrderForDay(clientObj, todayISO)
-            Object.entries(orderForDay).forEach(([prodId, qty]) => {
-              plannedLoad[prodId] = (plannedLoad[prodId] || 0) + (qty as number)
-            })
-          }
-        })
+        plannedLoad = getSuggestedLoadForDriver(weeklyRoutes, allClients, driver.id, todayISO, -1)
       }
 
       const initialLoads = products.map(p => {
@@ -593,18 +617,7 @@ const DriverLoadStopsModal: React.FC<DriverLoadStopsModalProps> = ({ driver, onC
     if (initialLoadStop && initialLoadStop.planned_load && Object.keys(initialLoadStop.planned_load).length > 0) {
       return initialLoadStop.planned_load
     }
-    const suggested: Record<string, number> = {}
-    const routeClientStops = weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client')
-    routeClientStops.forEach(stop => {
-      const clientObj = clients.find(c => c.id === stop.client_id)
-      if (clientObj) {
-        const orderForDay = getFixedOrderForDay(clientObj, todayISO)
-        Object.entries(orderForDay).forEach(([prodId, qty]) => {
-          suggested[prodId] = (suggested[prodId] || 0) + (qty as number)
-        })
-      }
-    })
-    return suggested
+    return getSuggestedLoadForDriver(weeklyRoutes, clients, driver.id, todayISO, -1)
   }, [initialLoadStop, weeklyRoutes, driver.id, todayISO, clients])
 
   const intermediateLoadStops = useMemo(() => {
@@ -656,7 +669,9 @@ const DriverLoadStopsModal: React.FC<DriverLoadStopsModalProps> = ({ driver, onC
           </div>
 
           {intermediateLoadStops.map((stop, index) => {
-            const stopLoad = stop.planned_load || {}
+            const stopLoad = stop.planned_load && Object.keys(stop.planned_load).length > 0
+              ? stop.planned_load
+              : getSuggestedLoadForDriver(weeklyRoutes, clients, driver.id, todayISO, stop.route_order)
             const stopHasLoad = Object.keys(stopLoad).length > 0
             return (
               <div key={stop.id} className="bg-white border border-brand-muted/10 rounded-2xl p-4 shadow-sm relative overflow-hidden">
@@ -722,23 +737,8 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
     if (initialLoadStop && initialLoadStop.planned_load && Object.keys(initialLoadStop.planned_load).length > 0) {
       return initialLoadStop.planned_load
     }
-
-    // Si no hay carga inicial guardada en la base de datos, sumamos sugeridos de pedidos fijos de los clientes en la ruta de hoy
-    const suggested: Record<string, number> = {}
-    const routeClientStops = weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client')
-    const { clients: allClients } = useStore.getState()
-    
-    routeClientStops.forEach(stop => {
-      const clientObj = allClients.find(c => c.id === stop.client_id)
-      if (clientObj) {
-        const orderForDay = getFixedOrderForDay(clientObj, todayISO);
-        Object.entries(orderForDay).forEach(([prodId, qty]) => {
-          suggested[prodId] = (suggested[prodId] || 0) + (qty as number)
-        })
-      }
-    })
-    return suggested
-  }, [initialLoadStop, weeklyRoutes, driver.id, todayISO])
+    return getSuggestedLoadForDriver(weeklyRoutes, clients, driver.id, todayISO, -1)
+  }, [initialLoadStop, weeklyRoutes, driver.id, todayISO, clients])
   useEffect(() => {
     if (driverExpenseCategories && driverExpenseCategories.length > 0 && !expCategory) {
       setExpCategory(driverExpenseCategories[0].name)
@@ -2294,21 +2294,8 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
     if (initialLoadStop && initialLoadStop.planned_load && Object.keys(initialLoadStop.planned_load).length > 0) {
       return initialLoadStop.planned_load
     }
-    // Si no hay carga inicial guardada en la base de datos, sumamos sugeridos de pedidos fijos de los clientes en la ruta de hoy
-    const suggested: Record<string, number> = {}
-    const routeClientStops = weeklyRoutes.filter(r => r.driver_id === driver.id && r.day_of_week === todayISO && r.stop_type === 'client')
-    const { clients: allClients } = useStore.getState()
-    
-    routeClientStops.forEach(stop => {
-      const clientObj = allClients.find(c => c.id === stop.client_id)
-      if (clientObj && clientObj.fixed_order) {
-        Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
-          suggested[prodId] = (suggested[prodId] || 0) + (qty as number)
-        })
-      }
-    })
-    return suggested
-  }, [initialLoadStop, weeklyRoutes, driver.id, todayISO])
+    return getSuggestedLoadForDriver(weeklyRoutes, clients, driver.id, todayISO, -1)
+  }, [initialLoadStop, weeklyRoutes, driver.id, todayISO, clients])
 
   const hasLoad = Object.keys(plannedLoad).length > 0
 
@@ -2410,7 +2397,9 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
           {dayRoutes.map((stop, index) => {
             const isLoad = stop.stop_type === 'load'
             const client = isLoad ? null : clients.find(c => c.id === stop.client_id)
-            const stopLoad = stop.planned_load || {}
+            const stopLoad = stop.planned_load && Object.keys(stop.planned_load).length > 0
+              ? stop.planned_load
+              : getSuggestedLoadForDriver(weeklyRoutes, clients, driver.id, todayISO, stop.route_order)
             const stopHasLoad = Object.keys(stopLoad).length > 0
 
             return (
