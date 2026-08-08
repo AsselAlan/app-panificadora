@@ -714,7 +714,7 @@ interface DriverHomeProps {
 }
 
 const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSummary, onSelectDifferentDriver }) => {
-  const { weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories, settlements } = useStore()
+  const { weeklyRoutes, startDriverRoute, endDriverRoute, isOffline, syncQueue, processSyncQueue, driverExpenseCategories, settlements, clients } = useStore()
   const [showLoadChecklist, setShowLoadChecklist] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [showStockModal, setShowStockModal] = useState(false)
