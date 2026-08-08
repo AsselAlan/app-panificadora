@@ -465,11 +465,12 @@ const DriverStockModal: React.FC<DriverStockModalProps> = ({ driver, onClose }) 
     
     routeClientStops.forEach(stop => {
       const clientObj = clients.find(c => c.id === stop.client_id)
-      if (clientObj && clientObj.fixed_order) {
+      if (clientObj) {
         // Check if visited
         const wasVisited = sales.some(s => s.driver_id === driver.id && s.client_id === clientObj.id && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr)
         if (!wasVisited) {
-          Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
+          const orderForDay = getFixedOrderForDay(clientObj, todayISO);
+          Object.entries(orderForDay).forEach(([prodId, qty]) => {
             remaining[prodId] = (remaining[prodId] || 0) + (qty as number)
           })
         }
@@ -600,8 +601,9 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
     
     routeClientStops.forEach(stop => {
       const clientObj = allClients.find(c => c.id === stop.client_id)
-      if (clientObj && clientObj.fixed_order) {
-        Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
+      if (clientObj) {
+        const orderForDay = getFixedOrderForDay(clientObj, todayISO);
+        Object.entries(orderForDay).forEach(([prodId, qty]) => {
           suggested[prodId] = (suggested[prodId] || 0) + (qty as number)
         })
       }
@@ -1061,8 +1063,9 @@ const DriverScheduledLoadsModal: React.FC<DriverScheduledLoadsModalProps> = ({ d
         
         if (s.stop_type === 'client') {
           const clientObj = allClients.find(c => c.id === s.client_id)
-          if (clientObj && clientObj.fixed_order) {
-            Object.entries(clientObj.fixed_order).forEach(([prodId, qty]) => {
+          if (clientObj) {
+            const orderForDay = getFixedOrderForDay(clientObj, todayISO)
+            Object.entries(orderForDay).forEach(([prodId, qty]) => {
               suggested[prodId] = (suggested[prodId] || 0) + (qty as number)
             })
           }
