@@ -1491,9 +1491,11 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
       return draftCart
     }
     // 2. De lo contrario, auto-completar con pedido fijo si corresponde
-    if (client && client.fixed_order) {
+    if (client) {
       const clampedCart: Record<string, number> = {}
-      Object.entries(client.fixed_order).forEach(([prodId, qty]) => {
+      const todayISO = new Date().getDay() === 0 ? 7 : new Date().getDay()
+      const orderForDay = getFixedOrderForDay(client, todayISO)
+      Object.entries(orderForDay).forEach(([prodId, qty]) => {
         const finalQty = qty as number
         if (finalQty > 0) {
           clampedCart[prodId] = finalQty
