@@ -1499,17 +1499,26 @@ const DriverClients: React.FC<DriverClientsProps> = ({ onBack, onSelectClient })
   const todayISO = todayJS === 0 ? 7 : todayJS
   const todayStr = useMemo(() => new Date().toLocaleDateString('sv'), [])
 
-  const filteredClients = useMemo(() => {
-    const routeClientIds = weeklyRoutes
-      .filter(r => r.driver_id === currentDriverId && r.day_of_week === todayISO && r.stop_type === 'client')
-      .map(r => r.client_id)
+  const routeStops = useMemo(() => {
+    const todayRoutes = weeklyRoutes.filter(r => r.driver_id === currentDriverId && r.day_of_week === todayISO)
+    const initialLoad = todayRoutes.find(r => r.stop_type === 'initial_load')
+    const others = todayRoutes.filter(r => r.stop_type !== 'initial_load').sort((a, b) => a.route_order - b.route_order)
+    
+    let stops = initialLoad ? [initialLoad, ...others] : others
 
-    return clients
-      .filter(c => routeClientIds.includes(c.id))
-      .filter(c => 
-        c.business_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        c.address.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+    if (searchTerm) {
+      stops = stops.filter(stop => {
+        if (stop.stop_type === 'client') {
+          const client = clients.find(c => c.id === stop.client_id)
+          if (!client) return false
+          return client.business_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                 client.address.toLowerCase().includes(searchTerm.toLowerCase())
+        }
+        return false
+      })
+    }
+    
+    return stops
   }, [clients, weeklyRoutes, currentDriverId, searchTerm, todayISO])
 
   return (
@@ -1538,59 +1547,85 @@ const DriverClients: React.FC<DriverClientsProps> = ({ onBack, onSelectClient })
 
       {/* Lista */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 pr-2">
-        {filteredClients.length === 0 ? (
+        {routeStops.length === 0 ? (
           <div className="text-center text-brand-muted/80 mt-10">
             <MapPin size={40} className="mx-auto mb-4 text-slate-700" />
-            <p className="font-bold text-brand-muted">Sin clientes en ruta</p>
-            <p className="text-xs text-brand-muted/80 mt-1">No se encontraron clientes asignados hoy.</p>
+            <p className="font-bold text-brand-muted">Sin paradas en ruta</p>
+            <p className="text-xs text-brand-muted/80 mt-1">No se encontró una ruta asignada para hoy.</p>
           </div>
         ) : (
-          filteredClients.map((client, idx) => (
-            <div 
-              key={client.id} 
-              onClick={() => onSelectClient(client.id)} 
-              className="bg-white hover:bg-brand-navy/5 border border-brand-muted/10 rounded-3xl p-4 shadow-sm flex items-center gap-4 active:scale-[0.98] transition-all cursor-pointer group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-brand-navy/5 text-brand-navy flex items-center justify-center font-black text-sm flex-shrink-0 border border-brand-navy/10">
-                {idx + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <h3 className="font-bold text-brand-deep text-sm truncate">{client.business_name}</h3>
-                  {sales.some(s => s.driver_id === currentDriverId && s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
-                    <span className="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm animate-pulse">
-                      🟡 Ticket Abierto
-                    </span>
-                  )}
-                  {client.allow_credit && (
-                    <span className="bg-brand-navy text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm">
-                      Cta. Cte.
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-brand-muted truncate flex items-center gap-1.5 font-medium">
-                  <MapPin size={12} className="text-brand-orange" /> {client.address}
-                </p>
-              </div>
+          routeStops.map((stop, idx) => {
+            if (stop.stop_type === 'client') {
+              const client = clients.find(c => c.id === stop.client_id)
+              if (!client) return null
+              
+              return (
+                <div 
+                  key={stop.id} 
+                  onClick={() => onSelectClient(client.id)} 
+                  className="bg-white hover:bg-brand-navy/5 border border-brand-muted/10 rounded-3xl p-4 shadow-sm flex items-center gap-4 active:scale-[0.98] transition-all cursor-pointer group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-brand-navy/5 text-brand-navy flex items-center justify-center font-black text-sm flex-shrink-0 border border-brand-navy/10">
+                    {idx + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="font-bold text-brand-deep text-sm truncate">{client.business_name}</h3>
+                      {sales.some(s => s.driver_id === currentDriverId && s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                        <span className="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm animate-pulse">
+                          🟡 Ticket Abierto
+                        </span>
+                      )}
+                      {client.allow_credit && (
+                        <span className="bg-brand-navy text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm">
+                          Cta. Cte.
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-brand-muted truncate flex items-center gap-1.5 font-medium">
+                      <MapPin size={12} className="text-brand-orange" /> {client.address}
+                    </p>
+                  </div>
 
-              {/* Saldo Visual */}
-              {client.current_balance < 0 ? (
-                <div className="bg-red-50 text-red-500 px-3 py-1.5 rounded-xl border border-red-100 flex flex-col items-end flex-shrink-0">
-                  <span className="text-[9px] font-bold uppercase tracking-wider">Deuda</span>
-                  <span className="text-sm font-black">${Math.abs(client.current_balance)}</span>
+                  {/* Saldo Visual */}
+                  {client.current_balance < 0 ? (
+                    <div className="bg-red-50 text-red-500 px-3 py-1.5 rounded-xl border border-red-100 flex flex-col items-end flex-shrink-0">
+                      <span className="text-[9px] font-bold uppercase tracking-wider">Deuda</span>
+                      <span className="text-sm font-black">${Math.abs(client.current_balance)}</span>
+                    </div>
+                  ) : client.current_balance > 0 ? (
+                    <div className="bg-green-50 text-green-600 px-3 py-1.5 rounded-xl border border-green-100 flex flex-col items-end flex-shrink-0">
+                      <span className="text-[9px] font-bold uppercase tracking-wider">A Favor</span>
+                      <span className="text-sm font-black">${client.current_balance}</span>
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-xl bg-brand-muted/5 flex items-center justify-center border border-brand-muted/10 group-hover:bg-brand-navy/10 group-hover:border-brand-navy/20 group-hover:text-brand-navy transition-colors">
+                      <ChevronRight size={18} className="text-brand-muted" />
+                    </div>
+                  )}
                 </div>
-              ) : client.current_balance > 0 ? (
-                <div className="bg-green-50 text-green-600 px-3 py-1.5 rounded-xl border border-green-100 flex flex-col items-end flex-shrink-0">
-                  <span className="text-[9px] font-bold uppercase tracking-wider">A Favor</span>
-                  <span className="text-sm font-black">${client.current_balance}</span>
+              )
+            } else {
+              const isInitial = stop.stop_type === 'initial_load'
+              return (
+                <div 
+                  key={stop.id} 
+                  className={`bg-white border rounded-3xl p-4 shadow-sm flex items-center gap-4 transition-all group ${isInitial ? 'border-brand-orange/40 bg-brand-orange/5' : 'border-brand-orange/20'}`}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-brand-orange/10 text-brand-orange flex items-center justify-center font-black text-sm flex-shrink-0 border border-brand-orange/20">
+                    {idx + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-brand-orange text-sm truncate">{isInitial ? 'Primera Carga (Fábrica)' : 'Recarga en Ruta'}</h3>
+                    <p className="text-[10px] font-bold text-brand-orange/80 uppercase tracking-wider mt-0.5">Parada de Carga</p>
+                  </div>
+                  <div className="w-8 h-8 rounded-xl bg-brand-orange/10 flex items-center justify-center border border-brand-orange/20">
+                    <Package size={16} className="text-brand-orange" />
+                  </div>
                 </div>
-              ) : (
-                <div className="w-8 h-8 rounded-xl bg-brand-muted/5 flex items-center justify-center border border-brand-muted/10 group-hover:bg-brand-navy/10 group-hover:border-brand-navy/20 group-hover:text-brand-navy transition-colors">
-                  <ChevronRight size={18} className="text-brand-muted" />
-                </div>
-              )}
-            </div>
-          ))
+              )
+            }
+          })
         )}
       </div>
     </div>
