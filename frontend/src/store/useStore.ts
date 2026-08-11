@@ -878,7 +878,12 @@ export const useStore = create<AppState>()(
       partialize: (state) => Object.fromEntries(
         Object.entries(state).filter(([key]) => key !== 'userSession')
       ),
-      version: 1
+      onRehydrateStorage: () => (state) => {
+        if (state && Array.isArray(state.products)) {
+          state.products = sortProducts(state.products)
+        }
+      },
+      version: 2
     }
   )
 )
