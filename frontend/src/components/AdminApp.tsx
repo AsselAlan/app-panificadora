@@ -1219,6 +1219,34 @@ const AdminDrivers: React.FC = () => {
 
           const progressColor = progressPercent === 100 ? 'bg-green-500' : 'bg-brand-orange'
 
+          // Cálculo de Cargas y Ubicación Actual para la Tarjeta de Monitoreo
+          const intermediateLoadStops = dRoutes.filter(r => r.stop_type === 'load').sort((a, b) => a.route_order - b.route_order)
+          const totalCargas = 1 + intermediateLoadStops.length
+
+          let currentCarga = 1
+          if (intermediateLoadStops.length > 0 && dSales.length > 0) {
+            const visitedClientIds = new Set(dSales.map(s => s.client_id))
+            for (let i = 0; i < intermediateLoadStops.length; i++) {
+              const stopOrder = intermediateLoadStops[i].route_order
+              const clientsAfterStop = dRoutes.filter(r => r.stop_type !== 'load' && r.route_order > stopOrder)
+              if (clientsAfterStop.some(r => visitedClientIds.has(r.client_id))) {
+                currentCarga = i + 2
+              }
+            }
+          }
+
+          const hasTickets = dSales.length > 0
+          let locationLabel = 'BASE'
+          let locationBadgeStyle = 'text-brand-muted/60 bg-brand-muted/5 border-brand-muted/10'
+
+          if (hasTickets || (isLastActiveToday && d.status === 'En Ruta')) {
+            locationLabel = `EN REPARTO CARGA ${currentCarga} DE ${totalCargas}`
+            locationBadgeStyle = 'text-brand-orange bg-orange-50 border-orange-200 font-black'
+          } else if (isLastActiveToday && d.status === 'Finalizado') {
+            locationLabel = 'BASE (FINALIZADO)'
+            locationBadgeStyle = 'text-green-600 bg-green-50 border-green-200 font-bold'
+          }
+
           // Para saber hace cuánto fue su última conexión
           let timeAgoStr = 'Desconocido'
           if (isValidDate) {
@@ -1244,8 +1272,8 @@ const AdminDrivers: React.FC = () => {
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <div className="text-right">
-                    <span className="text-[10px] font-bold text-brand-muted/60 uppercase flex items-center justify-end gap-1 mb-0.5">
-                      <MapPin size={10}/> Base
+                    <span className={`text-[10px] uppercase flex items-center justify-end gap-1 mb-0.5 px-2 py-0.5 rounded-md border ${locationBadgeStyle}`}>
+                      <MapPin size={10}/> {locationLabel}
                     </span>
                     <span className="text-[9px] font-bold text-brand-muted/50 flex items-center justify-end gap-1">
                       <Clock size={10}/> {timeAgoStr}
