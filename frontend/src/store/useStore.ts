@@ -404,9 +404,26 @@ export const useStore = create<AppState>()(
           const mergedSales = [...remoteSales.filter(rs => !pendingSales.find(ps => ps.id === rs.id)), ...pendingSales]
           const mergedExpenses = [...remoteExpenses.filter(re => !pendingExpenses.find(pe => pe.id === re.id)), ...pendingExpenses]
 
+          // Preservar balances y cajones de clientes para ventas pendientes en cola de sincronización (Offline-First)
+          const rawClients = resCli.data || []
+          const clientsWithPending = rawClients.map(c => {
+            const clientPendingSales = pendingSales.filter(ps => ps.client_id === c.id && ps.status === 'completed')
+            if (clientPendingSales.length === 0) return c
+
+            const pendingAccountAdjustment = clientPendingSales.reduce((acc, s) => acc + (s.payment_account || 0), 0)
+            const pendingCajonesLeft = clientPendingSales.reduce((acc, s) => acc + (s.cajones_left || 0), 0)
+            const pendingCajonesReturned = clientPendingSales.reduce((acc, s) => acc + (s.cajones_returned || 0), 0)
+
+            return {
+              ...c,
+              current_balance: c.current_balance - pendingAccountAdjustment,
+              cajones_prestados: (c.cajones_prestados || 0) + pendingCajonesLeft - pendingCajonesReturned
+            }
+          })
+
           set({
             products: resProd.data || [],
-            clients: resCli.data || [],
+            clients: clientsWithPending,
             drivers: resDriv.data || [],
             expenses: mergedExpenses,
             sales: mergedSales,
@@ -778,7 +795,7 @@ export const useStore = create<AppState>()(
                 subtotal_sales: item.payload.subtotal_sales,
                 total_returns: item.payload.total_returns,
                 applied_debt: item.payload.applied_debt,
-                final_total: item.payload.final_total,
+                final_total: item.payload.subtotal_sales - item.payload.total_returns,
                 payment_cash: item.payload.payment_cash,
                 payment_transfer: item.payload.payment_transfer,
                 payment_account: item.payload.payment_account,

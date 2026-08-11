@@ -34,7 +34,8 @@ El desarrollo siguió un enfoque iterativo y modular centrado en resolver los pr
 2. **Arquitectura Offline-First:** En el frontend, se implementó una cola de sincronización persistente con IndexedDB. Los choferes pueden seguir trabajando y, en segundo plano, un worker vacía la cola de transacciones al detectar internet, asegurando cero pérdida de datos.
 3. **Desarrollo de UI/UX Modular:** Se construyó la interfaz separando claramente los flujos de "Admin", "Driver" y "Mostrador". Se aplicó una paleta de colores corporativa (brand-navy, brand-orange) y se implementaron mejoras iterativas basadas en feedback (ej. ingreso numérico rápido, tickets térmicos compartibles vía WhatsApp).
 4. **Seguridad y Telemetría:** En etapas avanzadas, se migraron lógicas sensibles al backend (Edge Functions, RLS) y se integró `@sentry/react` para poder auditar proactivamente cualquier fallo que experimenten los usuarios en producción.
-5. **Estabilización Continua:** Se corrigieron problemas de cálculo de fechas (desfases por zonas horarias UTC-3), optimizaciones de renders en React (memoización de funciones costosas) y unificación de la gestión de deudas en Cuentas Corrientes.
+5.- **v0.15 (Permisos RPC & Corrección de Cobro de Deudas Offline):** Otorga permisos `EXECUTE` al rol `anon` para `process_offline_sale`, corrige la restricción `sales_check` en Postgres al procesar cobros de deuda sin productos nuevos (`final_total = subtotal - returns`), y preserva saldos y cajones en `useStore` al recargar la app mientras hay ventas pendientes en la cola de sincronización.
+- **Estabilización Continua:** Se corrigieron problemas de cálculo de fechas (desfases por zonas horarias UTC-3), optimizaciones de renders en React (memoización de funciones costosas) y unificación de la gestión de deudas en Cuentas Corrientes.
 
 ---
 

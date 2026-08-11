@@ -1810,7 +1810,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
       subtotal_sales: subtotalSales,
       total_returns: totalReturns,
       applied_debt: includeDebt && client.current_balance < 0 ? Math.abs(client.current_balance) : 0,
-      final_total: finalTotal,
+      final_total: subtotalSales - totalReturns,
       payment_cash: asDraft ? 0 : cashAmt,
       payment_transfer: asDraft ? 0 : transferAmt,
       payment_account: asDraft ? 0 : willAddToDebt,
