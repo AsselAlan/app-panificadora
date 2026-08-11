@@ -40,6 +40,18 @@ export interface Product {
   updated_at?: string;
 }
 
+export const sortProducts = (prods: Product[]): Product[] => {
+  if (!Array.isArray(prods)) return []
+  return [...prods].sort((a, b) => {
+    const orderA = a.display_order ?? Number.MAX_SAFE_INTEGER
+    const orderB = b.display_order ?? Number.MAX_SAFE_INTEGER
+    if (orderA !== orderB) {
+      return orderA - orderB
+    }
+    return (a.name || '').localeCompare(b.name || '')
+  })
+}
+
 export interface Client {
   id: string;
   business_name: string;
@@ -422,7 +434,7 @@ export const useStore = create<AppState>()(
           })
 
           set({
-            products: resProd.data || [],
+            products: sortProducts(resProd.data || []),
             clients: clientsWithPending,
             drivers: resDriv.data || [],
             expenses: mergedExpenses,
@@ -479,7 +491,7 @@ export const useStore = create<AppState>()(
           // Consultar datos del chofer, productos y loads del día en paralelo
           const [driverRes, productsRes, loadsRes] = await Promise.all([
             supabase.from('drivers').select('*').eq('id', driverId).single(),
-            supabase.from('products').select('*').eq('is_deleted', false).eq('is_paused', false),
+            supabase.from('products').select('*').eq('is_deleted', false).eq('is_paused', false).order('display_order', { ascending: true }).order('name'),
             supabase.from('loads').select('*').eq('driver_id', driverId).eq('date_loaded', today)
           ])
 
@@ -504,7 +516,7 @@ export const useStore = create<AppState>()(
 
             return {
               drivers: updatedDrivers,
-              products: products || state.products,
+              products: sortProducts(products || state.products),
               loads: updatedLoads
             }
           })

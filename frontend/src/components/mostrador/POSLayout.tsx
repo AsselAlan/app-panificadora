@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Store, ShoppingCart, Plus, Minus, Banknote, CreditCard, Users, X, Printer } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
-import { useStore } from '../../store/useStore'
+import { useStore, sortProducts } from '../../store/useStore'
 import type { Product } from '../../store/useStore'
 import Swal from 'sweetalert2'
 import { SaleTicketModal } from './SaleTicketModal'
@@ -252,7 +252,7 @@ export const POSLayout: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto p-6 pr-2">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {products.map((p: Product) => {
+            {sortProducts(products).map((p: Product) => {
               const qty = activeTab === 'venta' ? (cart[p.id] || 0) : (returnsCart[p.id] || 0)
               const maxStock = p.bakery_stock
               return (

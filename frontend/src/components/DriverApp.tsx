@@ -8,7 +8,7 @@ import {
   Plus, Minus, Printer, MessageCircle, Star, RefreshCw, ChevronDown, ChevronUp,
   History, Calendar
 } from 'lucide-react'
-import { useStore, getFixedOrderForDay } from '../store/useStore'
+import { useStore, getFixedOrderForDay, sortProducts } from '../store/useStore'
 import type { Sale, Expense, SaleItem, Driver, Product } from '../store/useStore'
 import { supabase } from '../supabaseClient'
 import Swal from 'sweetalert2'
@@ -89,7 +89,7 @@ const DriverOrderPreview: React.FC<{ driver: any, clientId: string, onBack: () =
         <h3 className="font-bold text-brand-deep text-lg mb-4">{client?.business_name || 'Cliente'}</h3>
 
         <div className="space-y-3">
-          {products.map(p => {
+          {sortProducts(products).map(p => {
             const qty = orderForDay[p.id] || 0
             if (qty === 0) return null
             return (
@@ -212,7 +212,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
         plannedLoad = getSuggestedLoadForDriver(weeklyRoutes, allClients, driver.id, todayISO, -1)
       }
 
-      const initialLoads = products.map(p => {
+      const initialLoads = sortProducts(products).map(p => {
         const qtyInfo = getPlannedLoadQty(plannedLoad, p.id)
         return {
           id: crypto.randomUUID(),
@@ -404,7 +404,7 @@ const EditableLoadModal: React.FC<EditableLoadModalProps> = ({ plannedLoad, onCl
 
 
   // Usamos el orden predeterminado (por display_order y nombre) que viene del store
-  const sortedProducts = products;
+  const sortedProducts = sortProducts(products);
 
   return (
     <div className="absolute inset-0 bg-bg-app/80 z-50 flex justify-center pt-16 pb-6 px-4 backdrop-blur-md animate-in fade-in">
@@ -530,7 +530,7 @@ const DriverStockModal: React.FC<DriverStockModalProps> = ({ driver, onClose }) 
       </div>
       
       <div className="flex-1 overflow-y-auto space-y-3 p-5 pb-24">
-          {products.map(p => {
+          {sortedProducts.map(p => {
             const loadInfo = driverLoads.find(l => l.product_id === p.id)
             const currentQty = loadInfo?.current_quantity || 0
             const returnedQty = loadInfo?.returned_quantity || 0
@@ -649,7 +649,7 @@ const DriverLoadStopsModal: React.FC<DriverLoadStopsModalProps> = ({ driver, onC
             <h4 className="font-bold text-brand-deep text-sm mb-3">Primera Carga (Base)</h4>
             {hasInitialLoad ? (
               <div className="space-y-2">
-                {products.map(p => {
+                {sortProducts(products).map(p => {
                   const qtyInfo = getPlannedLoadQty(plannedLoad, p.id)
                   if (qtyInfo.total === 0) return null
                   return (
@@ -679,7 +679,7 @@ const DriverLoadStopsModal: React.FC<DriverLoadStopsModalProps> = ({ driver, onC
                 <h4 className="font-bold text-brand-deep text-sm mb-3">Recarga en Ruta #{index + 1}</h4>
                 {stopHasLoad ? (
                   <div className="space-y-2">
-                    {products.map(p => {
+                    {sortProducts(products).map(p => {
                       const qtyInfo = getPlannedLoadQty(stopLoad, p.id)
                       if (qtyInfo.total === 0) return null
                       return (
@@ -1233,7 +1233,7 @@ const DriverScheduledLoadsModal: React.FC<DriverScheduledLoadsModalProps> = ({ d
 
   const handleConfirmIntermediateLoad = (stop: any, actualLoads: Record<string, number>) => {
     const { loads } = useStore.getState()
-    const newLoadsToAdd = products.map(p => {
+    const newLoadsToAdd = sortProducts(products).map(p => {
       const qty = actualLoads[p.id] || 0;
       return {
         id: crypto.randomUUID(),
@@ -2010,7 +2010,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
               <Star size={12} className="text-brand-navy animate-spin" />
               Cantidades auto-completadas por pedido de este cliente
             </div>
-            {products.map(p => {
+            {sortProducts(products).map(p => {
               const qty = cart[p.id] || 0
               
               const todayISO = new Date().getDay() === 0 ? 7 : new Date().getDay();
@@ -2072,7 +2072,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
               <AlertCircle size={12} className="text-red-400" />
               Las devoluciones se tomarán como merma y se sumarán a tu furgoneta
             </div>
-            {products.map(p => {
+            {sortProducts(products).map(p => {
               const qty = returns[p.id] || 0
               return (
                 <div key={p.id} className="bg-brand-muted/10/20 border border-brand-muted/20 rounded-2xl p-4 flex items-center justify-between">
@@ -2408,7 +2408,7 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
               
               {hasLoad ? (
                 <div className="grid grid-cols-1 gap-2 mt-2 bg-brand-muted/5 p-3 rounded-xl border border-brand-muted/10">
-                  {products.map(p => {
+                  {sortProducts(products).map(p => {
                     const qtyInfo = getPlannedLoadQty(plannedLoad, p.id)
                     if (qtyInfo.total === 0) return null
                     return (
@@ -2479,7 +2479,7 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
                         
                         {stopHasLoad ? (
                           <div className={`grid grid-cols-1 gap-2 mt-2 p-3 rounded-xl border transition-all ${isCompleted ? 'bg-green-50/50 border-green-500/20' : 'bg-brand-muted/5 border-brand-muted/10'}`}>
-                            {products.map(p => {
+                            {sortProducts(products).map(p => {
                               const qtyInfo = getPlannedLoadQty(stopLoad, p.id)
                               if (qtyInfo.total === 0) return null
                               return (
@@ -2535,7 +2535,7 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
                       {client && expandedClients[client.id] && Object.keys(getFixedOrderForDay(client, todayISO)).length > 0 && (
                         <div className="grid grid-cols-1 gap-1.5 mt-3 bg-brand-muted/5 p-3 rounded-xl border border-brand-muted/10" onClick={e => e.stopPropagation()}>
                           <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wider block mb-1">Pedido Fijo a Descargar:</span>
-                          {products.map(p => {
+                          {sortProducts(products).map(p => {
                             const orderForDay = getFixedOrderForDay(client, todayISO);
                             const qty = orderForDay[p.id] || 0
                             if (qty === 0) return null
