@@ -16,7 +16,13 @@ function App() {
 
   useEffect(() => {
     // Auth Listener
+    // Timeout de seguridad: si Supabase tarda más de 5s (sin red o caído), liberar la pantalla de carga
+    const authSafetyTimeout = setTimeout(() => {
+      setLoadingAuth(false)
+    }, 5000)
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      clearTimeout(authSafetyTimeout) // Cancelar el timeout si Auth responde
       if (session) {
         // Consultar el rol del usuario desde la tabla user_roles
         const { data: roleData, error } = await supabase.from('user_roles').select('role, requires_password_change').eq('user_id', session.user.id).single()
@@ -56,6 +62,7 @@ function App() {
     }
 
     return () => {
+      clearTimeout(authSafetyTimeout)
       subscription.unsubscribe()
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)

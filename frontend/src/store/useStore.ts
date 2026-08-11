@@ -12,14 +12,27 @@ localforage.config({
 
 const IndexedDBStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
-    const value = await localforage.getItem<string>(name)
-    return value || null
+    try {
+      const value = await localforage.getItem<string>(name)
+      return value || null
+    } catch (err) {
+      console.warn('[IndexedDB] getItem falló (timeout o cuota). Comenzando con estado limpio.', err)
+      return null
+    }
   },
   setItem: async (name: string, value: string): Promise<void> => {
-    await localforage.setItem(name, value)
+    try {
+      await localforage.setItem(name, value)
+    } catch (err) {
+      console.warn('[IndexedDB] setItem falló. El estado no se persistió en este ciclo.', err)
+    }
   },
   removeItem: async (name: string): Promise<void> => {
-    await localforage.removeItem(name)
+    try {
+      await localforage.removeItem(name)
+    } catch (err) {
+      console.warn('[IndexedDB] removeItem falló.', err)
+    }
   }
 }
 
@@ -790,6 +803,14 @@ export const useStore = create<AppState>()(
         const state = get()
         if (state.isOffline || state.isSyncing || state.syncQueue.length === 0) return
 
+        // Safety timeout: si la sincronización queda bloqueada por más de 60s, resetear
+        const syncTimeoutId = setTimeout(() => {
+          if (get().isSyncing) {
+            console.warn('[SyncQueue] Timeout de seguridad: isSyncing reseteado tras 60s.')
+            set({ isSyncing: false })
+          }
+        }, 60000)
+
         set({ isSyncing: true })
         console.log(`Iniciando sincronización. Elementos en cola: ${state.syncQueue.length}`)
 
@@ -868,6 +889,7 @@ export const useStore = create<AppState>()(
           }
         }
 
+        clearTimeout(syncTimeoutId)
         set({ syncQueue: remainingQueue, isSyncing: false })
         console.log(`Sincronización finalizada. Elementos pendientes en cola: ${remainingQueue.length}`)
       }

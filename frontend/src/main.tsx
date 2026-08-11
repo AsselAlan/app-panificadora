@@ -6,8 +6,11 @@ import './index.css'
 import App from './App.tsx'
 import { useStore } from './store/useStore'
 
-// @ts-ignore
-window.useStore = useStore;
+// Solo exponer en desarrollo para debugging (nunca en producción)
+if (import.meta.env.DEV) {
+  // @ts-ignore
+  window.useStore = useStore;
+}
 
 Sentry.init({
   dsn: "https://755a944d5eea3dc6da1ea9591a12e648@o4511690226401280.ingest.us.sentry.io/4511690235838464",

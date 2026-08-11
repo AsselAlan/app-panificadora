@@ -39,12 +39,26 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
   useEffect(() => {
     fetchInitialData()
     
-    // Polling opcional para monitoreo en vivo cada 30 segundos
+    // Polling para monitoreo en vivo cada 30 segundos
+    // Pausado cuando el tab está en background para evitar race conditions en Android
     const interval = setInterval(() => {
-      fetchInitialData()
+      if (!document.hidden) {
+        fetchInitialData()
+      }
     }, 30000)
     
-    return () => clearInterval(interval)
+    // Al volver al foco, actualizar inmediatamente
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchInitialData()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [fetchInitialData])
 
   return (
