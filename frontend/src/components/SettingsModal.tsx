@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Settings, RefreshCw, Trash2, Database, ShieldCheck, X, Wifi, WifiOff } from 'lucide-react'
+import { Settings, RefreshCw, Trash2, Database, ShieldCheck, X, Wifi, WifiOff, Smartphone, Download, CheckCircle2 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import localforage from 'localforage'
 import Swal from 'sweetalert2'
@@ -11,6 +11,84 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const { isOffline, syncQueue, clearAllData, processSyncQueue } = useStore()
   const [clearing, setClearing] = useState(false)
+
+  const isStandalone = typeof window !== 'undefined' && (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as any).standalone === true
+  )
+
+  const handleInstallApp = async () => {
+    if (isStandalone) {
+      Swal.fire({
+        title: '¡App ya instalada!',
+        text: 'La aplicación ya se encuentra añadida y funcionando en la pantalla principal de este celular o dispositivo.',
+        icon: 'info',
+        confirmButtonColor: '#1e3a8a'
+      })
+      return
+    }
+
+    // 1. Verificar si hay evento nativo de Chrome/Android/Edge
+    const promptEvent = (window as any).deferredInstallPrompt
+
+    // 2. Detectar si es iOS (Safari en iPhone/iPad)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+
+    if (isIOS) {
+      Swal.fire({
+        title: 'Enviar App a Pantalla Principal (iPhone / iPad)',
+        html: `
+          <div style="text-align: left; font-size: 13px; color: #334155; line-height: 1.6;">
+            <p>Sigue estos simples pasos en tu navegador <b>Safari</b>:</p>
+            <ol style="margin-top: 8px; padding-left: 20px; font-weight: 500;">
+              <li style="margin-bottom: 6px;">Toca el botón <b>Compartir</b> 📤 (en la barra inferior o superior de Safari).</li>
+              <li style="margin-bottom: 6px;">Desliza hacia abajo y selecciona <b>"Agregar a inicio"</b> ➕.</li>
+              <li>Toca <b>"Agregar"</b> arriba a la derecha.</li>
+            </ol>
+          </div>
+        `,
+        icon: 'info',
+        confirmButtonColor: '#1e3a8a',
+        confirmButtonText: 'Entendido'
+      })
+      return
+    }
+
+    if (promptEvent) {
+      try {
+        promptEvent.prompt()
+        const { outcome } = await promptEvent.userChoice
+        if (outcome === 'accepted') {
+          (window as any).deferredInstallPrompt = null
+          Swal.fire({
+            title: '¡Enviada al Inicio!',
+            text: 'El icono de la app se añadió exitosamente a la pantalla principal.',
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+          })
+        }
+      } catch (e) {
+        console.warn('Error ejecutando prompt de instalación PWA:', e)
+      }
+    } else {
+      Swal.fire({
+        title: 'Enviar App al Inicio (Android / Navegador)',
+        html: `
+          <div style="text-align: left; font-size: 13px; color: #334155; line-height: 1.6;">
+            <p>Para crear el icono directo en la pantalla de tu celular:</p>
+            <ul style="margin-top: 8px; padding-left: 18px; font-weight: 500;">
+              <li style="margin-bottom: 8px;">Toca el botón de <b>Opciones</b> (los <b>3 puntos ⋮</b> arriba a la derecha en Chrome).</li>
+              <li>Selecciona <b>"Instalar aplicación"</b> o <b>"Añadir a la pantalla principal"</b>.</li>
+            </ul>
+          </div>
+        `,
+        icon: 'info',
+        confirmButtonColor: '#1e3a8a',
+        confirmButtonText: 'Entendido'
+      })
+    }
+  }
 
   const handleForceUpdate = async () => {
     const result = await Swal.fire({
@@ -28,7 +106,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
     setClearing(true)
     try {
-      // 1. Intentar vaciar cola de sync si estamos online
       if (!isOffline && syncQueue.length > 0) {
         try {
           await processSyncQueue()
@@ -37,21 +114,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         }
       }
 
-      // 2. Limpiar IndexedDB / localForage
       try {
         await localforage.clear()
       } catch (e) {
         console.warn('Error en localforage.clear:', e)
       }
 
-      // 3. Limpiar storage del navegador
       localStorage.clear()
       sessionStorage.clear()
-
-      // 4. Limpiar Zustand Store
       clearAllData()
 
-      // 5. Desregistrar Service Workers (PWA caches)
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations()
         for (const reg of registrations) {
@@ -59,7 +131,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         }
       }
 
-      // 6. Limpiar CacheStorage API
       if ('caches' in window) {
         const keys = await caches.keys()
         for (const key of keys) {
@@ -75,7 +146,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         showConfirmButton: false
       })
 
-      // 7. Forzar recarga completa sin caché
       window.location.reload()
     } catch (err: any) {
       console.error('Error limpiando memoria:', err)
@@ -125,6 +195,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </div>
           </div>
 
+          {/* Botón: Enviar App al Inicio (Añadir a Pantalla Principal) */}
+          <div className="bg-brand-navy/5 border border-brand-navy/15 rounded-2xl p-3.5 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Smartphone size={18} className="text-brand-navy" />
+                <div>
+                  <span className="text-xs font-black text-brand-deep block">Pantalla Principal</span>
+                  <span className="text-[10px] text-brand-muted">Acceso directo en el celular</span>
+                </div>
+              </div>
+              {isStandalone && (
+                <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <CheckCircle2 size={12} /> Instalada
+                </span>
+              )}
+            </div>
+
+            <button
+              onClick={handleInstallApp}
+              className="w-full mt-1 bg-brand-navy hover:bg-blue-900 text-white font-bold py-2.5 px-3 rounded-xl transition-all shadow-sm flex justify-center items-center gap-2 text-xs active:scale-95"
+            >
+              <Download size={15} /> Enviar App al Inicio (Instalar)
+            </button>
+          </div>
+
           {/* Cola de Sync Pendiente */}
           <div className="bg-brand-muted/5 border border-brand-muted/15 rounded-2xl p-3 flex justify-between items-center">
             <div className="flex items-center gap-2">
@@ -140,11 +235,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           </div>
 
           {/* Botón de Actualizar y Limpiar Memoria */}
-          <div className="pt-2">
+          <div className="pt-1">
             <button
               onClick={handleForceUpdate}
               disabled={clearing}
-              className="w-full bg-brand-orange hover:bg-orange-600 text-white font-black py-4 rounded-2xl transition-all shadow-md flex justify-center items-center gap-2 text-sm disabled:opacity-50 active:scale-95"
+              className="w-full bg-brand-orange hover:bg-orange-600 text-white font-black py-3.5 rounded-2xl transition-all shadow-md flex justify-center items-center gap-2 text-sm disabled:opacity-50 active:scale-95"
             >
               {clearing ? (
                 <RefreshCw size={18} className="animate-spin" />
