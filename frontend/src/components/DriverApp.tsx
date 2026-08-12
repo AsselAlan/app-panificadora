@@ -6,7 +6,7 @@ import {
   X, CheckCircle, AlertCircle, Banknote, CreditCard, 
   TrendingDown, ClipboardList, LogOut, ArrowLeft, Search, ChevronRight,
   Plus, Minus, Printer, MessageCircle, Star, RefreshCw, ChevronDown, ChevronUp,
-  History, Calendar, Settings
+  History, Calendar, Settings, Home
 } from 'lucide-react'
 import { useStore, getFixedOrderForDay, sortProducts } from '../store/useStore'
 import type { Sale, Expense, SaleItem, Driver, Product } from '../store/useStore'
@@ -297,7 +297,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
             </button>
           </div>
         </div>
-        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+        {showSettings && <SettingsModal onGoHome={() => navigate('/driver/home')} onClose={() => setShowSettings(false)} />}
       </div>
     )
   }
@@ -314,7 +314,13 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
           style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
         >
           <span>{new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => navigate('/driver/home')}
+              className="flex items-center gap-1 bg-white/10 hover:bg-white/20 text-white px-2 py-0.5 rounded text-[9px] font-bold transition-colors"
+            >
+              <Home size={10} /> Inicio
+            </button>
             <button
               onClick={() => setShowSettings(true)}
               className="flex items-center gap-1 bg-white/10 hover:bg-white/20 text-white px-2 py-0.5 rounded text-[9px] font-bold transition-colors"
@@ -399,7 +405,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
             </button>
           </div>
         )}
-        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+        {showSettings && <SettingsModal onGoHome={() => navigate('/driver/home')} onClose={() => setShowSettings(false)} />}
       </div>
     </div>
   )
