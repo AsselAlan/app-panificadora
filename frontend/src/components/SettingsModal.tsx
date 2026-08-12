@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Settings, RefreshCw, Trash2, Database, ShieldCheck, X, Wifi, WifiOff, Home, Smartphone, Download } from 'lucide-react'
+import { Settings, RefreshCw, Trash2, Database, ShieldCheck, X, Wifi, WifiOff, Smartphone } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { promptPWAInstall } from '../pwaHelper'
 import localforage from 'localforage'
