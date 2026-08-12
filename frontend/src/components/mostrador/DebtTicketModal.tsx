@@ -15,13 +15,15 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
   const [loadingHistory, setLoadingHistory] = useState(true)
 
   useEffect(() => {
-    if (!data.client_id) { setLoadingHistory(false); return }
+    const clientId = data.client_id || data.clientId || data.client?.id
+    if (!clientId) { setLoadingHistory(false); return }
 
     const fetchHistory = async () => {
       setLoadingHistory(true)
       try {
         // Función aux para detectar si una venta dejó saldo a cuenta / fiado
         const isDebtSale = (s: any) => {
+          if (s.status === 'cancelled') return false
           const subtotal = Number(s.subtotal_sales || s.final_total || 0)
           const cash = Number(s.payment_cash || 0)
           const transfer = Number(s.payment_transfer || 0)
@@ -32,7 +34,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
 
         // 1. Obtener ventas locales del store
         const storeSales = useStore.getState().sales || []
-        const localDebtSales = storeSales.filter((s: any) => s.client_id === data.client_id && isDebtSale(s))
+        const localDebtSales = storeSales.filter((s: any) => s.client_id === clientId && isDebtSale(s))
 
         // 2. Traer ventas de Supabase si hay conexión
         let remoteDebtSales: any[] = []
@@ -40,7 +42,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
           const { data: sales } = await supabase
             .from('sales')
             .select('*')
-            .eq('client_id', data.client_id)
+            .eq('client_id', clientId)
             .order('transaction_date', { ascending: true })
 
           if (sales) {
@@ -79,12 +81,13 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
               .from('sale_items')
               .select('sale_id, product_id, quantity, unit_price, operation_type')
               .in('sale_id', missingSaleIds)
-              .or('operation_type.eq.sale,operation_type.is.null')
 
             if (items) {
               for (const item of items) {
-                if (!grouped[item.sale_id]) grouped[item.sale_id] = []
-                grouped[item.sale_id].push(item)
+                if (!item.operation_type || item.operation_type === 'sale') {
+                  if (!grouped[item.sale_id]) grouped[item.sale_id] = []
+                  grouped[item.sale_id].push(item)
+                }
               }
             }
           } catch (err) {
@@ -100,7 +103,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
       }
     }
     fetchHistory()
-  }, [data.client_id])
+  }, [data.client_id, data.clientId, data.client])
 
   const getProductName = (item: any) => {
     if (item.name) return item.name

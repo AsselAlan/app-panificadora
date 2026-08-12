@@ -1864,6 +1864,7 @@ const DebtPaymentModal: React.FC<{ client: any, onClose: () => void, onSuccess: 
 
       onSuccess({
         id: crypto.randomUUID().substring(0, 8).toUpperCase(),
+        client_id: client.id,
         client_name: client.business_name,
         date: payload.transaction_date,
         method: method,
