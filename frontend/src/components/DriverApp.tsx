@@ -15,6 +15,7 @@ import Swal from 'sweetalert2'
 import { DriverSyncQueue } from './DriverSyncQueue'
 import { CloudOff } from 'lucide-react'
 import { SettingsModal } from './SettingsModal'
+import { DebtHistoryPrintBlock } from './mostrador/DebtHistoryPrintBlock'
 const getPlannedLoadQty = (plannedLoad: any, productId: string): { fixed: number; extra: number; total: number } => {
   const item = plannedLoad?.[productId];
   if (!item) return { fixed: 0, extra: 0, total: 0 };
@@ -1743,6 +1744,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
   const [cajonesReturned, setCajonesReturned] = useState(existingDraftSale && existingDraftSale.cajones_returned > 0 ? existingDraftSale.cajones_returned.toString() : '')
   const [includeDebt, setIncludeDebt] = useState(existingDraftSale ? existingDraftSale.applied_debt > 0 : false)
   const [generatedTicket, setGeneratedTicket] = useState<Sale | null>(null)
+  const [debtWspText, setDebtWspText] = useState('')
 
   const todayJS = new Date().getDay()
   const todayISO = todayJS === 0 ? 7 : todayJS
@@ -1896,6 +1898,11 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
       if (generatedTicket.cajones_left) text += `📦 Dejados: ${generatedTicket.cajones_left}\n`
       if (generatedTicket.cajones_returned) text += `📦 Devueltos: ${generatedTicket.cajones_returned}\n`
     }
+
+    if (debtWspText) {
+      text += debtWspText
+    }
+
     text += `\n¡Gracias por elegirnos!`
 
     window.open(`https://wa.me/${client.phone || ''}?text=${encodeURIComponent(text)}`, '_blank')
@@ -1912,7 +1919,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
 
         {/* Boleta Virtual */}
         <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start">
-          <div className="bg-amber-50/5 text-brand-deep/80 w-full max-w-[280px] p-5 shadow-2xl rounded-2xl border border-brand-muted/20 text-xs font-mono relative leading-relaxed">
+          <div className="bg-amber-50/5 text-brand-deep/80 w-full max-w-[280px] p-5 shadow-2xl rounded-2xl border border-brand-muted/20 text-xs font-mono relative leading-relaxed" id="sale-ticket-print">
             <div className="text-center mb-4 border-b border-brand-muted/20/80 pb-3">
               <h1 className="font-black text-sm text-brand-deep tracking-wide">PANIFICADORA FENIX</h1>
               <p className="text-[10px] text-brand-muted/80 mt-0.5">Comprobante de Venta</p>
@@ -1969,6 +1976,16 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                 )}
               </div>
             </div>
+
+            {/* Desglose de Deuda Previa Incluida */}
+            {generatedTicket.applied_debt > 0 && generatedTicket.client_id && (
+              <DebtHistoryPrintBlock
+                clientId={generatedTicket.client_id}
+                currentSaleId={generatedTicket.id}
+                appliedDebt={generatedTicket.applied_debt}
+                onHistoryLoaded={setDebtWspText}
+              />
+            )}
             
             <div className="text-center text-[9px] text-slate-600 mt-6 border-t border-brand-muted/20/60 pt-3">
               *** DOCUMENTO NO VÁLIDO COMO FACTURA ***

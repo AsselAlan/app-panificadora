@@ -1,8 +1,10 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Printer, MessageCircle } from 'lucide-react'
+import { DebtHistoryPrintBlock } from './DebtHistoryPrintBlock'
 
 interface SaleTicketData {
   id?: string;
+  client_id?: string;
   client_name: string;
   date: string;
   items: {
@@ -15,9 +17,12 @@ interface SaleTicketData {
   payment_cash: number;
   payment_transfer: number;
   payment_account: number; // deuda (falta pagar) o a favor
+  applied_debt?: number; // Deuda previa incluida
 }
 
 export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => void }> = ({ data, onClose }) => {
+  const [debtWspText, setDebtWspText] = useState('')
+
   const TICKET_CSS = `
     @page { size: 80mm auto; margin: 3mm 4mm; }
     * { box-sizing: border-box; }
@@ -37,16 +42,20 @@ export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => vo
   `
 
   const buildWhatsAppText = () => {
-    let text = `🍞 *PANADERIA *\n🧾 *TICKET DE COMPRA*\n👤 Cliente: ${data.client_name}\n📅 Fecha: ${new Date(data.date).toLocaleString('es-AR')}\n--------------------------------\n`
+    let text = `🍞 *PANADERIA FENIX*\n🧾 *TICKET DE COMPRA*\n👤 Cliente: ${data.client_name}\n📅 Fecha: ${new Date(data.date).toLocaleString('es-AR')}\n--------------------------------\n`
     data.items.forEach(item => {
-      text += `• ${item.quantity}x ${item.name} ($${item.unit_price}) = $${item.subtotal.toLocaleString()}\n`
+      text += `• ${item.quantity}x ${item.name} ($${item.unit_price}) = $${item.subtotal.toLocaleString('es-AR')}\n`
     })
-    text += `--------------------------------\n💰 *TOTAL:* $${data.subtotal_sales.toLocaleString()}\n`
+    text += `--------------------------------\n💰 *TOTAL VENTA DIA:* $${data.subtotal_sales.toLocaleString('es-AR')}\n`
 
-    if (data.payment_cash > 0) text += `💵 Efectivo: $${data.payment_cash.toLocaleString()}\n`
-    if (data.payment_transfer > 0) text += `📱 Transf.: $${data.payment_transfer.toLocaleString()}\n`
-    if (data.payment_account > 0) text += `📒 A Cta. Cte.: $${data.payment_account.toLocaleString()}\n`
-    if (data.payment_account < 0) text += `💳 Vuelto / A favor: $${Math.abs(data.payment_account).toLocaleString()}\n`
+    if (data.payment_cash > 0) text += `💵 Efectivo: $${data.payment_cash.toLocaleString('es-AR')}\n`
+    if (data.payment_transfer > 0) text += `📱 Transf.: $${data.payment_transfer.toLocaleString('es-AR')}\n`
+    if (data.payment_account > 0) text += `📒 A Cta. Cte.: $${data.payment_account.toLocaleString('es-AR')}\n`
+    if (data.payment_account < 0) text += `💳 Vuelto / A favor: $${Math.abs(data.payment_account).toLocaleString('es-AR')}\n`
+
+    if (debtWspText) {
+      text += debtWspText
+    }
 
     text += `\n¡Gracias por su compra!`
     return text
@@ -86,13 +95,13 @@ export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => vo
             <hr className="divider" />
 
             {/* Items */}
-            <p className="section-title">Detalle</p>
+            <p className="section-title">Detalle Venta del Día</p>
             {data.items.map((item, idx) => (
               <div key={idx} style={{ marginBottom: '4px' }}>
                 <div className="item-desc">{item.name}</div>
                 <div className="item-row">
                   <span>{item.quantity} x ${item.unit_price}</span>
-                  <span className="bold">${item.subtotal.toLocaleString()}</span>
+                  <span className="bold">${item.subtotal.toLocaleString('es-AR')}</span>
                 </div>
               </div>
             ))}
@@ -101,24 +110,34 @@ export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => vo
 
             {/* Totales */}
             <div className="total-row">
-              <span>TOTAL:</span>
-              <span>${data.subtotal_sales.toLocaleString()}</span>
+              <span>TOTAL VENTA DÍA:</span>
+              <span>${data.subtotal_sales.toLocaleString('es-AR')}</span>
             </div>
 
             <div style={{ marginTop: '6px' }}>
               {data.payment_cash > 0 && (
-                <div className="row-sm"><span>Efectivo:</span><span>${data.payment_cash.toLocaleString()}</span></div>
+                <div className="row-sm"><span>Efectivo:</span><span>${data.payment_cash.toLocaleString('es-AR')}</span></div>
               )}
               {data.payment_transfer > 0 && (
-                <div className="row-sm"><span>Transferencia:</span><span>${data.payment_transfer.toLocaleString()}</span></div>
+                <div className="row-sm"><span>Transferencia:</span><span>${data.payment_transfer.toLocaleString('es-AR')}</span></div>
               )}
               {data.payment_account > 0 && (
-                <div className="row-sm"><span>A Cta. Cte.:</span><span>${data.payment_account.toLocaleString()}</span></div>
+                <div className="row-sm"><span>A Cta. Cte.:</span><span>${data.payment_account.toLocaleString('es-AR')}</span></div>
               )}
               {data.payment_account < 0 && (
-                <div className="row-sm"><span>Vuelto / A favor:</span><span>${Math.abs(data.payment_account).toLocaleString()}</span></div>
+                <div className="row-sm"><span>Vuelto / A favor:</span><span>${Math.abs(data.payment_account).toLocaleString('es-AR')}</span></div>
               )}
             </div>
+
+            {/* Desglose de Deuda Previa Incluida si corresponde */}
+            {data.applied_debt && data.applied_debt > 0 && data.client_id && (
+              <DebtHistoryPrintBlock
+                clientId={data.client_id}
+                currentSaleId={data.id}
+                appliedDebt={data.applied_debt}
+                onHistoryLoaded={setDebtWspText}
+              />
+            )}
 
             <hr className="divider" />
             <div className="footer">

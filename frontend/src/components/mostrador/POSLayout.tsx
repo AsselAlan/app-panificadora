@@ -179,6 +179,8 @@ export const POSLayout: React.FC = () => {
       useStore.getState().fetchInitialData()
 
       setCompletedSale({
+        id: payload.id,
+        client_id: activeClient?.id,
         client_name: activeClient?.business_name || 'Consumidor Final',
         date: payload.transaction_date,
         items: cleanItems.map(item => {
@@ -193,7 +195,8 @@ export const POSLayout: React.FC = () => {
         subtotal_sales: subtotalSales,
         payment_cash: finalCash,
         payment_transfer: transferAmt,
-        payment_account: finalAccount
+        payment_account: finalAccount,
+        applied_debt: payload.applied_debt
       })
     } catch (err: any) {
       Swal.fire('Error', err.message || 'No se pudo procesar la venta.', 'error')
