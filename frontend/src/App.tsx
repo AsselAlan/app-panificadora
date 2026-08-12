@@ -42,7 +42,7 @@ function App() {
       setLoadingAuth(false)
     })
 
-    // Network Listeners
+    // Network & Sync Listeners
     const handleOnline = () => {
       setOffline(false)
       processSyncQueue() // Ejecutar cola al recuperar internet
@@ -61,9 +61,31 @@ function App() {
       setOffline(true)
     }
 
+    // Suscripción Realtime para sincronización instantánea entre múltiples dispositivos (Admin, Chofer A, Chofer B)
+    const realtimeChannel = supabase
+      .channel('public-db-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, () => {
+        const { userRole, currentDriverId, fetchInitialData, fetchDriverData } = useStore.getState()
+        if (userRole === 'admin' || userRole === 'mostrador') {
+          fetchInitialData()
+        } else if (currentDriverId) {
+          fetchDriverData(currentDriverId)
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
+        const { userRole, currentDriverId, fetchInitialData, fetchDriverData } = useStore.getState()
+        if (userRole === 'admin' || userRole === 'mostrador') {
+          fetchInitialData()
+        } else if (currentDriverId) {
+          fetchDriverData(currentDriverId)
+        }
+      })
+      .subscribe()
+
     return () => {
       clearTimeout(authSafetyTimeout)
       subscription.unsubscribe()
+      supabase.removeChannel(realtimeChannel)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }

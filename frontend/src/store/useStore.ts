@@ -825,21 +825,21 @@ export const useStore = create<AppState>()(
                 client_id: item.payload.client_id,
                 driver_id: item.payload.driver_id,
                 transaction_date: item.payload.transaction_date,
-                subtotal_sales: item.payload.subtotal_sales,
-                total_returns: item.payload.total_returns,
-                applied_debt: item.payload.applied_debt,
-                final_total: item.payload.subtotal_sales - item.payload.total_returns,
-                payment_cash: item.payload.payment_cash,
-                payment_transfer: item.payload.payment_transfer,
-                payment_account: item.payload.payment_account,
-                cajones_left: item.payload.cajones_left,
-                cajones_returned: item.payload.cajones_returned,
+                subtotal_sales: Number(item.payload.subtotal_sales || 0),
+                total_returns: Number(item.payload.total_returns || 0),
+                applied_debt: Number(item.payload.applied_debt || 0),
+                final_total: Number((item.payload.subtotal_sales || 0) - (item.payload.total_returns || 0)),
+                payment_cash: Number(item.payload.payment_cash || 0),
+                payment_transfer: Number(item.payload.payment_transfer || 0),
+                payment_account: Number(item.payload.payment_account || 0),
+                cajones_left: Number(item.payload.cajones_left || 0),
+                cajones_returned: Number(item.payload.cajones_returned || 0),
                 status: item.payload.status || 'completed',
-                items: item.payload.items.map((i: any) => ({
+                items: (item.payload.items || []).map((i: any) => ({
                   product_id: i.product_id,
                   operation_type: i.operation_type,
-                  quantity: i.quantity,
-                  unit_price: i.unit_price
+                  quantity: Number(i.quantity || 0),
+                  unit_price: Number(i.unit_price || 0)
                 }))
               }
 
