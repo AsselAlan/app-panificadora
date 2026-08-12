@@ -1606,16 +1606,21 @@ const DriverClients: React.FC<DriverClientsProps> = ({ onBack, onSelectClient })
                     {idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                       <h3 className="font-bold text-brand-deep text-sm truncate">{client.business_name}</h3>
-                      {sales.some(s => s.driver_id === currentDriverId && s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
-                        <span className="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm animate-pulse">
-                          🟡 Ticket Abierto
-                        </span>
-                      )}
                       {client.allow_credit && (
                         <span className="bg-brand-navy text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm">
                           Cta. Cte.
+                        </span>
+                      )}
+                      {sales.some(s => s.client_id === client.id && s.status === 'completed' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                        <span className="bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm flex items-center gap-1">
+                          ✓ Visitado
+                        </span>
+                      )}
+                      {sales.some(s => s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                        <span className="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm animate-pulse">
+                          🟡 Ticket Abierto
                         </span>
                       )}
                     </div>
@@ -2562,8 +2567,24 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
                     <div>
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <span className="text-[9px] font-black text-brand-navy uppercase tracking-wider block mb-1">Cliente a Visitar</span>
-                          <h4 className="font-bold text-brand-deep text-sm truncate">{client?.business_name || 'Cliente Desconocido'}</h4>
+                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                            <h4 className="font-bold text-brand-deep text-sm truncate">{client?.business_name || 'Cliente Desconocido'}</h4>
+                            {client?.allow_credit && (
+                              <span className="bg-brand-navy text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm">
+                                Cta. Cte.
+                              </span>
+                            )}
+                            {client && sales.some(s => s.client_id === client.id && s.status === 'completed' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                              <span className="bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm flex items-center gap-1">
+                                ✓ Visitado
+                              </span>
+                            )}
+                            {client && sales.some(s => s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                              <span className="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm animate-pulse">
+                                🟡 Ticket Abierto
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-brand-muted truncate flex items-center gap-1.5 mt-1 font-medium">
                             <MapPin size={12} className="text-brand-orange flex-shrink-0" /> {client?.address || 'Sin dirección'}
                           </p>
@@ -2822,12 +2843,15 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
             <div className="space-y-2">
               {todaySales.map((ticket) => {
                 const totalPaid = ticket.payment_cash + ticket.payment_transfer
+                const clientObj = clients.find(c => c.id === ticket.client_id)
+                const clientName = ticket.client_name || clientObj?.business_name || 'Cliente'
                 return (
                   <div 
                     key={ticket.id}
                     onClick={async () => {
+                      const fullTicket = { ...ticket, client_name: clientName }
                       if (!ticket.items) {
-                        setSelectedTicket({ ...ticket, items: [] })
+                        setSelectedTicket({ ...fullTicket, items: [] })
                         const { data } = await supabase.from('sale_items').select('*, products(name)').eq('sale_id', ticket.id)
                         if (data) {
                           const mappedItems = data.map((i: any) => ({
@@ -2837,10 +2861,10 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
                              operation_type: i.operation_type,
                              name: i.products?.name || 'Producto'
                           }))
-                          setSelectedTicket({ ...ticket, items: mappedItems })
+                          setSelectedTicket({ ...fullTicket, items: mappedItems })
                         }
                       } else {
-                        setSelectedTicket(ticket)
+                        setSelectedTicket(fullTicket)
                       }
                     }}
                     className="bg-white hover:bg-brand-navy/5 border border-brand-muted/10 rounded-2xl p-3.5 shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-[0.99]"
@@ -2850,7 +2874,7 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
                         <span className="text-[9px] font-mono bg-brand-muted/10 text-brand-muted px-1.5 py-0.5 rounded border border-brand-muted/20 uppercase">#{ticket.id.substring(0, 5)}</span>
                         <span className="text-[9px] text-brand-muted font-semibold">{new Date(ticket.transaction_date).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs</span>
                       </div>
-                      <h4 className="font-bold text-xs text-brand-deep truncate">{ticket.client_name || 'Cliente'}</h4>
+                      <h4 className="font-bold text-xs text-brand-deep truncate">{clientName}</h4>
                       <div className="flex gap-2.5 mt-1">
                         {ticket.payment_cash > 0 && (
                           <span className="text-[8px] font-bold text-green-500 uppercase tracking-wider flex items-center gap-0.5">💵 Efe</span>
@@ -2911,7 +2935,7 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
                 
                 <div className="mb-3 border-b border-brand-muted/20 pb-2">
                   <p className="font-bold text-brand-muted text-[10px]">CLIENTE:</p>
-                  <p className="text-brand-deep font-bold">{selectedTicket.client_name || 'Cliente'}</p>
+                  <p className="text-brand-deep font-bold">{selectedTicket.client_name || clients.find(c => c.id === selectedTicket.client_id)?.business_name || 'Cliente'}</p>
                 </div>
 
                 {/* Ítems */}
