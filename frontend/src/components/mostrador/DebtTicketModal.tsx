@@ -5,9 +5,8 @@ import { supabase } from '../../supabaseClient'
 
 /**
  * DebtTicketModal compartido
- * Muestra el comprobante de cobro de deuda con historial de tickets adeudados.
- * Imprime optimizado para impresora termica 80mm.
- * Requiere: data.client_id para cargar historial.
+ * Muestra el comprobante de cobro de deuda con historial completo de tickets adeudados y productos.
+ * Imprime optimizado para impresora térmica 80mm y genera texto formateado para WhatsApp.
  */
 export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ data, onClose }) => {
   const { products } = useStore()
@@ -18,38 +17,97 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
   useEffect(() => {
     if (!data.client_id) { setLoadingHistory(false); return }
     const fetchHistory = async () => {
+      setLoadingHistory(true)
       try {
-        const { data: sales } = await supabase
-          .from('sales')
-          .select('id, transaction_date, subtotal_sales, payment_cash, payment_transfer, payment_account')
-          .eq('client_id', data.client_id)
-          .gt('payment_account', 0)
-          .order('transaction_date', { ascending: true })
-        if (!sales || sales.length === 0) { setTickets([]); return }
-        setTickets(sales)
-        const { data: items } = await supabase
-          .from('sale_items')
-          .select('sale_id, product_id, quantity, unit_price, operation_type')
-          .in('sale_id', sales.map((s: any) => s.id))
-          .eq('operation_type', 'sale')
-        const grouped: Record<string, any[]> = {}
-        for (const item of (items || [])) {
-          if (!grouped[item.sale_id]) grouped[item.sale_id] = []
-          grouped[item.sale_id].push(item)
+        // 1. Obtener ventas locales del store
+        const storeSales = useStore.getState().sales || []
+        const localDebtSales = storeSales.filter((s: any) => 
+          s.client_id === data.client_id && 
+          ((s.payment_account && s.payment_account > 0) || ((s.subtotal_sales || 0) - (s.payment_cash || 0) - (s.payment_transfer || 0)) > 0)
+        )
+
+        // 2. Traer ventas de Supabase si hay conexión
+        let remoteDebtSales: any[] = []
+        try {
+          const { data: sales } = await supabase
+            .from('sales')
+            .select('*')
+            .eq('client_id', data.client_id)
+            .order('transaction_date', { ascending: true })
+
+          if (sales) {
+            remoteDebtSales = sales.filter((s: any) => 
+              (s.payment_account && s.payment_account > 0) || ((s.subtotal_sales || 0) - (s.payment_cash || 0) - (s.payment_transfer || 0)) > 0
+            )
+          }
+        } catch (err) {
+          console.warn('Error al consultar ventas remotas para comprobante:', err)
         }
+
+        // 3. Fusionar ventas sin duplicar
+        const salesMap = new Map<string, any>()
+        remoteDebtSales.forEach(s => salesMap.set(s.id, s))
+        localDebtSales.forEach(s => salesMap.set(s.id, s))
+
+        const mergedSales = Array.from(salesMap.values()).sort(
+          (a: any, b: any) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
+        )
+
+        setTickets(mergedSales)
+
+        // 4. Cargar ítems
+        const grouped: Record<string, any[]> = {}
+        const missingSaleIds: string[] = []
+
+        mergedSales.forEach((s: any) => {
+          if (Array.isArray(s.items) && s.items.length > 0) {
+            grouped[s.id] = s.items.filter((i: any) => i.operation_type === 'sale')
+          } else {
+            missingSaleIds.push(s.id)
+          }
+        })
+
+        if (missingSaleIds.length > 0) {
+          try {
+            const { data: items } = await supabase
+              .from('sale_items')
+              .select('sale_id, product_id, quantity, unit_price, operation_type')
+              .in('sale_id', missingSaleIds)
+              .eq('operation_type', 'sale')
+
+            if (items) {
+              for (const item of items) {
+                if (!grouped[item.sale_id]) grouped[item.sale_id] = []
+                grouped[item.sale_id].push(item)
+              }
+            }
+          } catch (err) {
+            console.warn('Error consultando sale_items:', err)
+          }
+        }
+
         setItemsByTicket(grouped)
-      } catch (e) { console.error(e) }
-      finally { setLoadingHistory(false) }
+      } catch (e) {
+        console.error('Error al cargar historial para ticket:', e)
+      } finally {
+        setLoadingHistory(false)
+      }
     }
     fetchHistory()
   }, [data.client_id])
 
-  const getProductName = (productId: string) => {
-    const p = products.find((pr: any) => pr.id === productId)
+  const getProductName = (item: any) => {
+    if (item.name) return item.name
+    const p = products.find((pr: any) => pr.id === item.product_id)
     return p ? p.name : 'Producto'
   }
 
-  // CSS optimizado para impresora termica 80mm
+  // Cálculos de saldo anterior y saldo inicial legacy
+  const totalOldDebt = Math.abs(data.old_balance || 0)
+  const sumTicketFiado = tickets.reduce((acc, t) => acc + (t.payment_account || (t.subtotal_sales - (t.payment_cash || 0) - (t.payment_transfer || 0))), 0)
+  const legacyBalance = Math.max(0, totalOldDebt - sumTicketFiado)
+
+  // CSS optimizado para impresora térmica 80mm
   const TICKET_CSS = [
     '@page { size: 80mm auto; margin: 3mm 4mm; }',
     '* { box-sizing: border-box; }',
@@ -70,33 +128,45 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
   ].join('\n')
 
   const buildWhatsAppText = () => {
-    let text = 'PANIFICADORA FENIX\nRECIBO DE PAGO\nTicket #' + data.id +
+    let text = 'PANIFICADORA FENIX\nCOMPROBANTE DE PAGO\nTicket #' + data.id +
       '\nCliente: ' + data.client_name +
-      '\nFecha: ' + new Date(data.date).toLocaleString('es-AR') + '\n'
-    text += '--------------------------------\nMonto Abonado: $' + data.amount.toLocaleString() +
-      '\nMetodo: ' + data.method.toUpperCase() + '\n'
+      '\nFecha: ' + new Date(data.date).toLocaleString('es-AR') + '\n' +
+      '--------------------------------\n' +
+      '*ABONO REALIZADO: $' + Number(data.amount).toLocaleString('es-AR') + '*\n' +
+      'Método de Pago: ' + String(data.method).toUpperCase() + '\n' +
+      '--------------------------------\n' +
+      'DETALLE COMPRAS QUE GENERARON DEUDA:\n'
+
+    let acum = 0
     if (tickets.length > 0) {
-      text += '--------------------------------\nDETALLE DEUDA ACUMULADA\n'
-      let acum = 0
       tickets.forEach((t: any, i: number) => {
-        acum += t.payment_account
+        const fiadoAmount = t.payment_account || (t.subtotal_sales - (t.payment_cash || 0) - (t.payment_transfer || 0))
+        acum += fiadoAmount
         const tItems = itemsByTicket[t.id] || []
-        text += '\n#' + (i + 1) + ' ' + new Date(t.transaction_date).toLocaleDateString('es-AR') +
-          ' - Fiado: $' + t.payment_account.toLocaleString() + '\n'
+        const tDate = new Date(t.transaction_date).toLocaleDateString('es-AR')
+        text += `\n*Compra #${i + 1} (${tDate}) — Fiado: $${fiadoAmount.toLocaleString('es-AR')}*\n`
         tItems.forEach((item: any) => {
-          text += '  ' + item.quantity + 'x ' + getProductName(item.product_id) +
-            ' $' + (item.quantity * item.unit_price).toLocaleString() + '\n'
+          const pName = getProductName(item)
+          const subtotal = item.quantity * item.unit_price
+          text += `  • ${item.quantity}x ${pName} ($${subtotal.toLocaleString('es-AR')})\n`
         })
-        text += '  Acumulado: $' + acum.toLocaleString() + '\n'
+        text += `  Acumulado: $${acum.toLocaleString('es-AR')}\n`
       })
-      text += '--------------------------------\nDeuda Total: $' + Math.abs(data.old_balance).toLocaleString() + '\n'
-    } else if (data.old_balance < 0) {
-      text += '--------------------------------\nDETALLE DEUDA ACUMULADA\n'
-      text += 'Saldo cargado manualmente o inicial.\nSin detalle de productos.\n'
+
+      if (legacyBalance > 0) {
+        acum += legacyBalance
+        text += `\n*Saldo Cta. Cte. Anterior / Inicial: $${legacyBalance.toLocaleString('es-AR')}*\n`
+        text += `  Acumulado Total: $${acum.toLocaleString('es-AR')}\n`
+      }
+    } else if (totalOldDebt > 0) {
+      text += 'Saldo inicial o cargado manualmente.\nSin detalle de productos.\n'
     }
-    text += '--------------------------------\nSaldo Anterior: -$' + Math.abs(data.old_balance).toLocaleString() +
-      '\nNuevo Saldo: $' + Math.abs(data.new_balance).toLocaleString() +
-      (data.new_balance < 0 ? ' (Deuda)' : '') + '\n\nGracias por su pago!'
+
+    text += '--------------------------------\n' +
+      'Deuda Total Anterior: -$' + totalOldDebt.toLocaleString('es-AR') + '\n' +
+      '*Nuevo Saldo Restante: $' + Math.abs(data.new_balance).toLocaleString('es-AR') + (data.new_balance < 0 ? ' (Deuda)' : '') + '*\n\n' +
+      '¡Gracias por su pago!'
+
     return text
   }
 
@@ -138,7 +208,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
             </div>
             <hr className="divider" />
             <div className="row bold" style={{ fontSize: '11pt', margin: '4px 0' }}>
-              <span>ABONO:</span><span>${(data.amount as number).toLocaleString()}</span>
+              <span>ABONO:</span><span>${(data.amount as number).toLocaleString('es-AR')}</span>
             </div>
             <div className="row-sm">
               <span>METODO:</span>
@@ -148,13 +218,14 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
             {/* Historial de tickets que generaron la deuda */}
             {!loadingHistory && (
               <>
+                <hr className="divider" style={{ marginTop: '6px' }} />
+                <p className="section-title">Detalle Compras que Generaron Deuda</p>
+
                 {tickets.length > 0 ? (
                   <>
-                    <hr className="divider" style={{ marginTop: '6px' }} />
-                    <p className="section-title">Detalle Deuda Acumulada</p>
-
                     {tickets.map((ticket: any, idx: number) => {
-                      runningTotal += ticket.payment_account
+                      const fiadoAmount = ticket.payment_account || (ticket.subtotal_sales - (ticket.payment_cash || 0) - (ticket.payment_transfer || 0))
+                      runningTotal += fiadoAmount
                       const tItems = itemsByTicket[ticket.id] || []
                       const tDate = new Date(ticket.transaction_date)
                       return (
@@ -164,42 +235,62 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
                               #{idx + 1} {tDate.toLocaleDateString('es-AR')}
                             </span>
                             <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
-                              +${ticket.payment_account.toLocaleString()}
+                              +${fiadoAmount.toLocaleString('es-AR')}
                             </span>
                           </div>
-                          {tItems.map((item: any, i: number) => (
-                            <div key={i} className="item-row">
-                              <span>{item.quantity}x {getProductName(item.product_id)}</span>
-                              <span>${(item.quantity * item.unit_price).toLocaleString()}</span>
+                          {tItems.length > 0 ? (
+                            tItems.map((item: any, i: number) => (
+                              <div key={i} className="item-row">
+                                <span>{item.quantity}x {getProductName(item)}</span>
+                                <span>${(item.quantity * item.unit_price).toLocaleString('es-AR')}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="item-row" style={{ fontStyle: 'italic', color: '#666' }}>
+                              <span>Sin detalle de productos</span>
                             </div>
-                          ))}
+                          )}
                           <div className="acum">
-                            Acum: <strong>${runningTotal.toLocaleString()}</strong>
+                            Acum: <strong>${runningTotal.toLocaleString('es-AR')}</strong>
                           </div>
                         </div>
                       )
                     })}
 
+                    {legacyBalance > 0 && (
+                      <div className="ticket-block">
+                        <div className="row">
+                          <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
+                            Saldo Cta. Cte. Anterior / Inicial
+                          </span>
+                          <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
+                            +${legacyBalance.toLocaleString('es-AR')}
+                          </span>
+                        </div>
+                        <div className="acum">
+                          Acum Total: <strong>${(runningTotal + legacyBalance).toLocaleString('es-AR')}</strong>
+                        </div>
+                      </div>
+                    )}
+
                     <hr className="divider" />
                     <div className="total-deuda">
-                      <span>DEUDA TOTAL:</span>
-                      <span>${Math.abs(data.old_balance).toLocaleString()}</span>
+                      <span>DEUDA TOTAL ANTERIOR:</span>
+                      <span>${totalOldDebt.toLocaleString('es-AR')}</span>
                     </div>
                   </>
-                ) : data.old_balance < 0 ? (
+                ) : (
                   <>
-                    <hr className="divider" style={{ marginTop: '6px' }} />
-                    <p className="section-title">Detalle Deuda Acumulada</p>
                     <div className="ticket-block center" style={{ fontSize: '7.5pt', color: '#555', padding: '6px 0' }}>
                       Saldo inicial o cargado manualmente.<br />Sin detalle de productos.
                     </div>
                     <hr className="divider" />
                     <div className="total-deuda">
-                      <span>DEUDA TOTAL:</span>
-                      <span>${Math.abs(data.old_balance).toLocaleString()}</span>
+                      <span>DEUDA TOTAL ANTERIOR:</span>
+                      <span>${totalOldDebt.toLocaleString('es-AR')}</span>
                     </div>
                   </>
-                ) : null}
+                )}
               </>
             )}
 
@@ -207,11 +298,11 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
             <hr className="divider" />
             <div className="row-sm">
               <span>Saldo Anterior:</span>
-              <span>-${Math.abs(data.old_balance).toLocaleString()}</span>
+              <span>-${totalOldDebt.toLocaleString('es-AR')}</span>
             </div>
             <div className="row bold">
               <span>Nuevo Saldo:</span>
-              <span>${Math.abs(data.new_balance).toLocaleString()} {data.new_balance < 0 ? '(Deuda)' : ''}</span>
+              <span>${Math.abs(data.new_balance).toLocaleString('es-AR')} {data.new_balance < 0 ? '(Deuda)' : ''}</span>
             </div>
             <hr className="divider" />
             <div className="footer">
