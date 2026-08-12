@@ -5,7 +5,7 @@ import {
   ClipboardList, Package, LogOut, Truck, CheckCircle,
   Plus, Minus, ShoppingCart, Printer, Banknote, CreditCard,
   X, Calendar, Clock, History, BarChart, MapPin, Map, ArrowUp, ArrowDown, Trash2,
-  Pencil, Eye, Pause, Play, Shield, KeyRound, Menu, ArchiveRestore, AlertCircle
+  Pencil, Eye, Pause, Play, Shield, KeyRound, Menu, ArchiveRestore, AlertCircle, Settings
 } from 'lucide-react'
 import { useStore, getFixedOrderForDay } from '../store/useStore'
 import type { Product, Expense } from '../store/useStore'
@@ -16,6 +16,7 @@ import { AdminProfile } from './admin/AdminProfile'
 import { DebtHistorySection } from './mostrador/DebtHistorySection'
 import { DebtTicketModal } from './mostrador/DebtTicketModal'
 import { SaleTicketModal } from './mostrador/SaleTicketModal'
+import { SettingsModal } from './SettingsModal'
 
 
 interface AdminAppProps {
@@ -27,6 +28,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
   const location = useLocation()
   const { fetchInitialData } = useStore()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   const currentPath = location.pathname.split('/')[2]?.toUpperCase() || 'DASHBOARD'
   const adminView = currentPath === '' ? 'DASHBOARD' : currentPath
@@ -121,6 +123,12 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
             </div>
           </button>
           <button 
+            onClick={() => setShowSettings(true)} 
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs text-brand-muted hover:text-brand-deep hover:bg-brand-muted/10 border border-brand-muted/20 rounded-xl transition-colors font-bold mb-1"
+          >
+            <Settings size={14} /> Configurar
+          </button>
+          <button 
             onClick={onLogout} 
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-xl transition-colors font-bold"
           >
@@ -152,8 +160,16 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
             {adminView === 'PROFILE' && 'Configuración de Mi Perfil'}
             </h2>
           </div>
-          <div className="text-[10px] md:text-xs text-brand-muted font-semibold bg-bg-app px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-brand-muted/10 whitespace-nowrap">
-            Op: <span className="text-orange-500 font-black">{['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][new Date().getDay()]}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSettings(true)}
+              className="flex items-center gap-1.5 text-xs text-brand-navy font-bold bg-brand-navy/10 hover:bg-brand-navy/20 px-3 py-1.5 rounded-xl transition-colors"
+            >
+              <Settings size={14} /> Configurar
+            </button>
+            <div className="text-[10px] md:text-xs text-brand-muted font-semibold bg-bg-app px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-brand-muted/10 whitespace-nowrap">
+              Op: <span className="text-orange-500 font-black">{['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][new Date().getDay()]}</span>
+            </div>
           </div>
         </header>
         <div className="flex-1 overflow-auto p-4 md:p-8 bg-bg-app">
@@ -173,6 +189,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
           </Routes>
         </div>
       </main>
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
-import { LogOut, Store, ShoppingCart, Package, Users } from 'lucide-react'
+import { LogOut, Store, ShoppingCart, Package, Users, Settings } from 'lucide-react'
 import { POSLayout } from './mostrador/POSLayout'
 import { AdminStock } from './AdminApp'
 import { MostradorClients } from './mostrador/MostradorClients'
+import { SettingsModal } from './SettingsModal'
 
 export const MostradorApp = () => {
   const { logout } = useStore()
   const [activeTab, setActiveTab] = useState<'ventas' | 'clientes' | 'stock'>('ventas')
+  const [showSettings, setShowSettings] = useState(false)
 
   return (
     <div className="h-screen overflow-hidden bg-bg-app flex flex-col font-sans">
@@ -39,12 +41,20 @@ export const MostradorApp = () => {
           </button>
         </div>
 
-        <button
-          onClick={() => logout()}
-          className="flex items-center gap-2 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          <LogOut size={16} /> Salir
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Settings size={16} /> Configurar
+          </button>
+          <button
+            onClick={() => logout()}
+            className="flex items-center gap-2 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            <LogOut size={16} /> Salir
+          </button>
+        </div>
       </nav>
 
       {/* Navegación Móvil */}
@@ -79,6 +89,9 @@ export const MostradorApp = () => {
           </div>
         )}
       </main>
+
+      {/* Modal de Configuración */}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

@@ -6,7 +6,7 @@ import {
   X, CheckCircle, AlertCircle, Banknote, CreditCard, 
   TrendingDown, ClipboardList, LogOut, ArrowLeft, Search, ChevronRight,
   Plus, Minus, Printer, MessageCircle, Star, RefreshCw, ChevronDown, ChevronUp,
-  History, Calendar
+  History, Calendar, Settings
 } from 'lucide-react'
 import { useStore, getFixedOrderForDay, sortProducts } from '../store/useStore'
 import type { Sale, Expense, SaleItem, Driver, Product } from '../store/useStore'
@@ -14,6 +14,7 @@ import { supabase } from '../supabaseClient'
 import Swal from 'sweetalert2'
 import { DriverSyncQueue } from './DriverSyncQueue'
 import { CloudOff } from 'lucide-react'
+import { SettingsModal } from './SettingsModal'
 const getPlannedLoadQty = (plannedLoad: any, productId: string): { fixed: number; extra: number; total: number } => {
   const item = plannedLoad?.[productId];
   if (!item) return { fixed: 0, extra: 0, total: 0 };
@@ -153,6 +154,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
   } = useStore()
   
   const [navigationSource, setNavigationSource] = useState<'CLIENTS' | 'ROADMAP' | 'PENDIENTES'>('CLIENTS')
+  const [showSettings, setShowSettings] = useState(false)
 
   const currentPath = location.pathname.split('/')[2]?.toUpperCase() || 'HOME'
   const driverView = currentPath === '' ? 'HOME' : currentPath
@@ -280,13 +282,22 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
             )}
           </div>
           
-          <button
-            onClick={onLogout}
-            className="w-full mt-6 bg-bg-app text-brand-muted border border-brand-muted/20 font-bold py-3 rounded-xl hover:bg-bg-surface shadow-sm active:scale-[0.98] transition-all text-sm"
-          >
-            Volver al Inicio de Sesión
-          </button>
+          <div className="grid grid-cols-2 gap-2 mt-6">
+            <button
+              onClick={() => setShowSettings(true)}
+              className="bg-brand-orange/10 text-brand-orange border border-brand-orange/20 font-bold py-3 rounded-xl hover:bg-brand-orange/20 transition-all text-xs flex items-center justify-center gap-1.5"
+            >
+              <Settings size={14} /> Configurar
+            </button>
+            <button
+              onClick={onLogout}
+              className="bg-bg-app text-brand-muted border border-brand-muted/20 font-bold py-3 rounded-xl hover:bg-bg-surface shadow-sm transition-all text-xs flex items-center justify-center gap-1.5"
+            >
+              <LogOut size={14} /> Salir
+            </button>
+          </div>
         </div>
+        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       </div>
     )
   }
@@ -304,6 +315,12 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
         >
           <span>{new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
           <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setShowSettings(true)}
+              className="flex items-center gap-1 bg-white/10 hover:bg-white/20 text-white px-2 py-0.5 rounded text-[9px] font-bold transition-colors"
+            >
+              <Settings size={10} /> Configurar
+            </button>
             {isSyncing && <RefreshCw size={10} className="animate-spin text-white/80" />}
             {syncQueue.length > 0 && (
               <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px] font-bold shadow-sm">
@@ -335,30 +352,37 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
         {/* Barra de Navegación Inferior (Móvil) */}
         {driverView === 'HOME' && (
           <div className="bg-white border-t border-brand-muted/10 flex justify-around p-2 pb-safe relative z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.03)] sm:rounded-b-[2.1rem]">
-            <button className="flex flex-col items-center justify-center p-2 rounded-2xl w-20 text-brand-navy font-black active:scale-95 transition-all bg-brand-navy/5">
-              <Truck size={22} className="mb-1" />
-              <span className="text-[10px]">Inicio</span>
+            <button className="flex flex-col items-center justify-center p-2 rounded-2xl w-16 text-brand-navy font-black active:scale-95 transition-all bg-brand-navy/5">
+              <Truck size={20} className="mb-1" />
+              <span className="text-[9px]">Inicio</span>
             </button>
             <button 
               onClick={() => setDriverView('CLIENTS')} 
-              className="flex flex-col items-center justify-center p-2 rounded-2xl w-20 text-brand-muted hover:text-brand-navy hover:bg-brand-navy/5 font-semibold active:scale-95 transition-all"
+              className="flex flex-col items-center justify-center p-2 rounded-2xl w-16 text-brand-muted hover:text-brand-navy hover:bg-brand-navy/5 font-semibold active:scale-95 transition-all"
             >
-              <MapPin size={22} className="mb-1 opacity-70" />
-              <span className="text-[10px]">Ruta</span>
+              <MapPin size={20} className="mb-1 opacity-70" />
+              <span className="text-[9px]">Ruta</span>
             </button>
             <button 
               onClick={() => navigate('/driver/pendientes')} 
-              className="flex flex-col items-center justify-center p-2 rounded-2xl w-20 text-brand-muted hover:text-orange-500 hover:bg-orange-50 font-semibold active:scale-95 transition-all relative"
+              className="flex flex-col items-center justify-center p-2 rounded-2xl w-16 text-brand-muted hover:text-orange-500 hover:bg-orange-50 font-semibold active:scale-95 transition-all relative"
             >
               <div className="relative">
-                <CloudOff size={22} className="mb-1 opacity-70" />
+                <CloudOff size={20} className="mb-1 opacity-70" />
                 {syncQueue.length > 0 && (
-                  <span className="absolute -top-1 -right-2 bg-orange-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold shadow-sm">
+                  <span className="absolute -top-1 -right-2 bg-orange-500 text-white text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full font-bold shadow-sm">
                     {syncQueue.length}
                   </span>
                 )}
               </div>
-              <span className="text-[10px]">Espera</span>
+              <span className="text-[9px]">Espera</span>
+            </button>
+            <button 
+              onClick={() => setShowSettings(true)} 
+              className="flex flex-col items-center justify-center p-2 rounded-2xl w-16 text-brand-muted hover:text-brand-navy hover:bg-brand-navy/5 font-semibold active:scale-95 transition-all"
+            >
+              <Settings size={20} className="mb-1 opacity-70" />
+              <span className="text-[9px]">Ajustes</span>
             </button>
             <button 
               onClick={() => {
@@ -368,13 +392,14 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
                 setCurrentDriver(null)
                 onLogout()
               }} 
-              className="flex flex-col items-center justify-center p-2 rounded-2xl w-20 text-brand-muted hover:text-red-500 hover:bg-red-50 font-semibold active:scale-95 transition-all"
+              className="flex flex-col items-center justify-center p-2 rounded-2xl w-16 text-brand-muted hover:text-red-500 hover:bg-red-50 font-semibold active:scale-95 transition-all"
             >
-              <LogOut size={22} className="mb-1 opacity-70" />
-              <span className="text-[10px]">Salir</span>
+              <LogOut size={20} className="mb-1 opacity-70" />
+              <span className="text-[9px]">Salir</span>
             </button>
           </div>
         )}
+        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       </div>
     </div>
   )
