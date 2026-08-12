@@ -297,7 +297,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
             </button>
           </div>
         </div>
-        {showSettings && <SettingsModal onGoHome={() => navigate('/driver/home')} onClose={() => setShowSettings(false)} />}
+        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       </div>
     )
   }
@@ -405,7 +405,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
             </button>
           </div>
         )}
-        {showSettings && <SettingsModal onGoHome={() => navigate('/driver/home')} onClose={() => setShowSettings(false)} />}
+        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       </div>
     </div>
   )

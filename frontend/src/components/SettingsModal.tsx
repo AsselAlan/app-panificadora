@@ -7,10 +7,9 @@ import Swal from 'sweetalert2'
 
 interface SettingsModalProps {
   onClose: () => void
-  onGoHome?: () => void
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onGoHome }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const { isOffline, syncQueue, clearAllData, processSyncQueue } = useStore()
   const [clearing, setClearing] = useState(false)
 
@@ -188,18 +187,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onGoHome 
             <Smartphone size={16} /> Anclar App a Pantalla de Inicio (Celular)
           </button>
 
-          {/* Botón opcional: Ir a menú principal de la App */}
-          {onGoHome && (
-            <button
-              onClick={() => {
-                onClose()
-                onGoHome()
-              }}
-              className="w-full bg-brand-navy hover:bg-slate-900 text-white font-bold py-3.5 rounded-2xl transition-all shadow-sm flex justify-center items-center gap-2 text-xs active:scale-95"
-            >
-              <Home size={16} /> Ir al Menú Principal (Repartidor)
-            </button>
-          )}
+
 
           {/* Botón de Actualizar y Limpiar Memoria */}
           <div className="pt-1">
