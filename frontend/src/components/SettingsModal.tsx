@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
-import { Settings, RefreshCw, Trash2, Database, ShieldCheck, X, Wifi, WifiOff, Home } from 'lucide-react'
+import { Settings, RefreshCw, Trash2, Database, ShieldCheck, X, Wifi, WifiOff, Home, Smartphone, Download } from 'lucide-react'
 import { useStore } from '../store/useStore'
+import { promptPWAInstall } from '../pwaHelper'
 import localforage from 'localforage'
 import Swal from 'sweetalert2'
 
@@ -12,6 +13,45 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onGoHome }) => {
   const { isOffline, syncQueue, clearAllData, processSyncQueue } = useStore()
   const [clearing, setClearing] = useState(false)
+
+  const handleInstallApp = async () => {
+    const installed = await promptPWAInstall()
+    if (installed) return
+
+    // Si el prompt nativo no está disponible (ej. iPhone/Safari o ya instalado), mostrar la guía interactiva
+    Swal.fire({
+      title: '📲 Anclar a Pantalla de Inicio',
+      html: `
+        <div class="text-left text-xs space-y-3.5 text-slate-700 font-sans">
+          <p class="text-slate-600 font-medium">Crea un acceso directo rápido tipo aplicación en la pantalla principal de tu celular:</p>
+          
+          <div class="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-3.5 shadow-sm">
+            <h4 class="font-bold text-blue-900 text-sm flex items-center gap-2 mb-1.5">
+              🤖 Android (Chrome / Edge)
+            </h4>
+            <ol class="list-decimal list-inside space-y-1.5 text-blue-950 font-medium leading-relaxed">
+              <li>Toca el menú de <b>3 puntos (⋮)</b> arriba a la derecha del navegador.</li>
+              <li>Selecciona <b>"Agregar a la pantalla principal"</b> o <b>"Instalar aplicación"</b>.</li>
+              <li>Presiona <b>"Agregar"</b> para confirmar.</li>
+            </ol>
+          </div>
+
+          <div class="bg-slate-100/80 border border-slate-200/80 rounded-2xl p-3.5 shadow-sm">
+            <h4 class="font-bold text-slate-900 text-sm flex items-center gap-2 mb-1.5">
+              🍎 iPhone / iPad (Safari)
+            </h4>
+            <ol class="list-decimal list-inside space-y-1.5 text-slate-800 font-medium leading-relaxed">
+              <li>Toca el botón <b>Compartir (⎋)</b> (icono del cuadrado con flecha abajo).</li>
+              <li>Desliza hacia abajo y toca <b>"Agregar a inicio"</b> ➕.</li>
+              <li>Toca <b>"Agregar"</b> arriba a la derecha.</li>
+            </ol>
+          </div>
+        </div>
+      `,
+      confirmButtonColor: '#ea580c',
+      confirmButtonText: '¡Entendido!'
+    })
+  }
 
   const handleForceUpdate = async () => {
     const result = await Swal.fire({
@@ -107,7 +147,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onGoHome 
         </div>
 
         {/* Contenido */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-3.5">
           
           {/* Info Versión y Red */}
           <div className="grid grid-cols-2 gap-3">
@@ -140,16 +180,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onGoHome 
             </span>
           </div>
 
-          {/* Botón opcional: Ir a pantalla de inicio del repartidor */}
+          {/* Botón: Anclar App a la Pantalla de Inicio del Celular */}
+          <button
+            onClick={handleInstallApp}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl transition-all shadow-md flex justify-center items-center gap-2 text-xs active:scale-95"
+          >
+            <Smartphone size={16} /> Anclar App a Pantalla de Inicio (Celular)
+          </button>
+
+          {/* Botón opcional: Ir a menú principal de la App */}
           {onGoHome && (
             <button
               onClick={() => {
                 onClose()
                 onGoHome()
               }}
-              className="w-full bg-brand-navy hover:bg-slate-900 text-white font-black py-3.5 rounded-2xl transition-all shadow-sm flex justify-center items-center gap-2 text-xs active:scale-95"
+              className="w-full bg-brand-navy hover:bg-slate-900 text-white font-bold py-3.5 rounded-2xl transition-all shadow-sm flex justify-center items-center gap-2 text-xs active:scale-95"
             >
-              <Home size={16} /> Ir a Pantalla Inicio (Repartidor)
+              <Home size={16} /> Ir al Menú Principal (Repartidor)
             </button>
           )}
 
@@ -158,13 +206,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onGoHome 
             <button
               onClick={handleForceUpdate}
               disabled={clearing}
-              className="w-full bg-brand-orange hover:bg-orange-600 text-white font-black py-4 rounded-2xl transition-all shadow-md flex justify-center items-center gap-2 text-sm disabled:opacity-50 active:scale-95"
+              className="w-full bg-brand-orange hover:bg-orange-600 text-white font-black py-3.5 rounded-2xl transition-all shadow-md flex justify-center items-center gap-2 text-xs disabled:opacity-50 active:scale-95"
             >
               {clearing ? (
                 <RefreshCw size={18} className="animate-spin" />
               ) : (
                 <>
-                  <Trash2 size={18} /> Actualizar y Limpiar Memoria
+                  <Trash2 size={16} /> Actualizar y Limpiar Memoria
                 </>
               )}
             </button>
