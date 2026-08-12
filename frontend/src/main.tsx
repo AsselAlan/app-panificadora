@@ -6,14 +6,6 @@ import './index.css'
 import App from './App.tsx'
 import { useStore } from './store/useStore'
 
-// Captura global de evento PWA antes de prompt de instalación
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    (window as any).deferredInstallPrompt = e;
-  });
-}
-
 // Solo exponer en desarrollo para debugging (nunca en producción)
 if (import.meta.env.DEV) {
   // @ts-ignore
