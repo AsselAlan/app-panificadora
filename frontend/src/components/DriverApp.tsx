@@ -1200,6 +1200,11 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
       {showHistoryModal && (
         <DriverHistoryModal driver={driver} onClose={() => setShowHistoryModal(false)} />
       )}
+
+      {/* Modal Paradas de Carga */}
+      {showLoadStopsModal && (
+        <DriverLoadStopsModal driver={driver} onClose={() => setShowLoadStopsModal(false)} />
+      )}
     </div>
   )
 }
