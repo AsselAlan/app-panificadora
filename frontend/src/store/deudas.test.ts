@@ -40,7 +40,8 @@ describe('Cuentas Corrientes y Gestión de Deudas', () => {
         { id: 'driver-1', user_id: 'u-1', full_name: 'Pedro Chofer', status: 'En Ruta', is_online: true, is_mostrador: false, cash_collected: 0, transfer_collected: 0, location_data: null, last_active: new Date().toISOString() }
       ],
       products: [
-        { id: 'prod-pan', name: 'Pan de Mesa', unit_type: 'bolsa', price_a: 1000, price_b: 1200, bakery_stock: 100 }
+        { id: 'prod-pan', name: 'Pan de Mesa', unit_type: 'bolsa', price_a: 1000, price_b: 1200, bakery_stock: 100 },
+        { id: 'prod-factura', name: 'Factura Docena', unit_type: 'docena', price_a: 3000, price_b: 3500, bakery_stock: 50 }
       ],
       loads: [
         { id: 'load-1', driver_id: 'driver-1', product_id: 'prod-pan', date_loaded: '2026-08-12', initial_quantity: 50, current_quantity: 50 }
@@ -56,13 +57,13 @@ describe('Cuentas Corrientes y Gestión de Deudas', () => {
       client_id: 'client-al-dia',
       driver_id: 'driver-1',
       transaction_date: new Date().toISOString(),
-      subtotal_sales: 3000, // 3 bolsas x 1200 (precio B)
+      subtotal_sales: 3000,
       total_returns: 0,
       applied_debt: 0,
       final_total: 3000,
       payment_cash: 0,
       payment_transfer: 0,
-      payment_account: 3000, // Se anota en la cuenta corriente
+      payment_account: 3000,
       client_name: 'Rotisería Anita',
       driver_name: 'Pedro Chofer',
       items: [
@@ -74,11 +75,7 @@ describe('Cuentas Corrientes y Gestión de Deudas', () => {
     await addSale(sale);
 
     const state = useStore.getState();
-
-    // El saldo del cliente disminuye en el monto a cuenta (-3000)
     expect(state.clients[1].current_balance).toBe(-3000);
-    
-    // No entra efectivo ni transferencia en la caja del chofer
     expect(state.drivers[0].cash_collected).toBe(0);
     expect(state.drivers[0].transfer_collected).toBe(0);
   });
@@ -89,9 +86,9 @@ describe('Cuentas Corrientes y Gestión de Deudas', () => {
       client_id: 'client-deudor',
       driver_id: 'driver-1',
       transaction_date: new Date().toISOString(),
-      subtotal_sales: 0, // No lleva productos nuevos
+      subtotal_sales: 0,
       total_returns: 0,
-      applied_debt: 5000, // Paga $5000 de su deuda previa de $8000
+      applied_debt: 5000,
       final_total: 5000,
       payment_cash: 5000,
       payment_transfer: 0,
@@ -105,11 +102,7 @@ describe('Cuentas Corrientes y Gestión de Deudas', () => {
     await addSale(saleDeuda);
 
     const state = useStore.getState();
-
-    // La caja del chofer incrementa en $5000 de efectivo
     expect(state.drivers[0].cash_collected).toBe(5000);
-
-    // La venta se guardó correctamente
     expect(state.sales.length).toBe(1);
     expect(state.sales[0].applied_debt).toBe(5000);
   });
@@ -120,10 +113,10 @@ describe('Cuentas Corrientes y Gestión de Deudas', () => {
       client_id: 'client-deudor',
       driver_id: 'driver-1',
       transaction_date: new Date().toISOString(),
-      subtotal_sales: 2000, // $2000 en pan
+      subtotal_sales: 2000,
       total_returns: 0,
-      applied_debt: 3000, // + $3000 de deuda previa
-      final_total: 5000,  // Total a cobrar: $5000
+      applied_debt: 3000,
+      final_total: 5000,
       payment_cash: 5000,
       payment_transfer: 0,
       payment_account: 0,
@@ -138,11 +131,41 @@ describe('Cuentas Corrientes y Gestión de Deudas', () => {
     await addSale(saleMixta);
 
     const state = useStore.getState();
-
-    // Stock de camioneta baja de 50 a 48
     expect(state.loads[0].current_quantity).toBe(48);
-
-    // Caja física del chofer recibe los $5000 completos
     expect(state.drivers[0].cash_collected).toBe(5000);
+  });
+
+  it('Debe almacenar las compras a cta. cte. preservando los ítems de productos para el comprobante de deuda', async () => {
+    const saleFiadoConItems = {
+      id: 'sale-fiado-detalle-1',
+      client_id: 'client-deudor',
+      driver_id: 'driver-1',
+      transaction_date: new Date().toISOString(),
+      subtotal_sales: 15400,
+      total_returns: 0,
+      applied_debt: 0,
+      final_total: 15400,
+      payment_cash: 0,
+      payment_transfer: 0,
+      payment_account: 15400,
+      client_name: 'Supermercado Central',
+      driver_name: 'Pedro Chofer',
+      items: [
+        { product_id: 'prod-pan', operation_type: 'sale' as const, quantity: 10, unit_price: 1000, name: 'Pan de Mesa' },
+        { product_id: 'prod-factura', operation_type: 'sale' as const, quantity: 18, unit_price: 300, name: 'Factura Docena' }
+      ]
+    };
+
+    const { addSale } = useStore.getState();
+    await addSale(saleFiadoConItems);
+
+    const state = useStore.getState();
+    const savedSale = state.sales.find(s => s.id === 'sale-fiado-detalle-1');
+
+    expect(savedSale).toBeDefined();
+    expect(savedSale?.items.length).toBe(2);
+    expect(savedSale?.items[0].name).toBe('Pan de Mesa');
+    expect(savedSale?.items[1].name).toBe('Factura Docena');
+    expect(savedSale?.payment_account).toBe(15400);
   });
 });
