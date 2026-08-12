@@ -438,7 +438,7 @@ const EditableLoadModal: React.FC<EditableLoadModalProps> = ({ plannedLoad, onCl
   const sortedProducts = sortProducts(products);
 
   return (
-    <div className="absolute inset-0 bg-bg-app/80 z-50 flex justify-center pt-16 pb-6 px-4 backdrop-blur-md animate-in fade-in">
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
       <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh] sm:max-h-[80vh]">
         <div className="p-5 border-b border-brand-muted/20 bg-brand-navy/5 rounded-t-3xl flex justify-between items-center text-brand-deep">
           <div>
@@ -660,7 +660,7 @@ const DriverLoadStopsModal: React.FC<DriverLoadStopsModalProps> = ({ driver, onC
   const hasInitialLoad = Object.keys(plannedLoad).length > 0
 
   return (
-    <div className="absolute inset-0 bg-bg-app/80 z-50 flex justify-center pt-16 pb-6 px-4 backdrop-blur-md animate-in fade-in">
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
       <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
         <div className="p-5 border-b border-brand-muted/20 bg-brand-navy/5 rounded-t-3xl flex justify-between items-center text-brand-deep">
           <div>
@@ -1092,7 +1092,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
 
       {/* Modal Nuevo Gasto */}
       {showExpenseModal && (
-        <div className="absolute inset-0 bg-bg-app/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-md animate-in fade-in">
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-md animate-in fade-in">
           <div className="bg-bg-surface shadow-sm border-t sm:border border-brand-muted/20 rounded-t-3xl sm:rounded-3xl w-full max-w-sm shadow-2xl flex flex-col">
             <div className="p-5 border-b border-brand-muted/20 bg-red-500/5 rounded-t-3xl flex justify-between items-center">
               <div>
