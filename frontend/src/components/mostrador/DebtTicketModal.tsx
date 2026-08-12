@@ -5,7 +5,7 @@ import { supabase } from '../../supabaseClient'
 
 /**
  * DebtTicketModal compartido
- * Muestra el comprobante de cobro de deuda con historial completo de tickets adeudados y productos.
+ * Muestra e imprime el comprobante de cobro de deuda con historial completo de compras adeudadas y productos.
  * Imprime optimizado para impresora térmica 80mm y genera texto formateado para WhatsApp.
  */
 export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ data, onClose }) => {
@@ -16,15 +16,23 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
 
   useEffect(() => {
     if (!data.client_id) { setLoadingHistory(false); return }
+
     const fetchHistory = async () => {
       setLoadingHistory(true)
       try {
+        // Función aux para detectar si una venta dejó saldo a cuenta / fiado
+        const isDebtSale = (s: any) => {
+          const subtotal = Number(s.subtotal_sales || s.final_total || 0)
+          const cash = Number(s.payment_cash || 0)
+          const transfer = Number(s.payment_transfer || 0)
+          const account = Number(s.payment_account || 0)
+          const returns = Number(s.total_returns || 0)
+          return account > 0 || (subtotal - returns - cash - transfer) > 0
+        }
+
         // 1. Obtener ventas locales del store
         const storeSales = useStore.getState().sales || []
-        const localDebtSales = storeSales.filter((s: any) => 
-          s.client_id === data.client_id && 
-          ((s.payment_account && s.payment_account > 0) || ((s.subtotal_sales || 0) - (s.payment_cash || 0) - (s.payment_transfer || 0)) > 0)
-        )
+        const localDebtSales = storeSales.filter((s: any) => s.client_id === data.client_id && isDebtSale(s))
 
         // 2. Traer ventas de Supabase si hay conexión
         let remoteDebtSales: any[] = []
@@ -36,9 +44,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
             .order('transaction_date', { ascending: true })
 
           if (sales) {
-            remoteDebtSales = sales.filter((s: any) => 
-              (s.payment_account && s.payment_account > 0) || ((s.subtotal_sales || 0) - (s.payment_cash || 0) - (s.payment_transfer || 0)) > 0
-            )
+            remoteDebtSales = sales.filter((s: any) => isDebtSale(s))
           }
         } catch (err) {
           console.warn('Error al consultar ventas remotas para comprobante:', err)
@@ -55,13 +61,13 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
 
         setTickets(mergedSales)
 
-        // 4. Cargar ítems
+        // 4. Cargar ítems (de propiedad local o de la tabla sale_items)
         const grouped: Record<string, any[]> = {}
         const missingSaleIds: string[] = []
 
         mergedSales.forEach((s: any) => {
           if (Array.isArray(s.items) && s.items.length > 0) {
-            grouped[s.id] = s.items.filter((i: any) => i.operation_type === 'sale')
+            grouped[s.id] = s.items.filter((i: any) => !i.operation_type || i.operation_type === 'sale')
           } else {
             missingSaleIds.push(s.id)
           }
@@ -73,7 +79,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
               .from('sale_items')
               .select('sale_id, product_id, quantity, unit_price, operation_type')
               .in('sale_id', missingSaleIds)
-              .eq('operation_type', 'sale')
+              .or('operation_type.eq.sale,operation_type.is.null')
 
             if (items) {
               for (const item of items) {
@@ -104,7 +110,11 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
 
   // Cálculos de saldo anterior y saldo inicial legacy
   const totalOldDebt = Math.abs(data.old_balance || 0)
-  const sumTicketFiado = tickets.reduce((acc, t) => acc + (t.payment_account || (t.subtotal_sales - (t.payment_cash || 0) - (t.payment_transfer || 0))), 0)
+  const sumTicketFiado = tickets.reduce((acc, t) => {
+    const account = Number(t.payment_account || 0)
+    const fiado = account > 0 ? account : Math.max(0, Number(t.subtotal_sales || t.final_total || 0) - Number(t.total_returns || 0) - Number(t.payment_cash || 0) - Number(t.payment_transfer || 0))
+    return acc + fiado
+  }, 0)
   const legacyBalance = Math.max(0, totalOldDebt - sumTicketFiado)
 
   // CSS optimizado para impresora térmica 80mm
@@ -140,7 +150,8 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
     let acum = 0
     if (tickets.length > 0) {
       tickets.forEach((t: any, i: number) => {
-        const fiadoAmount = t.payment_account || (t.subtotal_sales - (t.payment_cash || 0) - (t.payment_transfer || 0))
+        const account = Number(t.payment_account || 0)
+        const fiadoAmount = account > 0 ? account : Math.max(0, Number(t.subtotal_sales || t.final_total || 0) - Number(t.total_returns || 0) - Number(t.payment_cash || 0) - Number(t.payment_transfer || 0))
         acum += fiadoAmount
         const tItems = itemsByTicket[t.id] || []
         const tDate = new Date(t.transaction_date).toLocaleDateString('es-AR')
@@ -159,7 +170,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
         text += `  Acumulado Total: $${acum.toLocaleString('es-AR')}\n`
       }
     } else if (totalOldDebt > 0) {
-      text += 'Saldo inicial o cargado manualmente.\nSin detalle de productos.\n'
+      text += `\n*Saldo Cta. Cte. Anterior / Inicial: $${totalOldDebt.toLocaleString('es-AR')}*\n`
     }
 
     text += '--------------------------------\n' +
@@ -224,7 +235,8 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
                 {tickets.length > 0 ? (
                   <>
                     {tickets.map((ticket: any, idx: number) => {
-                      const fiadoAmount = ticket.payment_account || (ticket.subtotal_sales - (ticket.payment_cash || 0) - (ticket.payment_transfer || 0))
+                      const account = Number(ticket.payment_account || 0)
+                      const fiadoAmount = account > 0 ? account : Math.max(0, Number(ticket.subtotal_sales || ticket.final_total || 0) - Number(ticket.total_returns || 0) - Number(ticket.payment_cash || 0) - Number(ticket.payment_transfer || 0))
                       runningTotal += fiadoAmount
                       const tItems = itemsByTicket[ticket.id] || []
                       const tDate = new Date(ticket.transaction_date)
@@ -267,6 +279,9 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
                             +${legacyBalance.toLocaleString('es-AR')}
                           </span>
                         </div>
+                        <div className="item-row" style={{ fontStyle: 'italic', color: '#666' }}>
+                          <span>Saldo de apertura previo</span>
+                        </div>
                         <div className="acum">
                           Acum Total: <strong>${(runningTotal + legacyBalance).toLocaleString('es-AR')}</strong>
                         </div>
@@ -281,8 +296,18 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
                   </>
                 ) : (
                   <>
-                    <div className="ticket-block center" style={{ fontSize: '7.5pt', color: '#555', padding: '6px 0' }}>
-                      Saldo inicial o cargado manualmente.<br />Sin detalle de productos.
+                    <div className="ticket-block">
+                      <div className="row">
+                        <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
+                          Saldo Cta. Cte. Anterior / Inicial
+                        </span>
+                        <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
+                          +${totalOldDebt.toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                      <div className="item-row" style={{ fontStyle: 'italic', color: '#666' }}>
+                        <span>Saldo de apertura / cargado previamente</span>
+                      </div>
                     </div>
                     <hr className="divider" />
                     <div className="total-deuda">
