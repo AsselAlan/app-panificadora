@@ -176,10 +176,18 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
     }
   }, [setOffline])
 
-  // Carga inicial y suscripción en tiempo real (Realtime) a Supabase
+  // Carga inicial, auto-polling periódico (cada 10s) y suscripción Realtime a Supabase
   useEffect(() => {
     fetchInitialData()
 
+    // 1. Polling periódico de alta frecuencia (cada 10 segundos)
+    const intervalId = setInterval(() => {
+      if (navigator.onLine && !isSyncing) {
+        fetchInitialData()
+      }
+    }, 10000)
+
+    // 2. Suscripción a WebSockets Realtime de Supabase (instantáneo)
     const channel = supabase
       .channel('driver-app-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
@@ -193,19 +201,21 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
       })
       .subscribe()
 
+    // 3. Listener al volver a enfocar la app
     const handleFocus = () => {
-      fetchInitialData()
+      if (navigator.onLine) fetchInitialData()
     }
 
     window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleFocus)
 
     return () => {
+      clearInterval(intervalId)
       supabase.removeChannel(channel)
       window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleFocus)
     }
-  }, [fetchInitialData])
+  }, [fetchInitialData, isSyncing])
 
   // Cargar datos específicos del chofer activo al seleccionarlo
   useEffect(() => {
