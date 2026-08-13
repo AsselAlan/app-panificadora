@@ -21,6 +21,8 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
     const fetchHistory = async () => {
       setLoadingHistory(true)
       try {
+        const targetDebt = Math.abs(data.old_balance || data.totalDebt || 0)
+
         // Función aux para detectar si una venta dejó saldo a cuenta / fiado
         const isDebtSale = (s: any) => {
           if (s.status === 'cancelled') return false
@@ -43,7 +45,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
             .from('sales')
             .select('*')
             .eq('client_id', clientId)
-            .order('transaction_date', { ascending: true })
+            .order('transaction_date', { ascending: false })
 
           if (sales) {
             remoteDebtSales = sales.filter((s: any) => isDebtSale(s))
@@ -57,17 +59,37 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
         remoteDebtSales.forEach(s => salesMap.set(s.id, s))
         localDebtSales.forEach(s => salesMap.set(s.id, s))
 
-        const mergedSales = Array.from(salesMap.values()).sort(
+        // Ordenar de más reciente a más antigua
+        const allDebtSalesDesc = Array.from(salesMap.values()).sort(
+          (a: any, b: any) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+        )
+
+        // Seleccionar los tickets más recientes que componen la deuda total anterior real
+        const selectedUnpaidTickets: any[] = []
+        let accum = 0
+
+        for (const s of allDebtSalesDesc) {
+          if (accum >= targetDebt && targetDebt > 0) break
+          const account = Number(s.payment_account || 0)
+          const fiadoAmount = account > 0 ? account : Math.max(0, Number(s.subtotal_sales || s.final_total || 0) - Number(s.total_returns || 0) - Number(s.payment_cash || 0) - Number(s.payment_transfer || 0))
+          if (fiadoAmount > 0) {
+            selectedUnpaidTickets.push(s)
+            accum += fiadoAmount
+          }
+        }
+
+        // Ordenar cronológicamente (antiguo -> nuevo) para renderizado
+        const finalUnpaidTickets = selectedUnpaidTickets.sort(
           (a: any, b: any) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
         )
 
-        setTickets(mergedSales)
+        setTickets(finalUnpaidTickets)
 
         // 4. Cargar ítems (de propiedad local o de la tabla sale_items)
         const grouped: Record<string, any[]> = {}
         const missingSaleIds: string[] = []
 
-        mergedSales.forEach((s: any) => {
+        finalUnpaidTickets.forEach((s: any) => {
           if (Array.isArray(s.items) && s.items.length > 0) {
             grouped[s.id] = s.items.filter((i: any) => !i.operation_type || i.operation_type === 'sale')
           } else {
@@ -103,7 +125,7 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
       }
     }
     fetchHistory()
-  }, [data.client_id, data.clientId, data.client])
+  }, [data.client_id, data.clientId, data.client, data.old_balance])
 
   const getProductName = (item: any) => {
     if (item.name) return item.name

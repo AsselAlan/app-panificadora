@@ -30,6 +30,8 @@ export const DebtHistoryPrintBlock: React.FC<DebtHistoryPrintBlockProps> = ({
     const fetchHistory = async () => {
       setLoading(true)
       try {
+        const targetDebt = Math.abs(appliedDebt || 0)
+
         const isDebtSale = (s: any) => {
           if (s.id === currentSaleId || s.status === 'cancelled') return false
           const subtotal = Number(s.subtotal_sales || s.final_total || 0)
@@ -51,7 +53,7 @@ export const DebtHistoryPrintBlock: React.FC<DebtHistoryPrintBlockProps> = ({
             .from('sales')
             .select('*')
             .eq('client_id', clientId)
-            .order('transaction_date', { ascending: true })
+            .order('transaction_date', { ascending: false })
 
           if (sales) {
             remoteDebtSales = sales.filter((s: any) => isDebtSale(s))
@@ -65,17 +67,37 @@ export const DebtHistoryPrintBlock: React.FC<DebtHistoryPrintBlockProps> = ({
         remoteDebtSales.forEach(s => salesMap.set(s.id, s))
         localDebtSales.forEach(s => salesMap.set(s.id, s))
 
-        const mergedSales = Array.from(salesMap.values()).sort(
+        // Ordenar de más reciente a más antigua
+        const allDebtSalesDesc = Array.from(salesMap.values()).sort(
+          (a: any, b: any) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+        )
+
+        // Seleccionar los tickets más recientes que componen la deuda total anterior real
+        const selectedUnpaidTickets: any[] = []
+        let accum = 0
+
+        for (const s of allDebtSalesDesc) {
+          if (accum >= targetDebt && targetDebt > 0) break
+          const account = Number(s.payment_account || 0)
+          const fiadoAmount = account > 0 ? account : Math.max(0, Number(s.subtotal_sales || s.final_total || 0) - Number(s.total_returns || 0) - Number(s.payment_cash || 0) - Number(s.payment_transfer || 0))
+          if (fiadoAmount > 0) {
+            selectedUnpaidTickets.push(s)
+            accum += fiadoAmount
+          }
+        }
+
+        // Ordenar cronológicamente (antiguo -> nuevo) para renderizado
+        const finalUnpaidTickets = selectedUnpaidTickets.sort(
           (a: any, b: any) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
         )
 
-        setTickets(mergedSales)
+        setTickets(finalUnpaidTickets)
 
         // 4. Cargar ítems
         const grouped: Record<string, any[]> = {}
         const missingSaleIds: string[] = []
 
-        mergedSales.forEach((s: any) => {
+        finalUnpaidTickets.forEach((s: any) => {
           if (Array.isArray(s.items) && s.items.length > 0) {
             grouped[s.id] = s.items.filter((i: any) => !i.operation_type || i.operation_type === 'sale')
           } else {
@@ -111,7 +133,7 @@ export const DebtHistoryPrintBlock: React.FC<DebtHistoryPrintBlockProps> = ({
             '*DETALLE COMPRAS QUE GENERARON DEUDA:*\n'
 
           let acum = 0
-          mergedSales.forEach((t: any, i: number) => {
+          finalUnpaidTickets.forEach((t: any, i: number) => {
             const account = Number(t.payment_account || 0)
             const fiadoAmount = account > 0 ? account : Math.max(0, Number(t.subtotal_sales || t.final_total || 0) - Number(t.total_returns || 0) - Number(t.payment_cash || 0) - Number(t.payment_transfer || 0))
             acum += fiadoAmount
@@ -126,7 +148,7 @@ export const DebtHistoryPrintBlock: React.FC<DebtHistoryPrintBlockProps> = ({
             text += `  Acumulado: $${acum.toLocaleString('es-AR')}\n`
           })
 
-          const sumTicketFiado = mergedSales.reduce((sum, t) => {
+          const sumTicketFiado = finalUnpaidTickets.reduce((sum: number, t: any) => {
             const account = Number(t.payment_account || 0)
             const fiado = account > 0 ? account : Math.max(0, Number(t.subtotal_sales || t.final_total || 0) - Number(t.total_returns || 0) - Number(t.payment_cash || 0) - Number(t.payment_transfer || 0))
             return sum + fiado
