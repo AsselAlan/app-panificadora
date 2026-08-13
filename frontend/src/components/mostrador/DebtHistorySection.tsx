@@ -25,6 +25,13 @@ export const DebtHistorySection: React.FC<{ clientId: string; totalDebt: number 
     try {
       const targetDebt = Math.abs(totalDebt || 0)
 
+      if (targetDebt <= 0) {
+        setTickets([])
+        setItemsByTicket({})
+        setLoading(false)
+        return
+      }
+
       const isDebtSale = (s: any) => {
         if (s.status === 'cancelled') return false
         const subtotal = Number(s.subtotal_sales || s.final_total || 0)

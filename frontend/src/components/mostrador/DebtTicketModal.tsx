@@ -23,6 +23,13 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
       try {
         const targetDebt = Math.abs(data.old_balance || data.totalDebt || 0)
 
+        if (targetDebt <= 0) {
+          setTickets([])
+          setItemsByTicket({})
+          setLoadingHistory(false)
+          return
+        }
+
         // Función aux para detectar si una venta dejó saldo a cuenta / fiado
         const isDebtSale = (s: any) => {
           if (s.status === 'cancelled') return false

@@ -32,6 +32,14 @@ export const DebtHistoryPrintBlock: React.FC<DebtHistoryPrintBlockProps> = ({
       try {
         const targetDebt = Math.abs(appliedDebt || 0)
 
+        if (targetDebt <= 0) {
+          setTickets([])
+          setItemsByTicket({})
+          setLoading(false)
+          if (onHistoryLoaded) onHistoryLoaded('')
+          return
+        }
+
         const isDebtSale = (s: any) => {
           if (s.id === currentSaleId || s.status === 'cancelled') return false
           const subtotal = Number(s.subtotal_sales || s.final_total || 0)
