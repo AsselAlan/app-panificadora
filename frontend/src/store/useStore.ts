@@ -435,7 +435,8 @@ export const useStore = create<AppState>()(
             const clientPendingSales = pendingSales.filter(ps => ps.client_id === c.id && ps.status === 'completed')
             if (clientPendingSales.length === 0) return c
 
-            const pendingAccountAdjustment = clientPendingSales.reduce((acc, s) => acc + (s.payment_account || 0), 0)
+            // BUG#1 FIX: applied_debt también reduce la deuda (consistente con addSale)
+            const pendingAccountAdjustment = clientPendingSales.reduce((acc, s) => acc + (s.payment_account || 0) - (s.applied_debt || 0), 0)
             const pendingCajonesLeft = clientPendingSales.reduce((acc, s) => acc + (s.cajones_left || 0), 0)
             const pendingCajonesReturned = clientPendingSales.reduce((acc, s) => acc + (s.cajones_returned || 0), 0)
 
@@ -446,10 +447,24 @@ export const useStore = create<AppState>()(
             }
           })
 
+          // BUG#5 FIX: Proteger cash_collected/transfer_collected de drivers con ventas offline pendientes
+          const rawDrivers = resDriv.data || []
+          const driversWithPending = rawDrivers.map((d: any) => {
+            const pendingDriverSales = pendingSales.filter(ps => ps.driver_id === d.id && ps.status === 'completed')
+            if (pendingDriverSales.length === 0) return d
+            const pendingCash = pendingDriverSales.reduce((acc, s) => acc + (s.payment_cash || 0), 0)
+            const pendingTransfer = pendingDriverSales.reduce((acc, s) => acc + (s.payment_transfer || 0), 0)
+            return {
+              ...d,
+              cash_collected: (d.cash_collected || 0) + pendingCash,
+              transfer_collected: (d.transfer_collected || 0) + pendingTransfer
+            }
+          })
+
           set({
             products: sortProducts(resProd.data || []),
             clients: clientsWithPending,
-            drivers: resDriv.data || [],
+            drivers: driversWithPending,
             expenses: mergedExpenses,
             sales: mergedSales,
             expenseCategories: resCat.data || [],
@@ -656,7 +671,9 @@ export const useStore = create<AppState>()(
           const updatedClients = isDraft ? state.clients : state.clients.map(c => 
             c.id === sale.client_id ? { 
               ...c, 
-              current_balance: c.current_balance - sale.payment_account,
+              // BUG#1 FIX: applied_debt reduce la deuda del cliente (saldo negativo se achica)
+              // payment_account > 0 aumenta deuda, < 0 la reduce. applied_debt siempre la reduce.
+              current_balance: c.current_balance - sale.payment_account + (sale.applied_debt || 0),
               cajones_prestados: (c.cajones_prestados || 0) + (sale.cajones_left || 0) - (sale.cajones_returned || 0)
             } : c
           )

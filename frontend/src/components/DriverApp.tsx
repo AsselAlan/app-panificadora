@@ -2748,24 +2748,34 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
   // WhatsApp helper
   const handleWhatsApp = (ticket: Sale) => {
     const clientObj = clients.find(c => c.id === ticket.client_id)
+    const applied = ticket.applied_debt || 0
+    const totalToCollect = ticket.final_total + applied
     let text = `🍞 *PANIFICADORA FENIX*\n🎫 Ticket #${ticket.id.substring(0, 8).toUpperCase()}\n👤 Cliente: ${ticket.client_name || clientObj?.business_name || 'Cliente'}\n📅 Fecha: ${new Date(ticket.transaction_date).toLocaleString('es-AR')}\n--------------------------------\n`
     
     const salesItems = ticket.items.filter(i => i.operation_type === 'sale')
     if (salesItems.length > 0) {
       text += `*DESPACHO:*\n`
-      salesItems.forEach(item => text += `• ${item.quantity}x ${item.name} - $${item.quantity * item.unit_price}\n`)
+      salesItems.forEach(item => text += `• ${item.quantity}x ${item.name} - $${(item.quantity * item.unit_price).toLocaleString('es-AR')}\n`)
     }
     
     const returnsItems = ticket.items.filter(i => i.operation_type === 'return')
     if (returnsItems.length > 0) {
       text += `\n*DEVOLUCIONES (MERMAS):*\n`
-      returnsItems.forEach(item => text += `• -${item.quantity}x ${item.name} - -$${item.quantity * item.unit_price}\n`)
+      returnsItems.forEach(item => text += `• -${item.quantity}x ${item.name} - -$${(item.quantity * item.unit_price).toLocaleString('es-AR')}\n`)
     }
     
-    text += `--------------------------------\n*TOTAL BOLETA: $${ticket.final_total}*\n`
-    if (ticket.payment_cash > 0) text += `💵 Efectivo: $${ticket.payment_cash}\n`
-    if (ticket.payment_transfer > 0) text += `💳 Transferencia: $${ticket.payment_transfer}\n`
-    if (ticket.payment_account !== 0) text += `📝 A Cuenta Corriente: $${ticket.payment_account}\n`
+    text += `--------------------------------\n`
+    text += `Venta del Día: $${ticket.final_total.toLocaleString('es-AR')}\n`
+    if (applied > 0) {
+      text += `Deuda Previa Incluida: +$${applied.toLocaleString('es-AR')}\n`
+      text += `*TOTAL A COBRAR: $${totalToCollect.toLocaleString('es-AR')}*\n`
+    } else {
+      text += `*TOTAL BOLETA: $${totalToCollect.toLocaleString('es-AR')}*\n`
+    }
+    if (ticket.payment_cash > 0) text += `💵 Abonó Efectivo: $${ticket.payment_cash.toLocaleString('es-AR')}\n`
+    if (ticket.payment_transfer > 0) text += `💳 Abonó Transferencia: $${ticket.payment_transfer.toLocaleString('es-AR')}\n`
+    if (ticket.payment_account > 0) text += `📝 A Cta. Cte.: $${ticket.payment_account.toLocaleString('es-AR')}\n`
+    if (ticket.payment_account < 0) text += `📝 ${applied > 0 ? 'Cobro Deuda:' : 'Saldo a Favor:'} $${Math.abs(ticket.payment_account).toLocaleString('es-AR')}\n`
     text += `\n¡Gracias por elegirnos!`
 
     const phone = clientObj?.phone || ''

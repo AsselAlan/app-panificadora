@@ -90,6 +90,21 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
           (a: any, b: any) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
         )
 
+        // BUG#3 FIX: si la suma de tickets supera la deuda objetivo, hay un abono parcial previo
+        const totalAccum = finalUnpaidTickets.reduce((acc: number, t: any) => {
+          const account = Number(t.payment_account || 0)
+          const fiado = account > 0 ? account : Math.max(0, Number(t.subtotal_sales || t.final_total || 0) - Number(t.total_returns || 0) - Number(t.payment_cash || 0) - Number(t.payment_transfer || 0))
+          return acc + fiado
+        }, 0)
+        if (totalAccum > targetDebt) {
+          finalUnpaidTickets.push({
+            id: '__abono_parcial__',
+            transaction_date: new Date().toISOString(),
+            _isAbonoPartial: true,
+            _abonoAmount: totalAccum - targetDebt,
+          })
+        }
+
         setTickets(finalUnpaidTickets)
 
         // 4. Cargar ítems (de propiedad local o de la tabla sale_items)
@@ -142,7 +157,8 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
 
   // Cálculos de saldo anterior y saldo inicial legacy
   const totalOldDebt = Math.abs(data.old_balance || 0)
-  const sumTicketFiado = tickets.reduce((acc, t) => {
+  const realTickets = tickets.filter((t: any) => !t._isAbonoPartial)
+  const sumTicketFiado = realTickets.reduce((acc, t) => {
     const account = Number(t.payment_account || 0)
     const fiado = account > 0 ? account : Math.max(0, Number(t.subtotal_sales || t.final_total || 0) - Number(t.total_returns || 0) - Number(t.payment_cash || 0) - Number(t.payment_transfer || 0))
     return acc + fiado
@@ -267,6 +283,24 @@ export const DebtTicketModal: React.FC<{ data: any; onClose: () => void }> = ({ 
                 {tickets.length > 0 ? (
                   <>
                     {tickets.map((ticket: any, idx: number) => {
+                      // Registro virtual de abono parcial
+                      if (ticket._isAbonoPartial) {
+                        return (
+                          <div key="abono_parcial" className="ticket-block">
+                            <div className="row" style={{ color: '#16a34a' }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
+                                Abono / Pago Parcial Previo
+                              </span>
+                              <span style={{ fontWeight: 'bold', fontSize: '8pt' }}>
+                                -${ticket._abonoAmount.toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                            <div className="item-row" style={{ fontStyle: 'italic', color: '#666' }}>
+                              <span>Cobrado en pago anterior parcial</span>
+                            </div>
+                          </div>
+                        )
+                      }
                       const account = Number(ticket.payment_account || 0)
                       const fiadoAmount = account > 0 ? account : Math.max(0, Number(ticket.subtotal_sales || ticket.final_total || 0) - Number(ticket.total_returns || 0) - Number(ticket.payment_cash || 0) - Number(ticket.payment_transfer || 0))
                       runningTotal += fiadoAmount

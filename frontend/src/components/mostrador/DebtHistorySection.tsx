@@ -91,6 +91,23 @@ export const DebtHistorySection: React.FC<{ clientId: string; totalDebt: number 
         (a: any, b: any) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
       )
 
+      // BUG#3 FIX: Si la suma de tickets acumulados supera la deuda actual, hay un abono parcial
+      // histórico que no se refleja. Insertamos un registro virtual negativo para que los números cierren.
+      const totalAccum = finalUnpaidTickets.reduce((acc, t) => {
+        const account = Number(t.payment_account || 0)
+        const fiado = account > 0 ? account : Math.max(0, Number(t.subtotal_sales || t.final_total || 0) - Number(t.total_returns || 0) - Number(t.payment_cash || 0) - Number(t.payment_transfer || 0))
+        return acc + fiado
+      }, 0)
+      if (totalAccum > targetDebt) {
+        const abonoAmount = totalAccum - targetDebt
+        finalUnpaidTickets.push({
+          id: '__abono_parcial__',
+          transaction_date: new Date().toISOString(),
+          _isAbonoPartial: true,
+          _abonoAmount: abonoAmount,
+        })
+      }
+
       setTickets(finalUnpaidTickets)
 
       // 4. Cargar ítems
@@ -140,7 +157,8 @@ export const DebtHistorySection: React.FC<{ clientId: string; totalDebt: number 
   }
 
   let runningTotal = 0
-  const sumTicketFiado = tickets.reduce((acc, t) => {
+  const realTickets = tickets.filter((t: any) => !t._isAbonoPartial)
+  const sumTicketFiado = realTickets.reduce((acc, t) => {
     const account = Number(t.payment_account || 0)
     const fiado = account > 0 ? account : Math.max(0, Number(t.subtotal_sales || t.final_total || 0) - Number(t.total_returns || 0) - Number(t.payment_cash || 0) - Number(t.payment_transfer || 0))
     return acc + fiado
@@ -176,6 +194,23 @@ export const DebtHistorySection: React.FC<{ clientId: string; totalDebt: number 
             <div className="space-y-3 mt-1">
               {/* Compras registradas */}
               {tickets.map((ticket, idx) => {
+                // Registro virtual de abono parcial
+                if (ticket._isAbonoPartial) {
+                  return (
+                    <div key="abono_parcial" className="border border-green-200 rounded-xl p-3 bg-green-50/60">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="text-[10px] font-bold text-green-700 uppercase tracking-wider block">Abono / Pago Parcial Previo</span>
+                          <span className="text-[10px] text-brand-muted">Cobrado en pago anterior parcial</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-black text-green-600 block">-${ticket._abonoAmount.toLocaleString('es-AR')}</span>
+                          <span className="text-[10px] text-brand-muted">abono</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
                 const account = Number(ticket.payment_account || 0)
                 const fiadoAmount = account > 0 ? account : Math.max(0, Number(ticket.subtotal_sales || ticket.final_total || 0) - Number(ticket.total_returns || 0) - Number(ticket.payment_cash || 0) - Number(ticket.payment_transfer || 0))
                 runningTotal += fiadoAmount

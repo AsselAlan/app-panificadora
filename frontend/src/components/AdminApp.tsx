@@ -614,7 +614,8 @@ const AdminPOS: React.FC<{ setAdminView: (v: any) => void }> = ({  }) => {
   const cashAmt = parseFloat(payCash) || 0
   const transferAmt = parseFloat(payTransfer) || 0
   const totalPaid = cashAmt + transferAmt
-  const remainingToPay = subtotalSales - totalPaid
+  // BUG#4 FIX: usar expectedTotal (incluye deuda y descuenta devoluciones) no solo subtotalSales
+  const remainingToPay = expectedTotal - totalPaid
 
   const handleUpdateQty = (productId: string, delta: number, unitType: string, maxStock: number) => {
     const step = unitType === 'kg' ? 0.5 : 1
@@ -715,6 +716,8 @@ const AdminPOS: React.FC<{ setAdminView: (v: any) => void }> = ({  }) => {
       useStore.getState().fetchInitialData()
 
       setCompletedSale({
+        id: payload.id,
+        client_id: selectedClientId,
         client_name: activeClient?.business_name || 'Consumidor Final',
         date: payload.transaction_date,
         items: cleanItems.map(item => {
@@ -727,8 +730,11 @@ const AdminPOS: React.FC<{ setAdminView: (v: any) => void }> = ({  }) => {
           }
         }),
         subtotal_sales: subtotalSales,
+        total_returns: subtotalReturns,
+        applied_debt: payload.applied_debt,
+        final_total: netTotal,
         payment_cash: finalCash,
-        payment_transfer: transferAmt,
+        payment_transfer: finalTransfer,
         payment_account: finalAccount
       })
     } catch (err: any) {
