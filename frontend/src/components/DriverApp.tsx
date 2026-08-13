@@ -176,9 +176,35 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
     }
   }, [setOffline])
 
-  // Carga inicial de datos de Supabase
+  // Carga inicial y suscripción en tiempo real (Realtime) a Supabase
   useEffect(() => {
     fetchInitialData()
+
+    const channel = supabase
+      .channel('driver-app-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
+        fetchInitialData()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, () => {
+        fetchInitialData()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_settlements' }, () => {
+        fetchInitialData()
+      })
+      .subscribe()
+
+    const handleFocus = () => {
+      fetchInitialData()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleFocus)
+
+    return () => {
+      supabase.removeChannel(channel)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleFocus)
+    }
   }, [fetchInitialData])
 
   // Cargar datos específicos del chofer activo al seleccionarlo
@@ -1891,12 +1917,13 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
       text += `\n*DEVOLUCIONES (MERMAS):*\n`
       generatedTicket.items.filter(i => i.operation_type === 'return').forEach(item => text += `• -${item.quantity}x ${item.name} - -$${item.quantity * item.unit_price}\n`)
     }
-    text += `--------------------------------\n*TOTAL BOLETA: $${generatedTicket.final_total}*\n`
-    if (generatedTicket.payment_cash > 0) text += `💵 Efectivo: $${generatedTicket.payment_cash}\n`
-    if (generatedTicket.payment_transfer > 0) text += `💳 Transferencia: $${generatedTicket.payment_transfer}\n`
+    const totalToCollect = generatedTicket.final_total + (generatedTicket.applied_debt || 0)
+    text += `--------------------------------\n*${generatedTicket.applied_debt > 0 ? 'TOTAL A COBRAR (Venta + Deuda)' : 'TOTAL BOLETA'}: $${totalToCollect.toLocaleString('es-AR')}*\n`
+    if (generatedTicket.payment_cash > 0) text += `💵 Efectivo: $${generatedTicket.payment_cash.toLocaleString('es-AR')}\n`
+    if (generatedTicket.payment_transfer > 0) text += `💳 Transferencia: $${generatedTicket.payment_transfer.toLocaleString('es-AR')}\n`
     if (generatedTicket.payment_account !== 0) {
       const isPayingDebt = generatedTicket.payment_account < 0 && generatedTicket.applied_debt >= Math.abs(generatedTicket.payment_account)
-      text += `📝 ${generatedTicket.payment_account > 0 ? 'A Cuenta Corriente:' : (isPayingDebt ? 'Pago de Deuda:' : 'Saldo a Favor / Vuelto:')} $${Math.abs(generatedTicket.payment_account)}\n`
+      text += `📝 ${generatedTicket.payment_account > 0 ? 'A Cuenta Corriente:' : (isPayingDebt ? 'Cobro Deuda Previa:' : 'Saldo a Favor / Vuelto:')} $${Math.abs(generatedTicket.payment_account).toLocaleString('es-AR')}\n`
     }
     if (generatedTicket.cajones_left || generatedTicket.cajones_returned) {
       text += `\n*CAJONES:*\n`
@@ -1915,6 +1942,8 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
 
   // Vista de Ticket generado
   if (generatedTicket) {
+    const totalToCollect = generatedTicket.final_total + (generatedTicket.applied_debt || 0)
+
     return (
       <div className="flex flex-col h-full bg-bg-surface shadow-sm">
         <div className="bg-green-600/10 text-green-400 border-b border-green-500/20 py-4 px-6 flex items-center justify-center gap-2 z-10 shadow-md">
@@ -1947,36 +1976,36 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
               {generatedTicket.items.filter(i => i.operation_type === 'sale').map((item, idx) => (
                 <div key={idx} className="flex justify-between text-brand-deep/80">
                   <span>{item.quantity}x {item.name}</span>
-                  <span>${item.quantity * item.unit_price}</span>
+                  <span>${(item.quantity * item.unit_price).toLocaleString('es-AR')}</span>
                 </div>
               ))}
               
               {generatedTicket.items.filter(i => i.operation_type === 'return').map((item, idx) => (
                 <div key={idx} className="flex justify-between text-red-400">
                   <span>-{item.quantity}x {item.name} (dev)</span>
-                  <span>-${item.quantity * item.unit_price}</span>
+                  <span>-${(item.quantity * item.unit_price).toLocaleString('es-AR')}</span>
                 </div>
               ))}
             </div>
 
             <div className="border-t border-brand-muted/20/60 mt-3 pt-2 text-[10px] space-y-1">
-              <div className="flex justify-between"><span>Venta Bruta:</span><span>${generatedTicket.subtotal_sales}</span></div>
-              {generatedTicket.total_returns > 0 && <div className="flex justify-between text-red-400"><span>Devoluciones:</span><span>-${generatedTicket.total_returns}</span></div>}
-              {generatedTicket.applied_debt > 0 && <div className="flex justify-between"><span>Saldo Previo:</span><span>${generatedTicket.applied_debt}</span></div>}
+              <div className="flex justify-between"><span>Venta Bruta Día:</span><span>${generatedTicket.subtotal_sales.toLocaleString('es-AR')}</span></div>
+              {generatedTicket.total_returns > 0 && <div className="flex justify-between text-red-400"><span>Devoluciones:</span><span>-${generatedTicket.total_returns.toLocaleString('es-AR')}</span></div>}
+              {generatedTicket.applied_debt > 0 && <div className="flex justify-between font-bold text-orange-600"><span>Deuda Previa Incluida:</span><span>+${generatedTicket.applied_debt.toLocaleString('es-AR')}</span></div>}
             </div>
 
             <div className="border-t-2 border-brand-muted/30/80 mt-2.5 pt-2.5 mb-2">
               <div className="flex justify-between items-center text-sm font-black text-brand-deep">
-                <span>TOTAL:</span>
-                <span className="text-brand-navy">${generatedTicket.final_total}</span>
+                <span>{generatedTicket.applied_debt > 0 ? 'TOTAL A COBRAR:' : 'TOTAL VENTA:'}</span>
+                <span className="text-brand-navy">${totalToCollect.toLocaleString('es-AR')}</span>
               </div>
               <div className="text-[9px] text-brand-muted/80 mt-2 space-y-0.5">
-                {generatedTicket.payment_cash > 0 && <div className="flex justify-between"><span>Abonó Efectivo:</span><span>${generatedTicket.payment_cash}</span></div>}
-                {generatedTicket.payment_transfer > 0 && <div className="flex justify-between"><span>Abonó Transfer.:</span><span>${generatedTicket.payment_transfer}</span></div>}
+                {generatedTicket.payment_cash > 0 && <div className="flex justify-between"><span>Abonó Efectivo:</span><span>${generatedTicket.payment_cash.toLocaleString('es-AR')}</span></div>}
+                {generatedTicket.payment_transfer > 0 && <div className="flex justify-between"><span>Abonó Transfer.:</span><span>${generatedTicket.payment_transfer.toLocaleString('es-AR')}</span></div>}
                 {generatedTicket.payment_account !== 0 && (
-                  <div className={`flex justify-between font-bold ${generatedTicket.payment_account > 0 ? 'text-orange-400' : 'text-green-400'}`}>
-                    <span>{generatedTicket.payment_account > 0 ? 'A Cta. Cte:' : (generatedTicket.applied_debt >= Math.abs(generatedTicket.payment_account) ? 'Pago de Deuda:' : 'Saldo a Favor / Vuelto:')}</span>
-                    <span>${Math.abs(generatedTicket.payment_account)}</span>
+                  <div className={`flex justify-between font-bold ${generatedTicket.payment_account > 0 ? 'text-orange-400' : 'text-green-500'}`}>
+                    <span>{generatedTicket.payment_account > 0 ? 'A Cta. Cte:' : (generatedTicket.applied_debt >= Math.abs(generatedTicket.payment_account) ? 'Cobro Deuda Previa:' : 'Saldo a Favor / Vuelto:')}</span>
+                    <span>${Math.abs(generatedTicket.payment_account).toLocaleString('es-AR')}</span>
                   </div>
                 )}
               </div>
@@ -2961,23 +2990,23 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
                 </div>
 
                 <div className="border-t border-brand-muted/20 mt-3 pt-2 text-[10px] space-y-1">
-                  <div className="flex justify-between"><span>Venta Bruta:</span><span>${selectedTicket.subtotal_sales}</span></div>
-                  {selectedTicket.total_returns > 0 && <div className="flex justify-between text-red-400"><span>Devoluciones:</span><span>-${selectedTicket.total_returns}</span></div>}
-                  {selectedTicket.applied_debt > 0 && <div className="flex justify-between"><span>Saldo Previo:</span><span>${selectedTicket.applied_debt}</span></div>}
+                  <div className="flex justify-between"><span>Venta Bruta Día:</span><span>${(selectedTicket.subtotal_sales || 0).toLocaleString('es-AR')}</span></div>
+                  {selectedTicket.total_returns > 0 && <div className="flex justify-between text-red-400"><span>Devoluciones:</span><span>-${selectedTicket.total_returns.toLocaleString('es-AR')}</span></div>}
+                  {selectedTicket.applied_debt > 0 && <div className="flex justify-between font-bold text-orange-600"><span>Deuda Previa Incluida:</span><span>+${selectedTicket.applied_debt.toLocaleString('es-AR')}</span></div>}
                 </div>
 
                 <div className="border-t-2 border-brand-muted/30 mt-2.5 pt-2.5 mb-2">
                   <div className="flex justify-between items-center text-sm font-black text-brand-deep">
-                    <span>TOTAL:</span>
-                    <span className="text-brand-navy">${selectedTicket.final_total}</span>
+                    <span>{selectedTicket.applied_debt > 0 ? 'TOTAL A COBRAR:' : 'TOTAL VENTA:'}</span>
+                    <span className="text-brand-navy">${(selectedTicket.applied_debt > 0 ? (selectedTicket.final_total + selectedTicket.applied_debt) : selectedTicket.final_total).toLocaleString('es-AR')}</span>
                   </div>
                   <div className="text-[9px] text-brand-muted/80 mt-2 space-y-0.5">
-                    {selectedTicket.payment_cash > 0 && <div className="flex justify-between"><span>Abonó Efectivo:</span><span>${selectedTicket.payment_cash}</span></div>}
-                    {selectedTicket.payment_transfer > 0 && <div className="flex justify-between"><span>Abonó Transfer.:</span><span>${selectedTicket.payment_transfer}</span></div>}
+                    {selectedTicket.payment_cash > 0 && <div className="flex justify-between"><span>Abonó Efectivo:</span><span>${selectedTicket.payment_cash.toLocaleString('es-AR')}</span></div>}
+                    {selectedTicket.payment_transfer > 0 && <div className="flex justify-between"><span>Abonó Transfer.:</span><span>${selectedTicket.payment_transfer.toLocaleString('es-AR')}</span></div>}
                     {selectedTicket.payment_account !== 0 && (
-                      <div className={`flex justify-between font-bold ${selectedTicket.payment_account > 0 ? 'text-orange-400' : 'text-green-400'}`}>
-                        <span>{selectedTicket.payment_account > 0 ? 'A Cta. Cte:' : 'Saldo a Favor:'}</span>
-                        <span>${Math.abs(selectedTicket.payment_account)}</span>
+                      <div className={`flex justify-between font-bold ${selectedTicket.payment_account > 0 ? 'text-orange-400' : 'text-green-500'}`}>
+                        <span>{selectedTicket.payment_account > 0 ? 'A Cta. Cte:' : (selectedTicket.applied_debt >= Math.abs(selectedTicket.payment_account) ? 'Cobro Deuda Previa:' : 'Saldo a Favor / Vuelto:')}</span>
+                        <span>${Math.abs(selectedTicket.payment_account).toLocaleString('es-AR')}</span>
                       </div>
                     )}
                   </div>

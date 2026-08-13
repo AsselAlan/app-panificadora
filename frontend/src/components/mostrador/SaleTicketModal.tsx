@@ -109,23 +109,29 @@ export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => vo
             <hr className="divider" />
 
             {/* Totales */}
+            {data.applied_debt && data.applied_debt > 0 && (
+              <div className="row-sm" style={{ fontWeight: 'bold', color: '#ea580c', marginBottom: '4px' }}>
+                <span>Deuda Previa Incluida:</span>
+                <span>+${data.applied_debt.toLocaleString('es-AR')}</span>
+              </div>
+            )}
             <div className="total-row">
-              <span>TOTAL VENTA DÍA:</span>
-              <span>${data.subtotal_sales.toLocaleString('es-AR')}</span>
+              <span>{data.applied_debt && data.applied_debt > 0 ? 'TOTAL A COBRAR:' : 'TOTAL VENTA DÍA:'}</span>
+              <span>${((data.subtotal_sales || 0) + (data.applied_debt || 0)).toLocaleString('es-AR')}</span>
             </div>
 
             <div style={{ marginTop: '6px' }}>
               {data.payment_cash > 0 && (
-                <div className="row-sm"><span>Efectivo:</span><span>${data.payment_cash.toLocaleString('es-AR')}</span></div>
+                <div className="row-sm"><span>Abonó Efectivo:</span><span>${data.payment_cash.toLocaleString('es-AR')}</span></div>
               )}
               {data.payment_transfer > 0 && (
-                <div className="row-sm"><span>Transferencia:</span><span>${data.payment_transfer.toLocaleString('es-AR')}</span></div>
+                <div className="row-sm"><span>Abonó Transferencia:</span><span>${data.payment_transfer.toLocaleString('es-AR')}</span></div>
               )}
               {data.payment_account > 0 && (
                 <div className="row-sm"><span>A Cta. Cte.:</span><span>${data.payment_account.toLocaleString('es-AR')}</span></div>
               )}
               {data.payment_account < 0 && (
-                <div className="row-sm"><span>Vuelto / A favor:</span><span>${Math.abs(data.payment_account).toLocaleString('es-AR')}</span></div>
+                <div className="row-sm"><span>{data.applied_debt && data.applied_debt >= Math.abs(data.payment_account) ? 'Cobro Deuda Previa:' : 'Vuelto / A favor:'}</span><span>${Math.abs(data.payment_account).toLocaleString('es-AR')}</span></div>
               )}
             </div>
 
