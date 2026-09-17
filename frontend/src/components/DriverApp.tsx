@@ -1255,9 +1255,8 @@ interface DriverScheduledLoadsModalProps {
 }
 
 const DriverScheduledLoadsModal: React.FC<DriverScheduledLoadsModalProps> = ({ driver, onClose }) => {
-  const { weeklyRoutes, products } = useStore()
+  const { weeklyRoutes, products, completedLoads, addCompletedLoad, saveDriverLoads } = useStore()
   const [activeLoadModal, setActiveLoadModal] = useState<any>(null)
-  const [completedLoads, setCompletedLoads] = useState<string[]>([])
 
   const todayJS = new Date().getDay()
   const todayISO = todayJS === 0 ? 7 : todayJS
@@ -1304,15 +1303,16 @@ const DriverScheduledLoadsModal: React.FC<DriverScheduledLoadsModalProps> = ({ d
   }
 
 
-  const handleConfirmIntermediateLoad = (stop: any, actualLoads: Record<string, number>) => {
+  const handleConfirmIntermediateLoad = async (stop: any, actualLoads: Record<string, number>) => {
     const { loads } = useStore.getState()
+    const todayStr = new Date().toLocaleDateString('sv')
     const newLoadsToAdd = sortProducts(products).map(p => {
       const qty = actualLoads[p.id] || 0;
       return {
         id: crypto.randomUUID(),
         driver_id: driver.id,
         product_id: p.id,
-        date_loaded: new Date().toISOString(),
+        date_loaded: todayStr,
         initial_quantity: qty,
         current_quantity: qty
       }
@@ -1324,6 +1324,7 @@ const DriverScheduledLoadsModal: React.FC<DriverScheduledLoadsModalProps> = ({ d
       if (existingIdx >= 0) {
         updatedLoads[existingIdx] = {
           ...updatedLoads[existingIdx],
+          date_loaded: todayStr,
           current_quantity: updatedLoads[existingIdx].current_quantity + newLoad.current_quantity,
           initial_quantity: updatedLoads[existingIdx].initial_quantity + newLoad.initial_quantity
         }
@@ -1332,8 +1333,8 @@ const DriverScheduledLoadsModal: React.FC<DriverScheduledLoadsModalProps> = ({ d
       }
     })
 
-    useStore.setState({ loads: updatedLoads })
-    setCompletedLoads(prev => [...prev, stop ? stop.id : 'initial'])
+    await saveDriverLoads(driver.id, updatedLoads)
+    addCompletedLoad(stop ? stop.id : 'initial')
     setActiveLoadModal(null)
     
     Swal.fire({
@@ -1834,7 +1835,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
     // // maxStock: number
   ) => {
     const current = obj[productId] || 0
-    const step = unitType === 'kg' ? 0.5 : 1
+    const step = unitType === 'kg' ? 0.25 : 1
     let next = current + (delta * step)
     if (next < 0) next = 0
 
@@ -2136,6 +2137,8 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                       </button>
                       <input 
                         type="number"
+                        step="0.25"
+                        min="0"
                         value={qty || ''}
                         onChange={(e) => {
                           let val = parseFloat(e.target.value) || 0
@@ -2189,6 +2192,8 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                     </button>
                     <input 
                       type="number"
+                      step="0.25"
+                      min="0"
                       value={qty || ''}
                       onChange={(e) => {
                         let val = parseFloat(e.target.value) || 0
@@ -2402,10 +2407,9 @@ interface DriverRoadmapProps {
 }
 
 const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectClient }) => {
-  const { weeklyRoutes, clients, products } = useStore()
+  const { weeklyRoutes, clients, products, completedLoads, addCompletedLoad, saveDriverLoads } = useStore()
   const [expandedClients, setExpandedClients] = useState<Record<string, boolean>>({})
   const [activeLoadModal, setActiveLoadModal] = useState<any>(null)
-  const [completedLoads, setCompletedLoads] = useState<string[]>([])
 
   const todayJS = new Date().getDay()
   const todayISO = todayJS === 0 ? 7 : todayJS
@@ -2431,8 +2435,9 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
 
   const hasLoad = Object.keys(plannedLoad).length > 0
 
-  const handleConfirmIntermediateLoad = (stop: any, actualLoads: Record<string, number>) => {
+  const handleConfirmIntermediateLoad = async (stop: any, actualLoads: Record<string, number>) => {
     const { loads } = useStore.getState()
+    const todayStr = new Date().toLocaleDateString('sv')
     
     // Sumar las cantidades al stock actual de la camioneta
     const newLoadsToAdd = products.map(p => {
@@ -2441,7 +2446,7 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
         id: crypto.randomUUID(),
         driver_id: driver.id,
         product_id: p.id,
-        date_loaded: new Date().toISOString(),
+        date_loaded: todayStr,
         initial_quantity: qty,
         current_quantity: qty
       }
@@ -2454,6 +2459,7 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
       if (existingIdx >= 0) {
         updatedLoads[existingIdx] = {
           ...updatedLoads[existingIdx],
+          date_loaded: todayStr,
           current_quantity: updatedLoads[existingIdx].current_quantity + newLoad.current_quantity,
           initial_quantity: updatedLoads[existingIdx].initial_quantity + newLoad.initial_quantity
         }
@@ -2462,8 +2468,8 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
       }
     })
 
-    useStore.setState({ loads: updatedLoads })
-    setCompletedLoads(prev => [...prev, stop.id])
+    await saveDriverLoads(driver.id, updatedLoads)
+    addCompletedLoad(stop ? stop.id : 'initial')
     setActiveLoadModal(null)
     
     Swal.fire({

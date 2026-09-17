@@ -618,7 +618,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: any) => void }> = ({  }) => {
   const remainingToPay = expectedTotal - totalPaid
 
   const handleUpdateQty = (productId: string, delta: number, unitType: string, maxStock: number) => {
-    const step = unitType === 'kg' ? 0.5 : 1
+    const step = unitType === 'kg' ? 0.25 : 1
     
     if (activeTab === 'venta') {
       const current = cart[productId] || 0
@@ -670,13 +670,14 @@ const AdminPOS: React.FC<{ setAdminView: (v: any) => void }> = ({  }) => {
         
         if (remaining < 0) {
           if (vueltoACuenta) {
-            finalAccount = remaining
+            finalAccount = netTotal - totalPaid
           } else {
-            finalCash = cashAmt - Math.abs(remaining)
-            finalAccount = 0
+            const change = Math.abs(remaining)
+            finalCash = Math.max(0, cashAmt - change)
+            finalAccount = netTotal - (finalCash + finalTransfer)
           }
         } else {
-          finalAccount = remaining
+          finalAccount = netTotal - totalPaid
         }
       } else {
         finalCash = 0
@@ -805,7 +806,7 @@ const AdminPOS: React.FC<{ setAdminView: (v: any) => void }> = ({  }) => {
                     <button onClick={() => handleUpdateQty(p.id, -1, p.unit_type, maxStock)} className="w-8 h-8 bg-brand-muted/10 border border-brand-muted/30 text-brand-deep/80 rounded-lg flex items-center justify-center active:scale-90 transition-transform">
                       <Minus size={14} />
                     </button>
-                    <input type="number" value={qty || ''} onChange={e => { 
+                    <input type="number" step="0.25" min="0" value={qty || ''} onChange={e => { 
                       let val = parseFloat(e.target.value) || 0; 
                       if (activeTab === 'venta' && val > maxStock) val = maxStock; 
                       if (activeTab === 'venta') setCart(prev => { const n = { ...prev }; if (val <= 0) delete n[p.id]; else n[p.id] = val; return n });
@@ -1694,7 +1695,7 @@ const FixedOrderModal: React.FC<{ client: any, onClose: () => void }> = ({ clien
   const [selectedDay, setSelectedDay] = useState<string>('1')
 
   const handleUpdateQty = (productId: string, delta: number, unitType: string) => {
-    const step = unitType === 'kg' ? 0.5 : 1
+    const step = unitType === 'kg' ? 0.25 : 1
     const current = order[selectedDay]?.[productId] || 0
     let next = current + delta * step
     if (next < 0) next = 0
@@ -1788,7 +1789,7 @@ const FixedOrderModal: React.FC<{ client: any, onClose: () => void }> = ({ clien
                     <input
                       type="number"
                       min="0"
-                      step={p.unit_type === 'kg' ? "0.5" : "1"}
+                      step={p.unit_type === 'kg' ? "0.25" : "1"}
                       value={qty === 0 ? '' : qty}
                       placeholder="0"
                       onChange={(e) => {
@@ -4319,7 +4320,7 @@ const LoadConfigModal: React.FC<{ stop: any, suggested: Record<string, number>, 
   })
 
   const handleUpdateExtraQty = (productId: string, delta: number, unitType: string) => {
-    const step = unitType === 'kg' ? 0.5 : 1
+    const step = unitType === 'kg' ? 0.25 : 1
     
     setLoad(prev => {
       const current = prev[productId] || { fixed: suggested[productId] || 0, extra: 0 }

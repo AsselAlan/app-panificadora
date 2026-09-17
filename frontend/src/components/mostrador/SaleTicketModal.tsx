@@ -51,7 +51,10 @@ export const SaleTicketModal: React.FC<{ data: SaleTicketData; onClose: () => vo
     if (data.payment_cash > 0) text += `💵 Efectivo: $${data.payment_cash.toLocaleString('es-AR')}\n`
     if (data.payment_transfer > 0) text += `📱 Transf.: $${data.payment_transfer.toLocaleString('es-AR')}\n`
     if (data.payment_account > 0) text += `📒 A Cta. Cte.: $${data.payment_account.toLocaleString('es-AR')}\n`
-    if (data.payment_account < 0) text += `💳 Vuelto / A favor: $${Math.abs(data.payment_account).toLocaleString('es-AR')}\n`
+    if (data.payment_account < 0) {
+      const isPayingDebt = data.applied_debt && data.applied_debt >= Math.abs(data.payment_account)
+      text += `📝 ${isPayingDebt ? 'Cobro Deuda Previa:' : 'Vuelto / A favor:'} $${Math.abs(data.payment_account).toLocaleString('es-AR')}\n`
+    }
 
     if (debtWspText) {
       text += debtWspText

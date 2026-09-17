@@ -222,6 +222,8 @@ interface AppState {
   isOffline: boolean;
   isSyncing: boolean;
   syncQueue: SyncItem[];
+  completedLoads: string[];
+  addCompletedLoad: (stopId: string) => void;
   
   // Acciones de Red y Estado Global
   setOffline: (status: boolean) => void;
@@ -253,6 +255,7 @@ interface AppState {
   endDriverRoute: (driverId: string) => Promise<void>;
   checkAndResetDriverDay: (driverId: string) => Promise<void>;
   fetchDriverSalesHistory: (driverId: string) => Promise<any[]>;
+  saveDriverLoads: (driverId: string, loadsToSave: Load[]) => Promise<void>;
   
   // Sincronización
   processSyncQueue: () => Promise<void>;
@@ -290,6 +293,10 @@ export const useStore = create<AppState>()(
       isOffline: !navigator.onLine,
       isSyncing: false,
       syncQueue: [],
+      completedLoads: [],
+      addCompletedLoad: (stopId: string) => set(state => ({
+        completedLoads: state.completedLoads.includes(stopId) ? state.completedLoads : [...state.completedLoads, stopId]
+      })),
       userSession: null,
       userRole: null,
       requiresPasswordChange: false,
@@ -435,8 +442,8 @@ export const useStore = create<AppState>()(
             const clientPendingSales = pendingSales.filter(ps => ps.client_id === c.id && ps.status === 'completed')
             if (clientPendingSales.length === 0) return c
 
-            // BUG#1 FIX: applied_debt también reduce la deuda (consistente con addSale)
-            const pendingAccountAdjustment = clientPendingSales.reduce((acc, s) => acc + (s.payment_account || 0) - (s.applied_debt || 0), 0)
+            // payment_account ya refleja el delta contable neto (negativo si pagó deuda o saldo a favor, positivo si quedó fiado)
+            const pendingAccountAdjustment = clientPendingSales.reduce((acc, s) => acc + (s.payment_account || 0), 0)
             const pendingCajonesLeft = clientPendingSales.reduce((acc, s) => acc + (s.cajones_left || 0), 0)
             const pendingCajonesReturned = clientPendingSales.reduce((acc, s) => acc + (s.cajones_returned || 0), 0)
 
@@ -571,6 +578,7 @@ export const useStore = create<AppState>()(
             console.log(`Detectado cambio de día para chofer ${driver.full_name}. Reseteando a 'En Base'.`);
             
             set(state => ({
+              completedLoads: [],
               drivers: state.drivers.map(d => d.id === driverId ? { 
                 ...d, 
                 status: 'En Base', 
@@ -639,6 +647,19 @@ export const useStore = create<AppState>()(
         }
       },
 
+      // Persistir cargas del chofer en estado local y en Supabase (loads)
+      saveDriverLoads: async (_driverId, loadsToSave) => {
+        set({ loads: loadsToSave })
+        if (!get().isOffline) {
+          try {
+            const { error } = await supabase.from('loads').upsert(loadsToSave, { onConflict: 'driver_id,product_id,date_loaded' })
+            if (error) console.error('Error guardando cargas en Supabase:', error)
+          } catch (err) {
+            console.error('Error guardando cargas en Supabase:', err)
+          }
+        }
+      },
+
       // Registrar Venta (Offline-First)
       addSale: async (sale) => {
         const isDraft = sale.status === 'draft'
@@ -671,9 +692,8 @@ export const useStore = create<AppState>()(
           const updatedClients = isDraft ? state.clients : state.clients.map(c => 
             c.id === sale.client_id ? { 
               ...c, 
-              // BUG#1 FIX: applied_debt reduce la deuda del cliente (saldo negativo se achica)
-              // payment_account > 0 aumenta deuda, < 0 la reduce. applied_debt siempre la reduce.
-              current_balance: c.current_balance - sale.payment_account + (sale.applied_debt || 0),
+              // payment_account refleja el delta exacto: positivo suma deuda (fiado), negativo resta deuda (pago)
+              current_balance: c.current_balance - sale.payment_account,
               cajones_prestados: (c.cajones_prestados || 0) + (sale.cajones_left || 0) - (sale.cajones_returned || 0)
             } : c
           )

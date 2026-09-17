@@ -135,6 +135,37 @@ describe('Cuentas Corrientes y Gestión de Deudas', () => {
     expect(state.drivers[0].cash_collected).toBe(5000);
   });
 
+  it('Debe saldar deuda a exactamente 0 cuando el cliente paga la venta del día más la totalidad de la deuda', async () => {
+    // Cliente deudor inicia con current_balance = -8000
+    const saleCancelaDeuda = {
+      id: 'sale-cancela-total-1',
+      client_id: 'client-deudor',
+      driver_id: 'driver-1',
+      transaction_date: new Date().toISOString(),
+      subtotal_sales: 2000,
+      total_returns: 0,
+      applied_debt: 8000,
+      final_total: 2000,
+      payment_cash: 10000, // Paga 2000 de venta + 8000 de deuda previa
+      payment_transfer: 0,
+      payment_account: -8000, // willAddToDebt = (2000 - 0) - 10000 = -8000
+      client_name: 'Supermercado Central',
+      driver_name: 'Pedro Chofer',
+      items: [
+        { product_id: 'prod-pan', operation_type: 'sale' as const, quantity: 2, unit_price: 1000, name: 'Pan de Mesa' }
+      ]
+    };
+
+    const { addSale } = useStore.getState();
+    await addSale(saleCancelaDeuda);
+
+    const state = useStore.getState();
+    const deudor = state.clients.find(c => c.id === 'client-deudor');
+    // Debe quedar en exactamente 0, NO en saldo a favor
+    expect(deudor?.current_balance).toBe(0);
+    expect(state.drivers[0].cash_collected).toBe(10000);
+  });
+
   it('Debe almacenar las compras a cta. cte. preservando los ítems de productos para el comprobante de deuda', async () => {
     const saleFiadoConItems = {
       id: 'sale-fiado-detalle-1',
