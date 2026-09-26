@@ -175,6 +175,8 @@ export interface SyncItem {
   id: string;
   type: 'sale' | 'expense' | 'end_route';
   payload: any;
+  error?: string;
+  lastAttempt?: string;
 }
 
 export interface StockLoss {
@@ -258,7 +260,8 @@ interface AppState {
   saveDriverLoads: (driverId: string, loadsToSave: Load[]) => Promise<void>;
   
   // Sincronización
-  processSyncQueue: () => Promise<void>;
+  processSyncQueue: () => Promise<{ successCount: number; errorCount: number }>;
+  removeSyncItem: (id: string) => void;
 
   // Acciones de Stock
   applyStockUpdate: (items: { product_id: string; added_quantity: number; removed_quantity: number }[]) => Promise<void>;
@@ -833,12 +836,21 @@ export const useStore = create<AppState>()(
         }));
       },
 
+      // Eliminar un elemento específico de la cola de sincronización (descarte manual de tickets duplicados/fallidos)
+      removeSyncItem: (id: string) => {
+        set(state => ({
+          syncQueue: state.syncQueue.filter(item => item.id !== id)
+        }))
+      },
+
       // ==========================================
       // MOTOR DE SINCRONIZACIÓN AUTOMÁTICO (SYNC ENGINE)
       // ==========================================
       processSyncQueue: async () => {
         const state = get()
-        if (state.isOffline || state.isSyncing || state.syncQueue.length === 0) return
+        if (state.isOffline || state.isSyncing || state.syncQueue.length === 0) {
+          return { successCount: 0, errorCount: 0 }
+        }
 
         // Safety timeout: si la sincronización queda bloqueada por más de 60s, resetear
         const syncTimeoutId = setTimeout(() => {
@@ -851,41 +863,60 @@ export const useStore = create<AppState>()(
         set({ isSyncing: true })
         console.log(`Iniciando sincronización. Elementos en cola: ${state.syncQueue.length}`)
 
-        const remainingQueue: SyncItem[] = [...state.syncQueue]
+        let successCount = 0
+        let errorCount = 0
+        const updatedQueue: SyncItem[] = []
 
         for (const item of state.syncQueue) {
           try {
             if (item.type === 'sale') {
-              // Limpiar metadatos temporales de UI antes de enviar al RPC de Supabase
+              const subtotalSales = Number(item.payload.subtotal_sales || 0)
+              const totalReturns = Number(item.payload.total_returns || 0)
+              const finalTotal = Number((subtotalSales - totalReturns).toFixed(2))
+              const isDraft = item.payload.status === 'draft'
+              const paymentCash = Number((item.payload.payment_cash || 0).toFixed(2))
+              const paymentTransfer = Number((item.payload.payment_transfer || 0).toFixed(2))
+
+              // Para drafts, asignamos finalTotal a payment_account para satisfacer con exactitud la constraint
+              // sales_check en Postgres: check (payment_cash + payment_transfer + payment_account = final_total).
+              // En Postgres la función process_offline_sale solo impacta en clients/drivers si status == 'completed'.
+              // Para ventas completas, payment_account equilibra matemáticamente la ecuación al centavo exacto.
+              const paymentAccount = isDraft
+                ? finalTotal
+                : Number((finalTotal - paymentCash - paymentTransfer).toFixed(2))
+
               const cleanSale = {
                 id: item.payload.id,
                 client_id: item.payload.client_id,
                 driver_id: item.payload.driver_id,
-                transaction_date: item.payload.transaction_date,
-                subtotal_sales: Number(item.payload.subtotal_sales || 0),
-                total_returns: Number(item.payload.total_returns || 0),
+                transaction_date: item.payload.transaction_date || new Date().toISOString(),
+                subtotal_sales: subtotalSales,
+                total_returns: totalReturns,
                 applied_debt: Number(item.payload.applied_debt || 0),
-                final_total: Number((item.payload.subtotal_sales || 0) - (item.payload.total_returns || 0)),
-                payment_cash: Number(item.payload.payment_cash || 0),
-                payment_transfer: Number(item.payload.payment_transfer || 0),
-                payment_account: Number(item.payload.payment_account || 0),
+                final_total: finalTotal,
+                payment_cash: paymentCash,
+                payment_transfer: paymentTransfer,
+                payment_account: paymentAccount,
                 cajones_left: Number(item.payload.cajones_left || 0),
                 cajones_returned: Number(item.payload.cajones_returned || 0),
                 status: item.payload.status || 'completed',
-                items: (item.payload.items || []).map((i: any) => ({
-                  product_id: i.product_id,
-                  operation_type: i.operation_type,
-                  quantity: Number(i.quantity || 0),
-                  unit_price: Number(i.unit_price || 0)
-                }))
+                items: (item.payload.items || [])
+                  .filter((i: any) => Number(i.quantity) > 0)
+                  .map((i: any) => ({
+                    product_id: i.product_id,
+                    operation_type: i.operation_type,
+                    quantity: Number(i.quantity || 0),
+                    unit_price: Number(i.unit_price || 0)
+                  }))
               }
 
               // Llamada al RPC transaccional que actualiza la venta, stock, deudas y cajas
               const { error } = await supabase.rpc('process_offline_sale', { payload: cleanSale })
               if (error) throw error
+              successCount++
 
             } else if (item.type === 'expense') {
-              const { error } = await supabase.from('expenses').insert([{
+              const { error } = await supabase.from('expenses').upsert([{
                 id: item.payload.id,
                 category: item.payload.category,
                 amount: item.payload.amount,
@@ -893,7 +924,7 @@ export const useStore = create<AppState>()(
                 origin: item.payload.origin,
                 payment_method: item.payload.payment_method,
                 expense_date: item.payload.expense_date
-              }])
+              }], { onConflict: 'id' })
               if (error) throw error
               
               // Descontar caja en Supabase si el origin coincide con el nombre de un chofer activo
@@ -910,25 +941,55 @@ export const useStore = create<AppState>()(
                   await supabase.from('drivers').update(updates).eq('id', driverObj.id)
                 }
               }
+              successCount++
+
             } else if (item.type === 'end_route') {
               const { error } = await supabase.rpc('process_driver_end_of_day', { p_driver_id: item.payload.driver_id });
               if (error) throw error;
+              successCount++
             }
 
-            // Si se procesó correctamente, lo quitamos de la lista
-            const index = remainingQueue.findIndex(q => q.id === item.id)
-            if (index > -1) remainingQueue.splice(index, 1)
-
-          } catch (error) {
+          } catch (error: any) {
             console.error(`Error sincronizando elemento ${item.id} (${item.type}):`, error)
-            // Detenemos la sincronización si hay error de conexión. Quedará en la cola.
-            break
+            errorCount++
+
+            const errMsg = error?.message || error?.details || 'Error desconocido al procesar en servidor'
+            const isNetworkError = !navigator.onLine || 
+              errMsg.includes('Failed to fetch') || 
+              errMsg.includes('NetworkError') || 
+              errMsg.includes('Network request failed') ||
+              errMsg.includes('Load failed')
+
+            // Preservar el ítem en la cola con su mensaje de error para diagnóstico del usuario
+            const failedItem: SyncItem = {
+              ...item,
+              error: errMsg,
+              lastAttempt: new Date().toISOString()
+            }
+            updatedQueue.push(failedItem)
+
+            if (isNetworkError) {
+              console.warn(`[SyncQueue] Error de red detectado. Pausando el resto de la cola.`)
+              // Ante caída real de internet, preservamos el resto de los elementos en cola y detenemos
+              const currentIndex = state.syncQueue.findIndex(q => q.id === item.id)
+              if (currentIndex >= 0) {
+                for (let k = currentIndex + 1; k < state.syncQueue.length; k++) {
+                  updatedQueue.push(state.syncQueue[k])
+                }
+              }
+              break
+            } else {
+              // Si el error es de datos de este comprobante en particular, NO trabamos la cola!
+              // Continuamos procesando los siguientes clientes de la ruta.
+              console.warn(`[SyncQueue] Error específico en ítem ${item.id}. Continuando con el resto de la cola.`)
+            }
           }
         }
 
         clearTimeout(syncTimeoutId)
-        set({ syncQueue: remainingQueue, isSyncing: false })
-        console.log(`Sincronización finalizada. Elementos pendientes en cola: ${remainingQueue.length}`)
+        set({ syncQueue: updatedQueue, isSyncing: false })
+        console.log(`Sincronización finalizada. Éxitos: ${successCount}, Pendientes/Errores: ${updatedQueue.length}`)
+        return { successCount, errorCount }
       }
     }),
     {

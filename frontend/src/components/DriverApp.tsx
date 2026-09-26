@@ -1029,7 +1029,7 @@ const DriverHome: React.FC<DriverHomeProps> = ({ driver, onNewSale, onViewCashSu
           <div className="flex items-center gap-2">
             {!isOffline && syncQueue.length > 0 && (
               <button 
-                onClick={processSyncQueue}
+                onClick={() => processSyncQueue()}
                 className="bg-white/20 hover:bg-white/30 p-2 rounded-xl transition-transform active:scale-90 shadow-sm"
                 title="Sincronizar ahora"
               >
