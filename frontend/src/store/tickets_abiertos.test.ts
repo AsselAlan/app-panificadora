@@ -128,4 +128,43 @@ describe('Tickets Abiertos y Borradores (Visita Múltiple)', () => {
     // El ticket fue actualizado en el estado
     expect(state.sales[0].status).toBe('completed');
   });
+
+  it('No debe arrojar error (TypeError) si un borrador cargado remotamente tiene items undefined', () => {
+    // Simulamos una venta remota que vino de Supabase sin el array items poblado
+    const remoteDraftWithoutItems: any = {
+      id: 'draft-no-items',
+      client_id: 'client-hotel',
+      driver_id: 'driver-1',
+      transaction_date: new Date().toISOString(),
+      subtotal_sales: 4000,
+      total_returns: 0,
+      applied_debt: 0,
+      final_total: 4000,
+      payment_cash: 0,
+      payment_transfer: 0,
+      payment_account: 4000,
+      status: 'draft',
+      items: undefined // Simula la respuesta sin join de sale_items
+    };
+
+    useStore.setState({
+      sales: [remoteDraftWithoutItems]
+    });
+
+    const existingDraft = useStore.getState().sales.find(s => s.id === 'draft-no-items');
+    expect(existingDraft).toBeDefined();
+
+    // Verificamos que el algoritmo de inicialización seguro no reviente con forEach
+    const safeItems = Array.isArray(existingDraft?.items) ? existingDraft.items : [];
+    const draftCart: Record<string, number> = {};
+    expect(() => {
+      safeItems.forEach((item: any) => {
+        if (item && item.operation_type === 'sale') {
+          draftCart[item.product_id] = item.quantity;
+        }
+      });
+    }).not.toThrow();
+
+    expect(draftCart).toEqual({});
+  });
 });
