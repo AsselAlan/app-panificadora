@@ -417,7 +417,7 @@ export const useStore = create<AppState>()(
           const sixtyDaysAgo = new Date()
           sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
           
-          const resSal = await supabase.from('sales').select('*, items:sale_items(*)').gte('transaction_date', sixtyDaysAgo.toISOString()).order('transaction_date', { ascending: false })
+          const resSal = await supabase.from('sales').select('*, items:sale_items(*, products(name))').gte('transaction_date', sixtyDaysAgo.toISOString()).order('transaction_date', { ascending: false })
           const resCat = await supabase.from('expense_categories').select('*').order('name')
           const resRoutes = await supabase.from('weekly_routes').select('*')
           const resDriverCat = await supabase.from('driver_expense_categories').select('*').order('name')
@@ -430,15 +430,24 @@ export const useStore = create<AppState>()(
           if (resDriverCat.error) throw resDriverCat.error
 
           const state = get()
+          const productsList = resProd.data || state.products || []
+          const productsMap = new Map<string, string>(productsList.map((p: any) => [p.id, p.name]))
+
           const pendingSales = state.syncQueue.filter(i => i.type === 'sale').map(i => i.payload as Sale)
           const pendingExpenses = state.syncQueue.filter(i => i.type === 'expense').map(i => i.payload as Expense)
           
           const rawRemoteSales = resSal.data || []
           const remoteSales = rawRemoteSales.map((rs: any) => {
             const localMatch = state.sales.find(ls => ls.id === rs.id)
+            const rawItems = (Array.isArray(rs.items) && rs.items.length > 0) ? rs.items : (Array.isArray(localMatch?.items) ? localMatch.items : [])
+            const populatedItems = rawItems.map((it: any) => ({
+              ...it,
+              name: it.name || it.products?.name || productsMap.get(it.product_id) || 'Producto'
+            }))
+
             return {
               ...rs,
-              items: (Array.isArray(rs.items) && rs.items.length > 0) ? rs.items : (Array.isArray(localMatch?.items) ? localMatch.items : [])
+              items: populatedItems
             }
           })
           const remoteExpenses = resExp.data || []
@@ -509,19 +518,26 @@ export const useStore = create<AppState>()(
           
           const { data, error } = await supabase
             .from('sales')
-            .select('*, items:sale_items(*)')
+            .select('*, items:sale_items(*, products(name))')
             .gte('transaction_date', startDate.toISOString())
             .lte('transaction_date', endDate.toISOString())
             .order('transaction_date', { ascending: false })
             
           if (error) throw error
           
+          const productsMap = new Map<string, string>((get().products || []).map((p: any) => [p.id, p.name]))
           const rawRemoteSales = data || []
           const remoteSales = rawRemoteSales.map((rs: any) => {
             const localMatch = get().sales.find(ls => ls.id === rs.id)
+            const rawItems = (Array.isArray(rs.items) && rs.items.length > 0) ? rs.items : (Array.isArray(localMatch?.items) ? localMatch.items : [])
+            const populatedItems = rawItems.map((it: any) => ({
+              ...it,
+              name: it.name || it.products?.name || productsMap.get(it.product_id) || 'Producto'
+            }))
+
             return {
               ...rs,
-              items: (Array.isArray(rs.items) && rs.items.length > 0) ? rs.items : (Array.isArray(localMatch?.items) ? localMatch.items : [])
+              items: populatedItems
             }
           })
           const pendingSales = get().syncQueue.filter(i => i.type === 'sale').map(i => i.payload as Sale)

@@ -124,4 +124,35 @@ describe('useStore - Testing Lógica Offline-First', () => {
     expect(state.syncQueue[0].type).toBe('sale');
   });
 
+  it('Debe resolver el nombre del producto en ventas remotas a partir de productsMap', () => {
+    // Simula una venta recuperada de Supabase donde sale_items no contiene el campo 'name'
+    const remoteSaleWithoutName = {
+      id: 'sale-remote-1',
+      client_id: 'client-1',
+      driver_id: 'driver-1',
+      transaction_date: new Date().toISOString(),
+      subtotal_sales: 300,
+      total_returns: 0,
+      applied_debt: 0,
+      final_total: 300,
+      payment_cash: 300,
+      payment_transfer: 0,
+      payment_account: 0,
+      items: [
+        { product_id: 'prod-1', operation_type: 'sale', quantity: 3, unit_price: 100 }
+      ]
+    };
+
+    const products = useStore.getState().products;
+    const productsMap = new Map<string, string>(products.map(p => [p.id, p.name]));
+
+    const populatedItems = remoteSaleWithoutName.items.map((it: any) => ({
+      ...it,
+      name: it.name || productsMap.get(it.product_id) || 'Producto'
+    }));
+
+    expect(populatedItems[0].name).toBe('Pan de Mesa');
+    expect(populatedItems[0].name).not.toBe('undefined');
+  });
+
 });

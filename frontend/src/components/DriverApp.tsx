@@ -1945,13 +1945,17 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
   const handleWhatsApp = () => {
     if (!generatedTicket) return
     let text = `🍞 *PANIFICADORA FENIX*\n🎫 Ticket #${generatedTicket.id.substring(0, 8).toUpperCase()}\n👤 Cliente: ${generatedTicket.client_name}\n📅 Fecha: ${new Date(generatedTicket.transaction_date).toLocaleString('es-AR')}\n--------------------------------\n`
+    const getTermItemName = (item: any) => {
+      return item.name || products.find(p => p.id === item.product_id)?.name || 'Producto'
+    }
+
     if (subtotalSales > 0) {
       text += `*DESPACHO:*\n`
-      ;(generatedTicket.items || []).filter(i => i.operation_type === 'sale').forEach(item => text += `• ${item.quantity}x ${item.name} - $${item.quantity * item.unit_price}\n`)
+      ;(generatedTicket.items || []).filter(i => i.operation_type === 'sale').forEach(item => text += `• ${item.quantity}x ${getTermItemName(item)} - $${item.quantity * item.unit_price}\n`)
     }
     if (totalReturns > 0) {
       text += `\n*DEVOLUCIONES (MERMAS):*\n`
-      ;(generatedTicket.items || []).filter(i => i.operation_type === 'return').forEach(item => text += `• -${item.quantity}x ${item.name} - -$${item.quantity * item.unit_price}\n`)
+      ;(generatedTicket.items || []).filter(i => i.operation_type === 'return').forEach(item => text += `• -${item.quantity}x ${getTermItemName(item)} - -$${item.quantity * item.unit_price}\n`)
     }
     const totalToCollect = generatedTicket.final_total + (generatedTicket.applied_debt || 0)
     text += `--------------------------------\n*${generatedTicket.applied_debt > 0 ? 'TOTAL A COBRAR (Venta + Deuda)' : 'TOTAL BOLETA'}: $${totalToCollect.toLocaleString('es-AR')}*\n`
@@ -2009,19 +2013,25 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
                 <span>Total</span>
               </div>
               
-              {(generatedTicket.items || []).filter(i => i.operation_type === 'sale').map((item, idx) => (
-                <div key={idx} className="flex justify-between text-brand-deep/80">
-                  <span>{item.quantity}x {item.name}</span>
-                  <span>${(item.quantity * item.unit_price).toLocaleString('es-AR')}</span>
-                </div>
-              ))}
+              {(generatedTicket.items || []).filter(i => i.operation_type === 'sale').map((item, idx) => {
+                const itemName = item.name || products.find(p => p.id === item.product_id)?.name || 'Producto'
+                return (
+                  <div key={idx} className="flex justify-between text-brand-deep/80">
+                    <span>{item.quantity}x {itemName}</span>
+                    <span>${(item.quantity * item.unit_price).toLocaleString('es-AR')}</span>
+                  </div>
+                )
+              })}
               
-              {(generatedTicket.items || []).filter(i => i.operation_type === 'return').map((item, idx) => (
-                <div key={idx} className="flex justify-between text-red-400">
-                  <span>-{item.quantity}x {item.name} (dev)</span>
-                  <span>-${(item.quantity * item.unit_price).toLocaleString('es-AR')}</span>
-                </div>
-              ))}
+              {(generatedTicket.items || []).filter(i => i.operation_type === 'return').map((item, idx) => {
+                const itemName = item.name || products.find(p => p.id === item.product_id)?.name || 'Producto'
+                return (
+                  <div key={idx} className="flex justify-between text-red-400">
+                    <span>-{item.quantity}x {itemName} (dev)</span>
+                    <span>-${(item.quantity * item.unit_price).toLocaleString('es-AR')}</span>
+                  </div>
+                )
+              })}
             </div>
 
             <div className="border-t border-brand-muted/20/60 mt-3 pt-2 text-[10px] space-y-1">
@@ -2783,16 +2793,20 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
     const totalToCollect = ticket.final_total + applied
     let text = `🍞 *PANIFICADORA FENIX*\n🎫 Ticket #${ticket.id.substring(0, 8).toUpperCase()}\n👤 Cliente: ${ticket.client_name || clientObj?.business_name || 'Cliente'}\n📅 Fecha: ${new Date(ticket.transaction_date).toLocaleString('es-AR')}\n--------------------------------\n`
     
+    const getProductName = (item: any) => {
+      return item.name || products.find(p => p.id === item.product_id)?.name || 'Producto'
+    }
+
     const salesItems = (ticket.items || []).filter(i => i.operation_type === 'sale')
     if (salesItems.length > 0) {
       text += `*DESPACHO:*\n`
-      salesItems.forEach(item => text += `• ${item.quantity}x ${item.name} - $${(item.quantity * item.unit_price).toLocaleString('es-AR')}\n`)
+      salesItems.forEach(item => text += `• ${item.quantity}x ${getProductName(item)} - $${(item.quantity * item.unit_price).toLocaleString('es-AR')}\n`)
     }
     
     const returnsItems = (ticket.items || []).filter(i => i.operation_type === 'return')
     if (returnsItems.length > 0) {
       text += `\n*DEVOLUCIONES (MERMAS):*\n`
-      returnsItems.forEach(item => text += `• -${item.quantity}x ${item.name} - -$${(item.quantity * item.unit_price).toLocaleString('es-AR')}\n`)
+      returnsItems.forEach(item => text += `• -${item.quantity}x ${getProductName(item)} - -$${(item.quantity * item.unit_price).toLocaleString('es-AR')}\n`)
     }
     
     text += `--------------------------------\n`
@@ -2930,21 +2944,29 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
                     key={ticket.id}
                     onClick={async () => {
                       const fullTicket = { ...ticket, client_name: clientName }
-                      if (!ticket.items) {
+                      const rawItems = Array.isArray(ticket.items) ? ticket.items : []
+                      
+                      // Resolver nombres de productos localmente con el catálogo de products
+                      const mappedItems = rawItems.map((i: any) => ({
+                        ...i,
+                        name: i.name || products.find(p => p.id === i.product_id)?.name || 'Producto'
+                      }))
+
+                      if (mappedItems.length === 0) {
                         setSelectedTicket({ ...fullTicket, items: [] })
                         const { data } = await supabase.from('sale_items').select('*, products(name)').eq('sale_id', ticket.id)
                         if (data) {
-                          const mappedItems = data.map((i: any) => ({
+                          const fetchedItems = data.map((i: any) => ({
                              product_id: i.product_id,
                              quantity: i.quantity,
                              unit_price: i.unit_price,
                              operation_type: i.operation_type,
-                             name: i.products?.name || 'Producto'
+                             name: i.products?.name || products.find(p => p.id === i.product_id)?.name || 'Producto'
                           }))
-                          setSelectedTicket({ ...fullTicket, items: mappedItems })
+                          setSelectedTicket({ ...fullTicket, items: fetchedItems })
                         }
                       } else {
-                        setSelectedTicket(fullTicket)
+                        setSelectedTicket({ ...fullTicket, items: mappedItems })
                       }
                     }}
                     className="bg-white hover:bg-brand-navy/5 border border-brand-muted/10 rounded-2xl p-3.5 shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-[0.99]"
@@ -3025,19 +3047,25 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
                     <span>Total</span>
                   </div>
                   
-                  {(selectedTicket.items || []).filter(i => i.operation_type === 'sale').map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-brand-deep/80">
-                      <span>{item.quantity}x {item.name}</span>
-                      <span>${item.quantity * item.unit_price}</span>
-                    </div>
-                  ))}
+                  {(selectedTicket.items || []).filter(i => i.operation_type === 'sale').map((item, idx) => {
+                    const itemName = item.name || products.find(p => p.id === item.product_id)?.name || 'Producto'
+                    return (
+                      <div key={idx} className="flex justify-between text-brand-deep/80">
+                        <span>{item.quantity}x {itemName}</span>
+                        <span>${item.quantity * item.unit_price}</span>
+                      </div>
+                    )
+                  })}
                   
-                  {(selectedTicket.items || []).filter(i => i.operation_type === 'return').map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-red-400">
-                      <span>-{item.quantity}x {item.name} (dev)</span>
-                      <span>-${item.quantity * item.unit_price}</span>
-                    </div>
-                  ))}
+                  {(selectedTicket.items || []).filter(i => i.operation_type === 'return').map((item, idx) => {
+                    const itemName = item.name || products.find(p => p.id === item.product_id)?.name || 'Producto'
+                    return (
+                      <div key={idx} className="flex justify-between text-red-400">
+                        <span>-{item.quantity}x {itemName} (dev)</span>
+                        <span>-${item.quantity * item.unit_price}</span>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 <div className="border-t border-brand-muted/20 mt-3 pt-2 text-[10px] space-y-1">
