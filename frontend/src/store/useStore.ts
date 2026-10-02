@@ -452,7 +452,17 @@ export const useStore = create<AppState>()(
           })
           const remoteExpenses = resExp.data || []
           
-          const mergedSales = [...remoteSales.filter(rs => !pendingSales.find(ps => ps.id === rs.id)), ...pendingSales]
+          // Preservar ventas locales de IndexedDB que no vinieron en la query remota
+          // (ej: si RLS o paginación no las devolvió para este chofer, JAMÁS borrarlas del teléfono!)
+          const remoteSaleIds = new Set(remoteSales.map(s => s.id))
+          const pendingSaleIds = new Set(pendingSales.map(s => s.id))
+          const preservedLocalSales = (state.sales || []).filter(ls => !remoteSaleIds.has(ls.id) && !pendingSaleIds.has(ls.id))
+
+          const mergedSales = [
+            ...remoteSales.filter(rs => !pendingSaleIds.has(rs.id)),
+            ...pendingSales,
+            ...preservedLocalSales
+          ]
           const mergedExpenses = [...remoteExpenses.filter(re => !pendingExpenses.find(pe => pe.id === re.id)), ...pendingExpenses]
 
           // Preservar balances y cajones de clientes para ventas pendientes en cola de sincronización (Offline-First)
@@ -598,6 +608,21 @@ export const useStore = create<AppState>()(
         const driver = get().drivers.find(d => d.id === driverId);
         if (!driver) return;
 
+        // Si el chofer ya tiene ventas hoy registradas en el dispositivo o en cola, ¡NO es cambio de día!
+        const todayStr = new Date().toLocaleDateString('sv');
+        const hasTodayActivity = (get().sales || []).some(s => 
+          s.driver_id === driverId && 
+          new Date(s.transaction_date).toLocaleDateString('sv') === todayStr
+        ) || (get().syncQueue || []).some(q => 
+          q.type === 'sale' && 
+          (q.payload as Sale).driver_id === driverId && 
+          new Date((q.payload as Sale).transaction_date).toLocaleDateString('sv') === todayStr
+        );
+
+        if (hasTodayActivity) {
+          return;
+        }
+
         if (driver.last_active) {
           const lastActiveDate = new Date(driver.last_active);
           const today = new Date();
@@ -701,6 +726,7 @@ export const useStore = create<AppState>()(
         set(state => {
           // Reemplazar si ya existía una venta previa o borrador con el mismo ID
           const existingSaleIndex = state.sales.findIndex(s => s.id === sale.id)
+          const previousSale = existingSaleIndex >= 0 ? state.sales[existingSaleIndex] : null
           let updatedSales = [...state.sales]
           if (existingSaleIndex >= 0) {
             updatedSales[existingSaleIndex] = sale
@@ -708,34 +734,54 @@ export const useStore = create<AppState>()(
             updatedSales = [sale, ...state.sales]
           }
 
-          // Descontar inventario localmente en loads (tanto si es draft como completed para reflejar la salida física)
+          // Descontar inventario localmente en loads considerando el delta si ya existía una venta/borrador previo
           const updatedLoads = state.loads.map(load => {
-            const itemMatch = sale.items.find(i => i.product_id === load.product_id)
+            const itemMatch = (sale.items || []).find(i => i.product_id === load.product_id)
             if (itemMatch) {
+              const prevItem = previousSale?.items?.find(i => i.product_id === load.product_id && i.operation_type === itemMatch.operation_type)
+              const previousQty = prevItem ? Number(prevItem.quantity || 0) : 0
+              const deltaQty = itemMatch.quantity - previousQty
+
               if (itemMatch.operation_type === 'sale') {
-                return { ...load, current_quantity: Math.max(0, load.current_quantity - itemMatch.quantity) }
+                return { ...load, current_quantity: Math.max(0, load.current_quantity - deltaQty) }
               } else if (itemMatch.operation_type === 'return') {
-                return { ...load, returned_quantity: (load.returned_quantity || 0) + itemMatch.quantity }
+                return { ...load, returned_quantity: Math.max(0, (load.returned_quantity || 0) + deltaQty) }
+              }
+            } else if (previousSale) {
+              // Si el ítem estaba en la venta previa pero fue quitado, devolverlo al inventario
+              const prevItem = (previousSale.items || []).find(i => i.product_id === load.product_id)
+              if (prevItem && prevItem.operation_type === 'sale') {
+                return { ...load, current_quantity: load.current_quantity + Number(prevItem.quantity || 0) }
+              } else if (prevItem && prevItem.operation_type === 'return') {
+                return { ...load, returned_quantity: Math.max(0, (load.returned_quantity || 0) - Number(prevItem.quantity || 0)) }
               }
             }
             return load
           })
 
-          // Si es borrador, no afecta pagos de caja ni cuenta corriente aún
+          // Si es borrador, no afecta pagos de caja ni cuenta corriente aún.
+          // Si pasa a 'completed', impacta calculando el delta contra el estado previo si ya había sido completed.
+          const prevAccount = (previousSale && previousSale.status === 'completed') ? (previousSale.payment_account || 0) : 0
+          const prevCash = (previousSale && previousSale.status === 'completed') ? (previousSale.payment_cash || 0) : 0
+          const prevTransfer = (previousSale && previousSale.status === 'completed') ? (previousSale.payment_transfer || 0) : 0
+          const prevCajonesLeft = (previousSale && previousSale.status === 'completed') ? (previousSale.cajones_left || 0) : 0
+          const prevCajonesRet = (previousSale && previousSale.status === 'completed') ? (previousSale.cajones_returned || 0) : 0
+
           const updatedClients = isDraft ? state.clients : state.clients.map(c => 
             c.id === sale.client_id ? { 
               ...c, 
               // payment_account refleja el delta exacto: positivo suma deuda (fiado), negativo resta deuda (pago)
-              current_balance: c.current_balance - sale.payment_account,
-              cajones_prestados: (c.cajones_prestados || 0) + (sale.cajones_left || 0) - (sale.cajones_returned || 0)
+              current_balance: c.current_balance - (sale.payment_account - prevAccount),
+              cajones_prestados: (c.cajones_prestados || 0) + ((sale.cajones_left || 0) - prevCajonesLeft) - ((sale.cajones_returned || 0) - prevCajonesRet)
             } : c
           )
 
-          const updatedDrivers = isDraft ? state.drivers : state.drivers.map(d => 
+          const updatedDrivers = state.drivers.map(d => 
             d.id === sale.driver_id ? { 
               ...d, 
-              cash_collected: d.cash_collected + sale.payment_cash, 
-              transfer_collected: d.transfer_collected + sale.payment_transfer 
+              cash_collected: isDraft ? d.cash_collected : d.cash_collected + (sale.payment_cash - prevCash), 
+              transfer_collected: isDraft ? d.transfer_collected : d.transfer_collected + (sale.payment_transfer - prevTransfer),
+              last_active: new Date().toISOString()
             } : d
           )
 

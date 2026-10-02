@@ -12,18 +12,26 @@ vi.mock('localforage', () => ({
   }
 }));
 
-vi.mock('../supabaseClient', () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    })),
-    rpc: vi.fn().mockResolvedValue({ data: null, error: null })
-  }
-}));
+vi.mock('../supabaseClient', () => {
+  const queryBuilder: any = {
+    select: vi.fn(() => queryBuilder),
+    insert: vi.fn(() => queryBuilder),
+    update: vi.fn(() => queryBuilder),
+    eq: vi.fn(() => queryBuilder),
+    gte: vi.fn(() => queryBuilder),
+    lte: vi.fn(() => queryBuilder),
+    order: vi.fn(() => queryBuilder),
+    limit: vi.fn(() => queryBuilder),
+    single: vi.fn().mockResolvedValue({ data: null, error: null }),
+    then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve)
+  };
+  return {
+    supabase: {
+      from: vi.fn(() => queryBuilder),
+      rpc: vi.fn().mockResolvedValue({ data: null, error: null })
+    }
+  };
+});
 
 describe('Tickets Abiertos y Borradores (Visita Múltiple)', () => {
   const initialState = useStore.getState();
@@ -127,6 +135,117 @@ describe('Tickets Abiertos y Borradores (Visita Múltiple)', () => {
 
     // El ticket fue actualizado en el estado
     expect(state.sales[0].status).toBe('completed');
+
+    // BUG FIX VERIFICADO: El stock de la camioneta NO se descuenta dos veces.
+    // Inicial era 30, se restaron 3 en el borrador -> debe quedar en 27, NO en 24.
+    expect(state.loads[0].current_quantity).toBe(27);
+  });
+
+  it('Debe calcular delta de stock si un ticket abierto se completa con cantidades modificadas', async () => {
+    // 1. Borrador inicial con 3 docenas (de 30 iniciales -> 27)
+    const draftSale = {
+      id: 'draft-ticket-103',
+      client_id: 'client-hotel',
+      driver_id: 'driver-1',
+      transaction_date: new Date().toISOString(),
+      subtotal_sales: 6000,
+      total_returns: 0,
+      applied_debt: 0,
+      final_total: 6000,
+      payment_cash: 6000,
+      payment_transfer: 0,
+      payment_account: 0,
+      status: 'draft' as const,
+      items: [
+        { product_id: 'prod-medialuna', operation_type: 'sale' as const, quantity: 3, unit_price: 2000, name: 'Medialuna' }
+      ]
+    };
+    await useStore.getState().addSale(draftSale);
+    expect(useStore.getState().loads[0].current_quantity).toBe(27);
+
+    // 2. Al completar, el cliente pide 2 más (total 5 docenas)
+    const completedSale = {
+      ...draftSale,
+      subtotal_sales: 10000,
+      final_total: 10000,
+      payment_cash: 10000,
+      status: 'completed' as const,
+      items: [
+        { product_id: 'prod-medialuna', operation_type: 'sale' as const, quantity: 5, unit_price: 2000, name: 'Medialuna' }
+      ]
+    };
+    await useStore.getState().addSale(completedSale);
+
+    // Debe descontar únicamente el delta (5 - 3 = 2 adicionales, 27 - 2 = 25)
+    expect(useStore.getState().loads[0].current_quantity).toBe(25);
+  });
+
+  it('No debe borrar ventas locales de IndexedDB durante fetchInitialData si no vienen en la respuesta remota', async () => {
+    const localSale = {
+      id: 'local-only-sale-999',
+      client_id: 'client-hotel',
+      driver_id: 'driver-1',
+      transaction_date: new Date().toISOString(),
+      subtotal_sales: 5000,
+      total_returns: 0,
+      applied_debt: 0,
+      final_total: 5000,
+      payment_cash: 5000,
+      payment_transfer: 0,
+      payment_account: 0,
+      status: 'completed' as const,
+      items: []
+    };
+
+    useStore.setState({
+      sales: [localSale],
+      syncQueue: [],
+      isOffline: false
+    });
+
+    // Simulamos que la query remota a Supabase devuelve ventas vacías [] (por RLS o delay)
+    await useStore.getState().fetchInitialData();
+
+    // La venta local DEBE ser preservada intacta en sales
+    const preserved = useStore.getState().sales.find(s => s.id === 'local-only-sale-999');
+    expect(preserved).toBeDefined();
+    expect(preserved?.id).toBe('local-only-sale-999');
+  });
+
+  it('No debe resetear la jornada del chofer si ya tiene ventas registradas hoy en el dispositivo', async () => {
+    const todayStr = new Date().toLocaleDateString('sv');
+    const todaySale = {
+      id: 'sale-today-1',
+      client_id: 'client-hotel',
+      driver_id: 'driver-1',
+      transaction_date: new Date().toISOString(),
+      subtotal_sales: 3000,
+      total_returns: 0,
+      applied_debt: 0,
+      final_total: 3000,
+      payment_cash: 3000,
+      payment_transfer: 0,
+      payment_account: 0,
+      status: 'completed' as const,
+      items: []
+    };
+
+    // Chofer con last_active de ayer pero con venta de hoy ya cargada
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    useStore.setState({
+      drivers: [
+        { id: 'driver-1', user_id: 'u-1', full_name: 'Juan Chofer', status: 'En Ruta', is_online: true, is_mostrador: false, cash_collected: 3000, transfer_collected: 0, location_data: null, last_active: yesterday.toISOString() }
+      ],
+      sales: [todaySale]
+    });
+
+    await useStore.getState().checkAndResetDriverDay('driver-1');
+
+    const driver = useStore.getState().drivers.find(d => d.id === 'driver-1');
+    expect(driver?.status).toBe('En Ruta');
+    expect(driver?.cash_collected).toBe(3000);
   });
 
   it('No debe arrojar error (TypeError) si un borrador cargado remotamente tiene items undefined', () => {

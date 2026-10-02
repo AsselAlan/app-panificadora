@@ -1566,12 +1566,22 @@ interface DriverClientsProps {
 }
 
 const DriverClients: React.FC<DriverClientsProps> = ({ onBack, onSelectClient }) => {
-  const { clients, weeklyRoutes, currentDriverId, sales } = useStore()
+  const { clients, weeklyRoutes, currentDriverId, sales, syncQueue } = useStore()
   const [searchTerm, setSearchTerm] = useState('')
 
   const todayJS = new Date().getDay()
   const todayISO = todayJS === 0 ? 7 : todayJS
   const todayStr = useMemo(() => new Date().toLocaleDateString('sv'), [])
+
+  const isClientVisited = (clientId: string) => {
+    return sales.some(s => s.client_id === clientId && s.status === 'completed' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) ||
+           syncQueue.some(q => q.type === 'sale' && q.payload.client_id === clientId && q.payload.status === 'completed' && new Date(q.payload.transaction_date).toLocaleDateString('sv') === todayStr)
+  }
+
+  const hasClientDraft = (clientId: string) => {
+    return sales.some(s => s.client_id === clientId && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) ||
+           syncQueue.some(q => q.type === 'sale' && q.payload.client_id === clientId && q.payload.status === 'draft' && new Date(q.payload.transaction_date).toLocaleDateString('sv') === todayStr)
+  }
 
   const routeStops = useMemo(() => {
     const todayRoutes = weeklyRoutes.filter(r => r.driver_id === currentDriverId && r.day_of_week === todayISO)
@@ -1633,6 +1643,9 @@ const DriverClients: React.FC<DriverClientsProps> = ({ onBack, onSelectClient })
               const client = clients.find(c => c.id === stop.client_id)
               if (!client) return null
               
+              const isVisited = isClientVisited(client.id)
+              const hasDraft = !isVisited && hasClientDraft(client.id)
+
               return (
                 <div 
                   key={stop.id} 
@@ -1650,12 +1663,12 @@ const DriverClients: React.FC<DriverClientsProps> = ({ onBack, onSelectClient })
                           Cta. Cte.
                         </span>
                       )}
-                      {sales.some(s => s.client_id === client.id && s.status === 'completed' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                      {isVisited && (
                         <span className="bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm flex items-center gap-1">
                           ✓ Visitado
                         </span>
                       )}
-                      {sales.some(s => s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                      {hasDraft && (
                         <span className="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm animate-pulse">
                           🟡 Ticket Abierto
                         </span>
@@ -1722,22 +1735,33 @@ interface DriverTerminalProps {
 }
 
 const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBack, onComplete }) => {
-  const { products, clients, loads, addSale, weeklyRoutes, sales } = useStore()
+  const { products, clients, loads, addSale, weeklyRoutes, sales, syncQueue } = useStore()
   
   const [tab, setTab] = useState<1 | 2 | 3>(1)
   
   const client = clients.find(c => c.id === clientId)
   
-  // Buscar si existe una venta/ticket abierto previo hoy para este cliente
+  // Buscar si existe una venta/ticket abierto previo hoy para este cliente (en cola local o en ventas)
   const todayStr = useMemo(() => new Date().toLocaleDateString('sv'), [])
   const existingDraftSale = useMemo(() => {
+    // 1. Prioridad: buscar en la cola de sincronización si hay un borrador pendiente
+    const pendingDraft = syncQueue.find(q => 
+      q.type === 'sale' && 
+      q.payload.driver_id === driver.id && 
+      q.payload.client_id === clientId && 
+      q.payload.status === 'draft' && 
+      new Date(q.payload.transaction_date).toLocaleDateString('sv') === todayStr
+    )
+    if (pendingDraft) return pendingDraft.payload as Sale
+
+    // 2. Buscar en las ventas cargadas en memoria/IndexedDB
     return sales.find(s => 
       s.driver_id === driver.id && 
       s.client_id === clientId && 
       s.status === 'draft' && 
       new Date(s.transaction_date).toLocaleDateString('sv') === todayStr
     )
-  }, [sales, driver.id, clientId, todayStr])
+  }, [sales, syncQueue, driver.id, clientId, todayStr])
 
   const [cart, setCart] = useState<Record<string, number>>(() => {
     // 1. Si hay borrador guardado previo en el día, cargar sus ítems con validación segura de array
@@ -1918,7 +1942,7 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
       final_total: subtotalSales - totalReturns,
       payment_cash: asDraft ? 0 : cashAmt,
       payment_transfer: asDraft ? 0 : transferAmt,
-      payment_account: asDraft ? 0 : willAddToDebt,
+      payment_account: asDraft ? (subtotalSales - totalReturns) : willAddToDebt,
       cajones_left: parseInt(cajonesLeft) || 0,
       cajones_returned: parseInt(cajonesReturned) || 0,
       status: asDraft ? 'draft' : 'completed',
@@ -1927,18 +1951,27 @@ const DriverTerminal: React.FC<DriverTerminalProps> = ({ driver, clientId, onBac
       driver_name: driver.full_name
     }
 
-    await addSale(newSale)
-    
-    if (asDraft) {
+    try {
+      await addSale(newSale)
+      
+      if (asDraft) {
+        Swal.fire({
+          title: 'Ticket Guardado Abierto',
+          text: 'La mercadería entregada fue descontada del camión. Podrás cerrar el ticket en la siguiente visita.',
+          icon: 'info',
+          confirmButtonColor: '#2563eb'
+        })
+        onComplete()
+      } else {
+        setGeneratedTicket(newSale)
+      }
+    } catch (err: any) {
+      console.error('Error al procesar comprobante:', err)
       Swal.fire({
-        title: 'Ticket Guardado Abierto',
-        text: 'La mercadería entregada fue descontada del camión. Podrás cerrar el ticket en la siguiente visita.',
-        icon: 'info',
-        confirmButtonColor: '#2563eb'
+        title: 'Atención al guardar',
+        text: 'Ocurrió un inconveniente guardando el comprobante: ' + (err?.message || 'Intente nuevamente'),
+        icon: 'error'
       })
-      onComplete()
-    } else {
-      setGeneratedTicket(newSale)
     }
   }
 
@@ -2442,12 +2475,13 @@ interface DriverRoadmapProps {
 }
 
 const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectClient }) => {
-  const { weeklyRoutes, clients, products, completedLoads, addCompletedLoad, saveDriverLoads } = useStore()
+  const { weeklyRoutes, clients, products, completedLoads, addCompletedLoad, saveDriverLoads, sales, syncQueue } = useStore()
   const [expandedClients, setExpandedClients] = useState<Record<string, boolean>>({})
   const [activeLoadModal, setActiveLoadModal] = useState<any>(null)
 
   const todayJS = new Date().getDay()
   const todayISO = todayJS === 0 ? 7 : todayJS
+  const todayStr = useMemo(() => new Date().toLocaleDateString('sv'), [])
 
   // 1. Obtener paradas del día
   const dayRoutes = useMemo(() => {
@@ -2654,12 +2688,16 @@ const DriverRoadmap: React.FC<DriverRoadmapProps> = ({ driver, onBack, onSelectC
                                 Cta. Cte.
                               </span>
                             )}
-                            {client && sales.some(s => s.client_id === client.id && s.status === 'completed' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                            {client && (sales.some(s => s.client_id === client.id && s.status === 'completed' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) ||
+                                       syncQueue.some(q => q.type === 'sale' && q.payload.client_id === client.id && q.payload.status === 'completed' && new Date(q.payload.transaction_date).toLocaleDateString('sv') === todayStr)) && (
                               <span className="bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm flex items-center gap-1">
                                 ✓ Visitado
                               </span>
                             )}
-                            {client && sales.some(s => s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) && (
+                            {client && !sales.some(s => s.client_id === client.id && s.status === 'completed' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) &&
+                                       !syncQueue.some(q => q.type === 'sale' && q.payload.client_id === client.id && q.payload.status === 'completed' && new Date(q.payload.transaction_date).toLocaleDateString('sv') === todayStr) &&
+                                       (sales.some(s => s.client_id === client.id && s.status === 'draft' && new Date(s.transaction_date).toLocaleDateString('sv') === todayStr) ||
+                                        syncQueue.some(q => q.type === 'sale' && q.payload.client_id === client.id && q.payload.status === 'draft' && new Date(q.payload.transaction_date).toLocaleDateString('sv') === todayStr)) && (
                               <span className="bg-amber-500 text-white text-[9px] px-2 py-0.5 rounded-lg font-bold whitespace-nowrap shadow-sm animate-pulse">
                                 🟡 Ticket Abierto
                               </span>
@@ -2741,7 +2779,7 @@ interface DriverCashSummaryProps {
 }
 
 const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack }) => {
-  const { sales, expenses, clients } = useStore()
+  const { sales, expenses, clients, syncQueue } = useStore()
   const [selectedTicket, setSelectedTicket] = useState<Sale | null>(null)
 
   // Obtener la fecha local en formato 'YYYY-MM-DD'
@@ -2749,13 +2787,28 @@ const DriverCashSummary: React.FC<DriverCashSummaryProps> = ({ driver, onBack })
     return new Date().toLocaleDateString('sv') // 'YYYY-MM-DD'
   }, [])
 
-  // Filtrar las ventas de hoy de este repartidor
+  // Filtrar las ventas de hoy de este repartidor (unificando sales y syncQueue para que nada quede oculto)
   const todaySales = useMemo(() => {
-    return sales.filter(s => {
+    const map = new Map<string, Sale>()
+    // 1. Ventas en IndexedDB / memoria
+    sales.forEach(s => {
       const saleDate = new Date(s.transaction_date).toLocaleDateString('sv')
-      return s.driver_id === driver.id && saleDate === todayStr
+      if (s.driver_id === driver.id && saleDate === todayStr) {
+        map.set(s.id, s)
+      }
     })
-  }, [sales, driver.id, todayStr])
+    // 2. Ventas en cola de sincronización (por si están pendientes de envío o recién creadas)
+    syncQueue.forEach(q => {
+      if (q.type === 'sale') {
+        const s = q.payload as Sale
+        const saleDate = new Date(s.transaction_date).toLocaleDateString('sv')
+        if (s.driver_id === driver.id && saleDate === todayStr) {
+          map.set(s.id, s)
+        }
+      }
+    })
+    return Array.from(map.values()).sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime())
+  }, [sales, syncQueue, driver.id, todayStr])
 
   // Filtrar los gastos de hoy de este repartidor
   const todayExpenses = useMemo(() => {
