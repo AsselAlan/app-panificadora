@@ -133,4 +133,36 @@ describe('App de Repartidores (Choferes en Ruta)', () => {
     expect(endRouteSyncItem).toBeDefined();
     expect(endRouteSyncItem?.payload.driver_id).toBe('driver-carlos');
   });
+
+  it('Debe preservar la recaudación del día al reabrir la ruta si el chofer ya registró ventas hoy', async () => {
+    const todaySale = {
+      id: 'sale-today-reopen',
+      client_id: 'client-kiosco',
+      driver_id: 'driver-carlos',
+      transaction_date: new Date().toISOString(),
+      subtotal_sales: 15000,
+      total_returns: 0,
+      applied_debt: 0,
+      final_total: 15000,
+      payment_cash: 10000,
+      payment_transfer: 5000,
+      payment_account: 0,
+      status: 'completed' as const,
+      items: []
+    };
+
+    useStore.setState({
+      drivers: [
+        { id: 'driver-carlos', user_id: 'u-carlos', full_name: 'Carlos Chofer', status: 'Finalizado', is_online: false, is_mostrador: false, cash_collected: 10000, transfer_collected: 5000, location_data: null, last_active: new Date().toISOString() }
+      ],
+      sales: [todaySale]
+    });
+
+    await useStore.getState().startDriverRoute('driver-carlos');
+
+    const driverAfterReopen = useStore.getState().drivers[0];
+    expect(driverAfterReopen.status).toBe('En Ruta');
+    expect(driverAfterReopen.cash_collected).toBe(10000);
+    expect(driverAfterReopen.transfer_collected).toBe(5000);
+  });
 });

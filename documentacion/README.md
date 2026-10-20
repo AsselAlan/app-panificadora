@@ -67,6 +67,7 @@ El desarrollo siguió un enfoque iterativo y modular centrado en resolver los pr
 17.- **v0.20 (Resolución de Warnings Linter de Supabase & Blindaje de Procedimientos Almacenados):**
 - **Inmutabilidad de Search Path (`SET search_path = public, pg_temp`):** Se blindaron todos los procedimientos almacenados con `SECURITY DEFINER` fijando el esquema estricto de ejecución en PostgreSQL, resolviendo la vulnerabilidad potencial `function_search_path_mutable`.
 - **Protección de Funciones Administrativas vs Continuidad de Choferes:** Se revocó el permiso de ejecución anónima (`anon`) para funciones administrativas críticas (`apply_stock_update`, `revert_stock_update`, `get_all_users`), reservándolas exclusivamente para usuarios autenticados con rol administrativo. Al mismo tiempo, se protegió la disponibilidad de `process_offline_sale` para garantizar que los choferes en calle no experimenten bloqueos de sincronización durante la rotación o refresco de tokens en áreas con cobertura móvil deficiente.
+- **Sanitización de `saveDriverLoads` y Preservación de Caja al Reabrir Ruta (`useStore.ts` & `DriverApp.tsx`):** Se normalizó el payload enviado a `public.loads` (excluyendo campos exclusivos de UI como `returned_quantity` y asegurando formato fecha `YYYY-MM-DD`) y se blindó `startDriverRoute` para que, al reabrir una ruta finalizada en el mismo día, conserve intactos los montos de `cash_collected` y `transfer_collected` ya recaudados durante la jornada.
 
 ---
 

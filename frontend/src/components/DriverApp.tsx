@@ -257,12 +257,12 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
           id: crypto.randomUUID(),
           driver_id: driver.id,
           product_id: p.id,
-          date_loaded: new Date().toISOString(),
+          date_loaded: new Date().toLocaleDateString('sv'),
           initial_quantity: qtyInfo.total,
           current_quantity: qtyInfo.total
         }
       })
-      useStore.setState({ loads: initialLoads })
+      useStore.getState().saveDriverLoads(driver.id, initialLoads)
     }
   }, [driver, loads.length, weeklyRoutes, products])
 

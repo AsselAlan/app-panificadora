@@ -710,7 +710,16 @@ export const useStore = create<AppState>()(
         set({ loads: loadsToSave })
         if (!get().isOffline) {
           try {
-            const { error } = await supabase.from('loads').upsert(loadsToSave, { onConflict: 'driver_id,product_id,date_loaded' })
+            const todayStr = new Date().toLocaleDateString('sv')
+            const cleanLoads = loadsToSave.map(l => ({
+              id: l.id,
+              driver_id: l.driver_id,
+              product_id: l.product_id,
+              date_loaded: (l.date_loaded || todayStr).substring(0, 10),
+              initial_quantity: Number(l.initial_quantity || 0),
+              current_quantity: Number(l.current_quantity || 0)
+            }))
+            const { error } = await supabase.from('loads').upsert(cleanLoads, { onConflict: 'driver_id,product_id,date_loaded' })
             if (error) console.error('Error guardando cargas en Supabase:', error)
           } catch (err) {
             console.error('Error guardando cargas en Supabase:', err)
@@ -837,14 +846,43 @@ export const useStore = create<AppState>()(
         }
       },
 
-      // Iniciar recorrido del chofer
+      // Iniciar o reabrir recorrido del chofer
       startDriverRoute: async (driverId) => {
+        const todayStr = new Date().toLocaleDateString('sv')
+        const state = get()
+        const hasTodaySales = (state.sales || []).some(s =>
+          s.driver_id === driverId &&
+          s.status === 'completed' &&
+          new Date(s.transaction_date).toLocaleDateString('sv') === todayStr
+        ) || (state.syncQueue || []).some(q =>
+          q.type === 'sale' &&
+          (q.payload as Sale).driver_id === driverId &&
+          (q.payload as Sale).status === 'completed' &&
+          new Date((q.payload as Sale).transaction_date).toLocaleDateString('sv') === todayStr
+        )
+
         set(state => ({
-          drivers: state.drivers.map(d => d.id === driverId ? { ...d, status: 'En Ruta', is_online: true, last_active: new Date().toISOString(), cash_collected: 0, transfer_collected: 0 } : d)
+          drivers: state.drivers.map(d => d.id === driverId ? {
+            ...d,
+            status: 'En Ruta',
+            is_online: true,
+            last_active: new Date().toISOString(),
+            cash_collected: hasTodaySales ? d.cash_collected : 0,
+            transfer_collected: hasTodaySales ? d.transfer_collected : 0
+          } : d)
         }))
 
         if (!get().isOffline) {
-          await supabase.from('drivers').update({ status: 'En Ruta', is_online: true, last_active: new Date(), cash_collected: 0, transfer_collected: 0 }).eq('id', driverId)
+          const updatePayload: any = {
+            status: 'En Ruta',
+            is_online: true,
+            last_active: new Date().toISOString()
+          }
+          if (!hasTodaySales) {
+            updatePayload.cash_collected = 0
+            updatePayload.transfer_collected = 0
+          }
+          await supabase.from('drivers').update(updatePayload).eq('id', driverId)
         }
       },
 
