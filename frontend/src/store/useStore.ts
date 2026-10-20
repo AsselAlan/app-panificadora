@@ -277,6 +277,9 @@ interface AppState {
 // IMPLEMENTACIÓN DEL STORE ZUSTAND
 // ==========================================
 
+// Deduplicador de promesas en vuelo para evitar descargas simultáneas duplicadas (ahorro de Egress)
+let inFlightInitialFetch: Promise<void> | null = null;
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -406,7 +409,9 @@ export const useStore = create<AppState>()(
       // Carga todo desde la base de datos (Usado por Dashboard / Admin)
       fetchInitialData: async () => {
         if (get().isOffline) return
+        if (inFlightInitialFetch) return inFlightInitialFetch
 
+        inFlightInitialFetch = (async () => {
         try {
           // Fetch por lotes para evitar ERR_HTTP2_SERVER_REFUSED_STREAM
           const resProd = await supabase.from('products').select('*').eq('is_deleted', false).order('display_order', { ascending: true }).order('name')
@@ -414,10 +419,10 @@ export const useStore = create<AppState>()(
           const resDriv = await supabase.from('drivers').select('*').eq('is_deleted', false).order('full_name')
           const resExp = await supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(50)
           
-          const sixtyDaysAgo = new Date()
-          sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+          const threeDaysAgo = new Date()
+          threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
           
-          const resSal = await supabase.from('sales').select('*, items:sale_items(*, products(name))').gte('transaction_date', sixtyDaysAgo.toISOString()).order('transaction_date', { ascending: false })
+          const resSal = await supabase.from('sales').select('*, items:sale_items(*, products(name))').gte('transaction_date', threeDaysAgo.toISOString()).order('transaction_date', { ascending: false })
           const resCat = await supabase.from('expense_categories').select('*').order('name')
           const resRoutes = await supabase.from('weekly_routes').select('*')
           const resDriverCat = await supabase.from('driver_expense_categories').select('*').order('name')
@@ -452,11 +457,15 @@ export const useStore = create<AppState>()(
           })
           const remoteExpenses = resExp.data || []
           
-          // Preservar ventas locales de IndexedDB que no vinieron en la query remota
+          // Preservar ventas locales recientes de IndexedDB que no vinieron en la query remota
           // (ej: si RLS o paginación no las devolvió para este chofer, JAMÁS borrarlas del teléfono!)
           const remoteSaleIds = new Set(remoteSales.map(s => s.id))
           const pendingSaleIds = new Set(pendingSales.map(s => s.id))
-          const preservedLocalSales = (state.sales || []).filter(ls => !remoteSaleIds.has(ls.id) && !pendingSaleIds.has(ls.id))
+          const preservedLocalSales = (state.sales || []).filter(ls => 
+            !remoteSaleIds.has(ls.id) && 
+            !pendingSaleIds.has(ls.id) &&
+            new Date(ls.transaction_date) >= threeDaysAgo
+          )
 
           const mergedSales = [
             ...remoteSales.filter(rs => !pendingSaleIds.has(rs.id)),
@@ -508,11 +517,15 @@ export const useStore = create<AppState>()(
             driverExpenseCategories: resDriverCat.data || []
           })
           
-          await get().fetchStockLosses()
           await get().fetchSettlements()
         } catch (error) {
           console.error('Error cargando datos iniciales de Supabase:', error)
+        } finally {
+          inFlightInitialFetch = null
         }
+        })()
+
+        return inFlightInitialFetch
       },
 
       // Cargar ventas filtradas por un día específico (para historiales)

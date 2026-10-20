@@ -47,7 +47,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
       if (!document.hidden) {
         fetchInitialData()
       }
-    }, 30000)
+    }, 60000)
     
     // Al volver al foco, actualizar inmediatamente
     const handleVisibilityChange = () => {

@@ -182,10 +182,10 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
 
     // 1. Polling periódico de alta frecuencia (cada 10 segundos)
     const intervalId = setInterval(() => {
-      if (navigator.onLine && !isSyncing) {
+      if (navigator.onLine && !document.hidden && !useStore.getState().isSyncing) {
         fetchInitialData()
       }
-    }, 10000)
+    }, 60000)
 
     // 2. Suscripción a WebSockets Realtime de Supabase (instantáneo)
     const channel = supabase
@@ -203,7 +203,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
 
     // 3. Listener al volver a enfocar la app
     const handleFocus = () => {
-      if (navigator.onLine) fetchInitialData()
+      if (navigator.onLine && !document.hidden && !useStore.getState().isSyncing) fetchInitialData()
     }
 
     window.addEventListener('focus', handleFocus)
@@ -215,7 +215,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ onLogout }) => {
       window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleFocus)
     }
-  }, [fetchInitialData, isSyncing])
+  }, [fetchInitialData])
 
   // Cargar datos específicos del chofer activo al seleccionarlo
   useEffect(() => {

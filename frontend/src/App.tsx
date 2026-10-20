@@ -61,29 +61,32 @@ function App() {
       setOffline(true)
     }
 
-    // Suscripción Realtime para sincronización instantánea entre múltiples dispositivos (Admin, Chofer A, Chofer B)
+    // Suscripción Realtime con debounce para evitar ráfagas duplicadas de ancho de banda (Egress)
+    let realtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleRealtimeRefresh = () => {
+      if (realtimeDebounceTimer) clearTimeout(realtimeDebounceTimer)
+      realtimeDebounceTimer = setTimeout(() => {
+        const { userRole, currentDriverId, isSyncing, fetchInitialData, fetchDriverData } = useStore.getState()
+        if (isSyncing) return
+        if (userRole === 'admin' || userRole === 'mostrador') {
+          fetchInitialData()
+        } else if (currentDriverId) {
+          fetchInitialData()
+          fetchDriverData(currentDriverId)
+        }
+      }, 1500)
+    }
+
     const realtimeChannel = supabase
       .channel('public-db-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, () => {
-        const { userRole, currentDriverId, fetchInitialData, fetchDriverData } = useStore.getState()
-        if (userRole === 'admin' || userRole === 'mostrador') {
-          fetchInitialData()
-        } else if (currentDriverId) {
-          fetchDriverData(currentDriverId)
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
-        const { userRole, currentDriverId, fetchInitialData, fetchDriverData } = useStore.getState()
-        if (userRole === 'admin' || userRole === 'mostrador') {
-          fetchInitialData()
-        } else if (currentDriverId) {
-          fetchDriverData(currentDriverId)
-        }
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, scheduleRealtimeRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, scheduleRealtimeRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_settlements' }, scheduleRealtimeRefresh)
       .subscribe()
 
     return () => {
       clearTimeout(authSafetyTimeout)
+      if (realtimeDebounceTimer) clearTimeout(realtimeDebounceTimer)
       subscription.unsubscribe()
       supabase.removeChannel(realtimeChannel)
       window.removeEventListener('online', handleOnline)
