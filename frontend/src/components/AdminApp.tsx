@@ -197,8 +197,39 @@ export const AdminApp: React.FC<AdminAppProps> = ({ onLogout }) => {
 // ==========================================
 // SECCIÓN A.1: DASHBOARD GENERAL
 // ==========================================
+const fetchAllCompletedSalesInRange = async (startISO: string, endISO: string, endInclusive = false) => {
+  const PAGE_SIZE = 1000
+  let allSales: any[] = []
+  let from = 0
+
+  while (true) {
+    let query = supabase
+      .from('sales')
+      .select('id, driver_id, client_id, transaction_date, subtotal_sales, total_returns, final_total, payment_cash, payment_transfer, payment_account, status')
+      .eq('status', 'completed')
+      .gte('transaction_date', startISO)
+
+    query = endInclusive
+      ? query.lte('transaction_date', endISO)
+      : query.lt('transaction_date', endISO)
+
+    const { data, error } = await query
+      .order('transaction_date', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) throw error
+    if (!data || data.length === 0) break
+
+    allSales = allSales.concat(data)
+    if (data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+
+  return allSales
+}
+
 const AdminDashboard: React.FC = () => {
-  const { drivers, products, clients } = useStore()
+  const { drivers, products, clients, sales } = useStore()
 
   const [rendimientoDate, setRendimientoDate] = useState<string>(new Date().toLocaleDateString('sv'))
   const [rendimientoSales, setRendimientoSales] = useState<any[]>([])
@@ -213,18 +244,18 @@ const AdminDashboard: React.FC = () => {
         const end = new Date(year, month - 1, day)
         end.setHours(23, 59, 59, 999)
         
-        const salesRes = await supabase.from('sales').select('*').gte('transaction_date', start.toISOString()).lte('transaction_date', end.toISOString())
+        const salesData = await fetchAllCompletedSalesInRange(start.toISOString(), end.toISOString(), true)
         const expensesRes = await supabase.from('expenses').select('*').gte('expense_date', start.toISOString()).lte('expense_date', end.toISOString())
         
         
-        setRendimientoSales(salesRes.data || [])
+        setRendimientoSales(salesData || [])
         setRendimientoExpenses(expensesRes.data || [])
       } catch (err) {
         console.error('Error fetching rendimiento data:', err)
       }
     }
     fetchRendimiento()
-  }, [rendimientoDate])
+  }, [rendimientoDate, sales.length])
 
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toLocaleDateString('sv').substring(0, 7))
   const [monthlySales, setMonthlySales] = useState<any[]>([])
@@ -237,11 +268,11 @@ const AdminDashboard: React.FC = () => {
     endDate.setMonth(endDate.getMonth() + 1)
     const end = endDate.toISOString()
     
-    const salesRes = await supabase.from('sales').select('*').gte('transaction_date', start).lt('transaction_date', end)
+    const salesData = await fetchAllCompletedSalesInRange(start, end, false)
     const expRes = await supabase.from('expenses').select('*').gte('expense_date', start).lt('expense_date', end)
     const lossesRes = await supabase.from('stock_losses').select('*').gte('loss_date', start).lt('loss_date', end)
     
-    if (!salesRes.error && salesRes.data) setMonthlySales(salesRes.data)
+    if (salesData) setMonthlySales(salesData)
     if (!expRes.error && expRes.data) setMonthlyExpenses(expRes.data)
     if (!lossesRes.error && lossesRes.data) setMonthlyLosses(lossesRes.data)
   }, [selectedMonth])
@@ -249,6 +280,8 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     fetchMonthly()
   }, [fetchMonthly])
+
+  useEffect(() => { fetchMonthly() }, [sales.length, clients, fetchMonthly])
 
   // Calcular métricas
   const totalSales = monthlySales.reduce((acc, s) => acc + s.final_total, 0)
@@ -304,7 +337,7 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-bg-surface shadow-sm border border-brand-muted/20 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-center">
           <h3 className="text-brand-muted text-xs font-bold uppercase tracking-wider mb-1">Ventas Brutas</h3>
           <p className="text-3xl font-black text-brand-deep">${totalSales.toLocaleString()}</p>
-          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Total facturado en el mes (ya descontadas devoluciones)</p>
+          <p className="text-[10px] text-brand-muted mt-1 leading-tight">Total facturado en {monthlySales.length} operaciones (incluye contado y fiado en Cta. Cte., descontadas devoluciones)</p>
           <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-100">
             <TrendingUp size={80} />
           </div>
@@ -369,7 +402,7 @@ const AdminDashboard: React.FC = () => {
           <div className="bg-bg-surface shadow-sm/40 border border-brand-muted/10 p-5 rounded-2xl">
             <h4 className="text-brand-muted text-xs font-bold uppercase mb-1 flex items-center gap-2"><ArrowDown size={14} className="text-green-600"/> Deuda Cobrada</h4>
             <p className="text-2xl font-black text-green-600">${deudaCobrada.toLocaleString()}</p>
-            <p className="text-[10px] text-brand-muted mt-1 leading-tight">Cobros de deudas anteriores recibidos en el mes (reduce la cartera)</p>
+            <p className="text-[10px] text-brand-muted mt-1 leading-tight">Cobros de deudas recibidos en el mes (ingresan a Caja y reducen Deudas Pendientes; no duplican Ventas Brutas)</p>
           </div>
           <div className={`p-5 rounded-2xl border ${flujoNeto > 0 ? 'bg-red-500/5 border-red-500/15' : flujoNeto < 0 ? 'bg-green-500/5 border-green-500/15' : 'bg-bg-surface border-brand-muted/10'}`}>
             <h4 className="text-brand-muted text-xs font-bold uppercase mb-1 flex items-center gap-2"><AlertCircle size={14} className="text-red-500"/> Deudas Pendientes Totales</h4>
@@ -447,7 +480,8 @@ const AdminDashboard: React.FC = () => {
             
             const driverCash = Math.max(0, driverGrossCash - driverExpensesCash);
             const driverTransfer = Math.max(0, driverGrossTransfer - driverExpensesTransfer);
-            const driverSalesTotal = driverGrossCash + driverGrossTransfer;
+            const driverFiado = driverSales.reduce((acc, s) => acc + (s.payment_account > 0 ? s.payment_account : 0), 0);
+            const driverSalesTotal = driverSales.reduce((acc, s) => acc + s.final_total, 0);
             
             return (
             <div key={d.id} className="bg-bg-app border border-brand-muted/10 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -468,6 +502,10 @@ const AdminDashboard: React.FC = () => {
                 <div className="text-right">
                   <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Transf. (Neta)</span>
                   <span className="font-bold text-brand-deep/80">${driverTransfer.toLocaleString()}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Fiado Cta. Cte.</span>
+                  <span className="font-bold text-orange-500">${driverFiado.toLocaleString()}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Gastos Totales</span>
@@ -520,6 +558,10 @@ const AdminDashboard: React.FC = () => {
                   <div className="text-right">
                     <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Caja Transf.</span>
                     <span className="font-bold text-brand-deep/80">${mostradorSalesToday.reduce((acc, s) => acc + s.payment_transfer, 0).toLocaleString()}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Fiado Cta. Cte.</span>
+                    <span className="font-bold text-orange-500">${mostradorSalesToday.reduce((acc, s) => acc + (s.payment_account > 0 ? s.payment_account : 0), 0).toLocaleString()}</span>
                   </div>
                   <div className="text-right hidden md:block">
                     <span className="text-[10px] text-brand-muted/80 block uppercase font-bold">Devoluciones</span>
@@ -1009,15 +1051,15 @@ const AdminDrivers: React.FC = () => {
         const end = new Date(year, month - 1, day)
         end.setHours(23, 59, 59, 999)
         
-        const salesRes = await supabase.from('sales').select('*').gte('transaction_date', start.toISOString()).lte('transaction_date', end.toISOString())
+        const salesData = await fetchAllCompletedSalesInRange(start.toISOString(), end.toISOString(), true)
         const expensesRes = await supabase.from('expenses').select('*').gte('expense_date', start.toISOString()).lte('expense_date', end.toISOString())
         const settlementsRes = await supabase.from('driver_settlements').select('*').eq('settlement_date', selectedDate)
         
-        if (salesRes.error) throw salesRes.error
+        // salesData ya filtrada y validada por fetchAllCompletedSalesInRange
         if (expensesRes.error) throw expensesRes.error
         if (settlementsRes.error) throw settlementsRes.error
         
-        setDaySales(salesRes.data || [])
+        setDaySales(salesData || [])
         setDayExpenses(expensesRes.data || [])
         setDaySettlements(settlementsRes.data || [])
       } catch (err) {
@@ -1471,6 +1513,7 @@ const ClientProfileModal: React.FC<{ client: any, onClose: () => void }> = ({ cl
         .from('sales')
         .select('*')
         .eq('client_id', client.id)
+        .eq('status', 'completed')
         .gte('transaction_date', startDate)
         .lte('transaction_date', endDate)
         .order('transaction_date', { ascending: false })

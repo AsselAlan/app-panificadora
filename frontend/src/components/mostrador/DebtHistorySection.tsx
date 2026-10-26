@@ -33,7 +33,7 @@ export const DebtHistorySection: React.FC<{ clientId: string; totalDebt: number 
       }
 
       const isDebtSale = (s: any) => {
-        if (s.status === 'cancelled') return false
+        if (s.status && s.status !== 'completed') return false
         const subtotal = Number(s.subtotal_sales || s.final_total || 0)
         const cash = Number(s.payment_cash || 0)
         const transfer = Number(s.payment_transfer || 0)
@@ -53,6 +53,7 @@ export const DebtHistorySection: React.FC<{ clientId: string; totalDebt: number 
           .from('sales')
           .select('*')
           .eq('client_id', clientId)
+          .eq('status', 'completed')
           .order('transaction_date', { ascending: false })
 
         if (sales) {
